@@ -1668,52 +1668,220 @@ function renderPieChart(title, slices) {
 }
 
 // ==================== QUICK ADD GASTO ====================
-const CATS_GASTO = ['Gasolina/carro','Mercado','Comida/bebida','Role','Outros'];
 
 function renderQuickAdd(onSave) {
   const md = getMonthData();
-  const EXCLUIR = ['cartão de credito', 'cartão bb', 'cartão inter', 'outros'];
+  const today = new Date().toISOString().split('T')[0];
 
-  // Categorias existentes no mês, excluindo as bloqueadas
-  const catToGasto = {};
-  md.balanco.gastos.forEach(g => {
-    if (g.categoria) {
-      const key = g.categoria.toLowerCase();
-      if (!EXCLUIR.includes(key) && !catToGasto[key]) catToGasto[key] = g;
-    }
-  });
-  const opts = Object.entries(catToGasto)
-    .map(([key, g]) => {
-      const label = key.charAt(0).toUpperCase() + key.slice(1);
-      return `<option value="${key}">${label} (${fmt(g.valor)})</option>`;
-    }).join('');
+  // Gastos existentes para o dropdown de débito
+  const EXCLUIR_CATS = ['cartão de credito','cartão bb','cartão inter'];
+  const gastoOpts = md.balanco.gastos
+    .filter(g => !EXCLUIR_CATS.includes((g.categoria||'').toLowerCase()))
+    .sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR'))
+    .map(g => `<option value="${g.id}">${g.nome} — ${fmt(g.valor)}</option>`)
+    .join('');
 
-  return `<div class="quick-add">
+  const catOpts = ['alimentação','transporte','lazer','saúde','moradia','trabalho','assinatura','outros']
+    .map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`)
+    .join('');
+
+  const tabBtnStyle = (active) =>
+    `flex:1;padding:7px;border:none;border-radius:6px;font-size:13px;font-family:'Barlow Condensed';font-weight:600;cursor:pointer;transition:all 0.15s;` +
+    (active ? `background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.3)` : `background:transparent;color:var(--text2)`);
+
+  const ccBtnStyle = (active) =>
+    `flex:1;padding:6px 4px;border-radius:6px;font-size:12px;font-family:'Barlow Condensed';font-weight:600;cursor:pointer;border:1px solid;transition:all 0.15s;` +
+    (active ? `background:var(--red);color:#fff;border-color:var(--red)` : `background:var(--surface2);color:var(--text2);border-color:var(--border)`);
+
+  return `<div class="quick-add" id="qa-wrap-${onSave}" data-onsave="${onSave}">
     <div class="quick-add-title">Registrar Gasto</div>
-    <div class="quick-add-row">
-      <input id="qa-nome" type="text" placeholder="Descrição…" style="flex:2;min-width:120px">
-      <input id="qa-valor" type="number" inputmode="decimal" placeholder="R$ 0,00">
-      <button class="btn btn-primary" onclick="saveQuickGasto('${onSave}')">Salvar</button>
+
+    <!-- Tabs Débito / Crédito -->
+    <div style="display:flex;gap:4px;margin-bottom:12px;background:var(--surface2);border-radius:8px;padding:3px">
+      <button id="qa-tab-deb-${onSave}" onclick="qaSetTipo('debito','${onSave}')" style="${tabBtnStyle(true)}">Débito</button>
+      <button id="qa-tab-cred-${onSave}" onclick="qaSetTipo('credito','${onSave}')" style="${tabBtnStyle(false)}">Crédito</button>
     </div>
-    <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
-      <select id="qa-cat-select" style="flex:1;min-width:160px;font-size:14px;padding:9px 12px"
-        onchange="document.getElementById('qa-cat-custom').style.display=this.value==='__nova__'?'block':'none'">
-        <option value="">— Categoria (opcional) —</option>
-        ${opts}
-        <option value="__nova__">+ Nova categoria…</option>
-      </select>
+
+    <!-- ── DÉBITO ── -->
+    <div id="qa-deb-${onSave}">
+      <div class="quick-add-row">
+        <select id="qa-gasto-${onSave}" style="flex:2;min-width:120px" onchange="qaOnGastoChange('${onSave}')">
+          <option value="">— Selecionar gasto existente —</option>
+          ${gastoOpts}
+          <option value="__novo__">✦ Novo gasto…</option>
+        </select>
+        <input id="qa-valor-${onSave}" type="number" inputmode="decimal" placeholder="R$"
+          style="max-width:110px" onkeydown="if(event.key==='Enter')saveQuickDebito('${onSave}')">
+        <button class="btn btn-primary" onclick="saveQuickDebito('${onSave}')">+</button>
+      </div>
+      <div id="qa-novo-${onSave}" style="display:none;margin-top:8px">
+        <div class="quick-add-row">
+          <input id="qa-nome-${onSave}" type="text" placeholder="Nome do gasto…" style="flex:2">
+          <select id="qa-cat-${onSave}" style="flex:1">${catOpts}</select>
+        </div>
+      </div>
     </div>
-    <input id="qa-cat-custom" type="text" placeholder="Nome da nova categoria…"
-      style="display:none;margin-top:8px;font-size:13px;padding:7px 12px;width:100%;box-sizing:border-box">
+
+    <!-- ── CRÉDITO ── -->
+    <div id="qa-cred-${onSave}" style="display:none">
+      <div class="quick-add-row" style="margin-bottom:8px">
+        <select id="qa-bank-${onSave}" style="flex:1">
+          <option value="bb">Banco do Brasil</option>
+          <option value="inter">Inter</option>
+        </select>
+        <div style="display:flex;gap:4px;flex:2">
+          <button id="qa-cct-par-${onSave}" onclick="qaSetCCTipo('parcelada','${onSave}')" style="${ccBtnStyle(true)}">Parcela</button>
+          <button id="qa-cct-av-${onSave}"  onclick="qaSetCCTipo('avista','${onSave}')"    style="${ccBtnStyle(false)}">À vista</button>
+          <button id="qa-cct-ass-${onSave}" onclick="qaSetCCTipo('assinatura','${onSave}')" style="${ccBtnStyle(false)}">Assin.</button>
+        </div>
+      </div>
+
+      <!-- Campos comuns -->
+      <div class="quick-add-row" style="margin-bottom:8px">
+        <input id="qa-cc-tit-${onSave}" type="text" placeholder="Título…" style="flex:2">
+        <input id="qa-cc-val-${onSave}" type="number" inputmode="decimal" placeholder="R$/parcela" style="max-width:130px">
+      </div>
+
+      <!-- Parcelada -->
+      <div id="qa-cc-pf-${onSave}">
+        <div class="quick-add-row">
+          <input id="qa-cc-npar-${onSave}" type="number" inputmode="numeric" placeholder="Nº parcelas" min="1" style="flex:1"
+            oninput="qaCalcAte('${onSave}')">
+          <input id="qa-cc-data-${onSave}" type="date" value="${today}" style="flex:1"
+            onchange="qaCalcAte('${onSave}')">
+          <div id="qa-cc-ate-${onSave}" style="flex:1;font-size:11px;color:var(--text3);display:flex;align-items:center;padding:0 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;min-height:40px">até —</div>
+        </div>
+      </div>
+
+      <!-- À vista -->
+      <div id="qa-cc-avf-${onSave}" style="display:none">
+        <input id="qa-cc-dataav-${onSave}" type="date" value="${today}" style="width:100%">
+      </div>
+
+      <!-- Assinatura -->
+      <div id="qa-cc-assf-${onSave}" style="display:none">
+        <input id="qa-cc-dia-${onSave}" type="number" inputmode="numeric" placeholder="Dia de cobrança (ex: 15)" min="1" max="31" style="width:100%">
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="saveQuickCredito('${onSave}')">Adicionar ao Cartão</button>
+    </div>
   </div>`;
+}
+
+function qaSetTipo(tipo, onSave) {
+  const isDeb = tipo === 'debito';
+  document.getElementById(`qa-deb-${onSave}`).style.display  = isDeb ? '' : 'none';
+  document.getElementById(`qa-cred-${onSave}`).style.display = isDeb ? 'none' : '';
+  const on  = `background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.3)`;
+  const off = `background:transparent;color:var(--text2)`;
+  const base = `flex:1;padding:7px;border:none;border-radius:6px;font-size:13px;font-family:'Barlow Condensed';font-weight:600;cursor:pointer;transition:all 0.15s;`;
+  document.getElementById(`qa-tab-deb-${onSave}`).style.cssText  = base + (isDeb  ? on : off);
+  document.getElementById(`qa-tab-cred-${onSave}`).style.cssText = base + (!isDeb ? on : off);
+}
+
+function qaOnGastoChange(onSave) {
+  const val = document.getElementById(`qa-gasto-${onSave}`)?.value;
+  document.getElementById(`qa-novo-${onSave}`).style.display = val === '__novo__' ? '' : 'none';
+}
+
+function qaSetCCTipo(tipo, onSave) {
+  const map = { parcelada: 'par', avista: 'av', assinatura: 'ass' };
+  const onS  = `background:var(--red);color:#fff;border-color:var(--red)`;
+  const offS = `background:var(--surface2);color:var(--text2);border-color:var(--border)`;
+  const base = `flex:1;padding:6px 4px;border-radius:6px;font-size:12px;font-family:'Barlow Condensed';font-weight:600;cursor:pointer;border:1px solid;transition:all 0.15s;`;
+  ['parcelada','avista','assinatura'].forEach(t => {
+    document.getElementById(`qa-cct-${map[t]}-${onSave}`).style.cssText = base + (t===tipo ? onS : offS);
+  });
+  document.getElementById(`qa-cc-pf-${onSave}`).style.display   = tipo === 'parcelada'  ? '' : 'none';
+  document.getElementById(`qa-cc-avf-${onSave}`).style.display  = tipo === 'avista'      ? '' : 'none';
+  document.getElementById(`qa-cc-assf-${onSave}`).style.display = tipo === 'assinatura'  ? '' : 'none';
+  // Update placeholder
+  const valInput = document.getElementById(`qa-cc-val-${onSave}`);
+  if (valInput) valInput.placeholder = tipo === 'parcelada' ? 'R$/parcela' : tipo === 'assinatura' ? 'R$/mês' : 'R$';
+}
+
+function qaCalcAte(onSave) {
+  const nparc = parseInt(document.getElementById(`qa-cc-npar-${onSave}`)?.value || '0');
+  const dataVal = document.getElementById(`qa-cc-data-${onSave}`)?.value;
+  const ateEl = document.getElementById(`qa-cc-ate-${onSave}`);
+  if (!ateEl) return;
+  if (!nparc || !dataVal) { ateEl.textContent = 'até —'; delete ateEl.dataset.val; return; }
+  const [y, m] = dataVal.split('-').map(Number);
+  let lm = m + nparc - 1, ly = y;
+  while (lm > 12) { lm -= 12; ly++; }
+  ateEl.textContent = `até ${MONTHS[lm-1].slice(0,3)} ${ly}`;
+  ateEl.dataset.val = `${ly}-${String(lm).padStart(2,'0')}`;
+}
+
+function saveQuickDebito(onSave) {
+  if (guardReadOnly()) return;
+  const md = getMonthData();
+  const gastoId = document.getElementById(`qa-gasto-${onSave}`)?.value;
+  const valor = parseFloat(document.getElementById(`qa-valor-${onSave}`)?.value);
+  if (!valor || valor <= 0) { showFieldError(`qa-valor-${onSave}`, 'Informe o valor'); return; }
+
+  if (gastoId && gastoId !== '__novo__' && gastoId !== '') {
+    const existente = md.balanco.gastos.find(g => g.id === gastoId);
+    if (existente) {
+      if (!existente.historico) existente.historico = [];
+      existente.historico.push({ delta: valor, ts: Date.now(), tipo: 'soma' });
+      existente.valor = Math.round((existente.valor + valor) * 100) / 100;
+    }
+  } else {
+    const nome = document.getElementById(`qa-nome-${onSave}`)?.value.trim();
+    if (!nome) { showFieldError(`qa-nome-${onSave}`, 'Nome é obrigatório'); return; }
+    const cat = document.getElementById(`qa-cat-${onSave}`)?.value || 'outros';
+    md.balanco.gastos.push({ id: uid(), nome, valor, pago: false, categoria: cat, ts: Date.now(), historico: [] });
+  }
+
+  saveData();
+  if (onSave === 'dashboard') renderDashboard(md); else setFinancasTab('balanco');
+}
+
+function saveQuickCredito(onSave) {
+  if (guardReadOnly()) return;
+  const md = getMonthData();
+  const bank  = document.getElementById(`qa-bank-${onSave}`)?.value || 'bb';
+  const titulo = document.getElementById(`qa-cc-tit-${onSave}`)?.value.trim();
+  const valor  = parseFloat(document.getElementById(`qa-cc-val-${onSave}`)?.value);
+  if (!titulo) { showFieldError(`qa-cc-tit-${onSave}`, 'Título obrigatório'); return; }
+  if (!valor || valor <= 0) { showFieldError(`qa-cc-val-${onSave}`, 'Informe o valor'); return; }
+
+  // Detect active tipo by which panel is visible
+  const isPar = document.getElementById(`qa-cc-pf-${onSave}`)?.style.display !== 'none';
+  const isAv  = document.getElementById(`qa-cc-avf-${onSave}`)?.style.display !== 'none';
+
+  if (isPar) {
+    const nparc = parseInt(document.getElementById(`qa-cc-npar-${onSave}`)?.value || '1') || 1;
+    const data  = document.getElementById(`qa-cc-data-${onSave}`)?.value || new Date().toISOString().split('T')[0];
+    const ateEl = document.getElementById(`qa-cc-ate-${onSave}`);
+    const ateQuando = ateEl?.dataset.val || (() => {
+      const [y, m] = data.split('-').map(Number);
+      let lm = m + nparc - 1, ly = y;
+      while (lm > 12) { lm -= 12; ly++; }
+      return `${ly}-${String(lm).padStart(2,'0')}`;
+    })();
+    md.cartao[bank].parceladas.push({ id: uid(), titulo, valor, parcelas: nparc, ateQuando, data });
+  } else if (isAv) {
+    const data = document.getElementById(`qa-cc-dataav-${onSave}`)?.value || new Date().toISOString().split('T')[0];
+    md.cartao[bank].avista.push({ id: uid(), titulo, valor, data });
+  } else {
+    const dia = String(parseInt(document.getElementById(`qa-cc-dia-${onSave}`)?.value || '1')).padStart(2,'0');
+    md.cartao[bank].assinaturas.push({ id: uid(), titulo, valor, dia });
+  }
+
+  saveData();
+  if (onSave === 'dashboard') renderDashboard(md); else setFinancasTab('cartao');
 }
 
 function selectQuickCat(el, cat) {
   document.querySelectorAll('.quick-cat').forEach(b => b.classList.remove('selected'));
   el.classList.add('selected');
   const custom = document.getElementById('qa-cat-custom');
-  if (cat === '__nova__') { custom.style.display = 'block'; custom.focus(); }
-  else { custom.style.display = 'none'; custom.value = ''; }
+  if (custom) {
+    if (cat === '__nova__') { custom.style.display = 'block'; custom.focus(); }
+    else { custom.style.display = 'none'; custom.value = ''; }
+  }
 }
 
 function getSelectedQuickCat() {
@@ -1723,56 +1891,6 @@ function getSelectedQuickCat() {
   if (sel.value === '') return 'outros';
   return sel.value;
 }
-
-function saveQuickGasto(onSave) {
-  if(guardReadOnly())return;
-  const nome = document.getElementById('qa-nome')?.value.trim();
-  const valor = parseFloat(document.getElementById('qa-valor')?.value);
-  const cat = getSelectedQuickCat();
-  if (!nome) { showFieldError('qa-nome', 'Descrição é obrigatória'); return; }
-  if (!valor || valor <= 0) { showFieldError('qa-valor', 'Valor deve ser maior que zero'); return; }
-  const md = getMonthData();
-
-  // Check if a gasto with this category already exists → sum to it
-  const catKey = cat.toLowerCase();
-  const existente = catKey !== '__nova__' && catKey !== 'outros' && catKey !== ''
-    ? md.balanco.gastos.find(g => (g.categoria||'').toLowerCase() === catKey)
-    : null;
-
-  if (existente && cat !== '__nova__') {
-    // Sum to existing item, log in historico
-    if (!existente.historico) existente.historico = [];
-    existente.historico.push({
-      delta: valor,
-      ts: Date.now(),
-      descricao: `+${fmt(valor)} (${nome})`,
-      tipo: 'soma'
-    });
-    existente.valor += valor;
-  } else {
-    // Create new gasto
-    const finalCat = cat === '__nova__'
-      ? (document.getElementById('qa-cat-custom')?.value.trim() || 'Outros')
-      : cat;
-    md.balanco.gastos.push({
-      id: uid(), nome, valor, pago: false,
-      categoria: finalCat.toLowerCase(),
-      ts: Date.now(), historico: []
-    });
-  }
-
-  saveData();
-  if (onSave === 'dashboard') renderDashboard(md);
-  else setFinancasTab('balanco');
-}
-
-// Also allow Enter key on valor field
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && document.activeElement?.id === 'qa-valor') {
-    const page = currentPage;
-    saveQuickGasto(page === 'balanco' ? 'balanco' : 'dashboard');
-  }
-});
 
 // ==================== FINANÇAS UNIFICADO ====================
 let financasTabContent = null;
