@@ -761,7 +761,7 @@ function emptyMonth() {
     ponto: { dias: {}, valorHora: 15.9 },
     tattoo: [],
     parcerias: [],
-    cartao: { bb: { parceladas: [], avista: [], assinaturas: [] }, inter: { parceladas: [], avista: [], assinaturas: [] } }
+    cartao: { bb: { fechamento: null, parceladas: [], avista: [], assinaturas: [] }, inter: { fechamento: null, parceladas: [], avista: [], assinaturas: [] } }
   };
 }
 
@@ -860,9 +860,11 @@ function seedNewMonth(md, k) {
 
   // 2. Copy cartão entirely (parceladas + assinaturas carry over; avista resets)
   if (prev.cartao) {
-    md.cartao.bb.parceladas  = (prev.cartao.bb?.parceladas  || []).map(p => ({...p, id: uid()}));
-    md.cartao.bb.assinaturas = (prev.cartao.bb?.assinaturas || []).map(a => ({...a, id: uid()}));
-    md.cartao.bb.avista      = [];
+    md.cartao.bb.fechamento     = prev.cartao.bb?.fechamento ?? null;
+    md.cartao.bb.parceladas     = (prev.cartao.bb?.parceladas  || []).map(p => ({...p, id: uid()}));
+    md.cartao.bb.assinaturas    = (prev.cartao.bb?.assinaturas || []).map(a => ({...a, id: uid()}));
+    md.cartao.bb.avista         = [];
+    md.cartao.inter.fechamento  = prev.cartao.inter?.fechamento ?? null;
     md.cartao.inter.parceladas  = (prev.cartao.inter?.parceladas  || []).map(p => ({...p, id: uid()}));
     md.cartao.inter.assinaturas = (prev.cartao.inter?.assinaturas || []).map(a => ({...a, id: uid()}));
     md.cartao.inter.avista      = [];
@@ -1801,16 +1803,19 @@ function qaSetCCTipo(tipo, onSave) {
 }
 
 function qaCalcAte(onSave) {
-  const nparc = parseInt(document.getElementById(`qa-cc-npar-${onSave}`)?.value || '0');
+  const nparc  = parseInt(document.getElementById(`qa-cc-npar-${onSave}`)?.value || '0');
   const dataVal = document.getElementById(`qa-cc-data-${onSave}`)?.value;
-  const ateEl = document.getElementById(`qa-cc-ate-${onSave}`);
+  const bank   = document.getElementById(`qa-bank-${onSave}`)?.value || 'bb';
+  const ateEl  = document.getElementById(`qa-cc-ate-${onSave}`);
   if (!ateEl) return;
   if (!nparc || !dataVal) { ateEl.textContent = 'até —'; delete ateEl.dataset.val; return; }
-  const [y, m] = dataVal.split('-').map(Number);
-  let lm = m + nparc - 1, ly = y;
-  while (lm > 12) { lm -= 12; ly++; }
-  ateEl.textContent = `até ${MONTHS[lm-1].slice(0,3)} ${ly}`;
-  ateEl.dataset.val = `${ly}-${String(lm).padStart(2,'0')}`;
+  const md   = getMonthData();
+  const fech = md.cartao[bank]?.fechamento || null;
+  const first = calcPrimeiraParcela(dataVal, fech);
+  const ate   = calcAteQuandoCC(dataVal, fech, nparc);
+  const [fy, fm] = first.split('-').map(Number);
+  ateEl.innerHTML = `<span style="color:var(--text2)">${MONTHS[fm-1].slice(0,3)} → ${fmtAteQuando(ate)}</span>`;
+  ateEl.dataset.val = ate;
 }
 
 function saveQuickDebito(onSave) {
@@ -1854,13 +1859,8 @@ function saveQuickCredito(onSave) {
   if (isPar) {
     const nparc = parseInt(document.getElementById(`qa-cc-npar-${onSave}`)?.value || '1') || 1;
     const data  = document.getElementById(`qa-cc-data-${onSave}`)?.value || new Date().toISOString().split('T')[0];
-    const ateEl = document.getElementById(`qa-cc-ate-${onSave}`);
-    const ateQuando = ateEl?.dataset.val || (() => {
-      const [y, m] = data.split('-').map(Number);
-      let lm = m + nparc - 1, ly = y;
-      while (lm > 12) { lm -= 12; ly++; }
-      return `${ly}-${String(lm).padStart(2,'0')}`;
-    })();
+    const fech  = md.cartao[bank]?.fechamento || null;
+    const ateQuando = calcAteQuandoCC(data, fech, nparc);
     md.cartao[bank].parceladas.push({ id: uid(), titulo, valor, parcelas: nparc, ateQuando, data });
   } else if (isAv) {
     const data = document.getElementById(`qa-cc-dataav-${onSave}`)?.value || new Date().toISOString().split('T')[0];
@@ -3897,6 +3897,61 @@ function addTattoo(){if(guardReadOnly())return;const n=document.getElementById('
 // ==================== CARTÃO ====================
 const CATS_CC = ['Alimentação','Transporte','Saúde','Lazer','Vestuário','Casa','Tecnologia','Outros'];
 
+// Retorna 'YYYY-MM' do mês em que a 1ª parcela cai, considerando dia de fechamento
+function calcPrimeiraParcela(dataCompra, fechamento) {
+  const [y, m, d] = dataCompra.split('-').map(Number);
+  let fm = m, fy = y;
+  if (fechamento && d > fechamento) {
+    fm++; if (fm > 12) { fm = 1; fy++; }
+  }
+  return `${fy}-${String(fm).padStart(2,'0')}`;
+}
+
+// Retorna 'YYYY-MM' da última parcela
+function calcAteQuandoCC(dataCompra, fechamento, nParcelas) {
+  const first = calcPrimeiraParcela(dataCompra, fechamento);
+  const [fy, fm] = first.split('-').map(Number);
+  let lm = fm + nParcelas - 1, ly = fy;
+  while (lm > 12) { lm -= 12; ly++; }
+  return `${ly}-${String(lm).padStart(2,'0')}`;
+}
+
+function fmtAteQuando(ateQuando) {
+  if (!ateQuando) return '—';
+  return ateQuando.replace(/^(\d{4})-(\d{2})$/, (_, y, m) => MONTHS[parseInt(m)-1].slice(0,3)+'/'+y);
+}
+
+function editFechamento(bank) {
+  if (guardReadOnly()) return;
+  const md = getMonthData();
+  const atual = md.cartao[bank].fechamento || '';
+  const lbl = bank === 'bb' ? 'Banco do Brasil' : 'Inter';
+  openModal(`<div class="modal-handle"></div>
+    <div class="modal-title">FECHAMENTO — ${lbl.toUpperCase()}</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.6">
+      Dia do mês em que a fatura fecha.<br>
+      Compras até esse dia entram na fatura do mês atual;<br>
+      compras após esse dia vão para a fatura do próximo mês.
+    </div>
+    <div class="form-group">
+      <label class="form-label">Dia de fechamento</label>
+      <input id="mFech" type="number" inputmode="numeric" min="1" max="31" placeholder="Ex: 9" value="${atual}">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveFechamento('${bank}')">Salvar</button>
+    </div>`);
+}
+
+function saveFechamento(bank) {
+  if (!validateNumber('mFech', 'Dia de fechamento', 1)) return;
+  const dia = parseInt(document.getElementById('mFech').value);
+  if (dia > 31) { showFieldError('mFech', 'Dia inválido (1–31)'); return; }
+  const md = getMonthData();
+  md.cartao[bank].fechamento = dia;
+  saveData(); closeModal(); setFinancasTab('cartao');
+}
+
 function renderCartao(md){ renderFinancas(md); }
 function renderCartaoOriginal(md){
   const bb=md.cartao.bb, inter=md.cartao.inter;
@@ -3926,8 +3981,11 @@ function renderCartaoOriginal(md){
       </div>
       <div id="cc-extra-parcelada" style="display:none;margin-top:8px">
         <div class="quick-add-row">
-          <input id="cc-parcelas" type="number" inputmode="numeric" placeholder="Nº parcelas" style="max-width:130px">
-          <div style="display:flex;gap:6px"><select id="cc-ate-m" style="flex:1"><option value="">Mês</option><option value="01" >Janeiro</option><option value="02" >Fevereiro</option><option value="03" >Março</option><option value="04" >Abril</option><option value="05" >Maio</option><option value="06" >Junho</option><option value="07" >Julho</option><option value="08" >Agosto</option><option value="09" >Setembro</option><option value="10" >Outubro</option><option value="11" >Novembro</option><option value="12" >Dezembro</option></select><select id="cc-ate-y" style="flex:1"><option value="">Ano</option><option value="2025" >2025</option><option value="2026" >2026</option><option value="2027" >2027</option><option value="2028" >2028</option><option value="2029" >2029</option><option value="2030" >2030</option><option value="2031" >2031</option></select></div>
+          <input id="cc-parcelas" type="number" inputmode="numeric" placeholder="Nº parcelas" style="max-width:130px"
+            oninput="ccCalcAte()">
+          <input id="cc-data-compra" type="date" value="${new Date().toISOString().split('T')[0]}" style="flex:1"
+            onchange="ccCalcAte()">
+          <div id="cc-ate-preview" style="flex:1;font-size:11px;color:var(--text3);display:flex;align-items:center;padding:0 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;min-height:40px">até —</div>
         </div>
       </div>
       <div id="cc-extra-assinatura" style="display:none;margin-top:8px">
@@ -3941,7 +3999,12 @@ function renderCartaoOriginal(md){
     <!-- TOTAIS -->
     <div class="cc-header">
       <div class="cc-card">
-        <div class="cc-bank">🟡 Banco do Brasil</div>
+        <div class="cc-bank" style="display:flex;align-items:center;justify-content:space-between">
+          <span>🟡 Banco do Brasil</span>
+          <button onclick="editFechamento('bb')" style="background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;color:${bb.fechamento?'var(--accent)':'var(--text3)'};cursor:pointer;font-family:'Barlow Condensed'">
+            ${bb.fechamento ? `Fecha dia ${bb.fechamento}` : 'Definir fechamento'}
+          </button>
+        </div>
         <div class="cc-total stat-red">${fmt(bbT)}</div>
         <div class="cc-breakdown">
           <div class="cc-item">Parc. <span>${fmt(bbP)}</span></div>
@@ -3950,7 +4013,12 @@ function renderCartaoOriginal(md){
         </div>
       </div>
       <div class="cc-card">
-        <div class="cc-bank">🔴 Inter</div>
+        <div class="cc-bank" style="display:flex;align-items:center;justify-content:space-between">
+          <span>🔴 Inter</span>
+          <button onclick="editFechamento('inter')" style="background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;color:${inter.fechamento?'var(--accent)':'var(--text3)'};cursor:pointer;font-family:'Barlow Condensed'">
+            ${inter.fechamento ? `Fecha dia ${inter.fechamento}` : 'Definir fechamento'}
+          </button>
+        </div>
         <div class="cc-total stat-red">${fmt(inT)}</div>
         <div class="cc-breakdown">
           <div class="cc-item">Parc. <span>${fmt(inP)}</span></div>
@@ -4090,19 +4158,20 @@ function selectCCTipo(el, tipo) {
   document.getElementById('cc-extra-assinatura').style.display = tipo==='assinatura'?'block':'none';
 }
 
-function getAteQuando(prefix) {
-  const m = document.getElementById(prefix+'-m')?.value;
-  const y = document.getElementById(prefix+'-y')?.value;
-  if (!m || !y) return '';
-  return y + '-' + m;
-}
-function setAteQuando(prefix, val) {
-  if (!val || val.length < 7) return;
-  const [y, m] = val.split('-');
-  const mEl = document.getElementById(prefix+'-m');
-  const yEl = document.getElementById(prefix+'-y');
-  if (mEl) mEl.value = m;
-  if (yEl) yEl.value = y;
+function ccCalcAte() {
+  const nparc = parseInt(document.getElementById('cc-parcelas')?.value||'0');
+  const data  = document.getElementById('cc-data-compra')?.value;
+  const bank  = document.getElementById('cc-bank')?.value || 'bb';
+  const prev  = document.getElementById('cc-ate-preview');
+  if (!prev) return;
+  if (!nparc || !data) { prev.textContent = 'até —'; return; }
+  const md = getMonthData();
+  const fech = md.cartao[bank]?.fechamento || null;
+  const first = calcPrimeiraParcela(data, fech);
+  const ate   = calcAteQuandoCC(data, fech, nparc);
+  const [fy, fm] = first.split('-').map(Number);
+  prev.innerHTML = `<span style="color:var(--text2)">${MONTHS[fm-1].slice(0,3)} → ${fmtAteQuando(ate)}</span>`;
+  prev.dataset.val = ate;
 }
 
 function saveQuickCC() {
@@ -4120,8 +4189,10 @@ function saveQuickCC() {
     md.cartao[bank].avista.push({id:uid(),titulo:desc,valor,data:new Date().toISOString().split('T')[0],categoria:cat});
   } else if (tipo === 'parcelada') {
     const parcelas = parseInt(document.getElementById('cc-parcelas')?.value||'1')||1;
-    const ateQuando = getAteQuando('cc-ate');
-    md.cartao[bank].parceladas.push({id:uid(),titulo:desc,valor,parcelas,ateQuando,data:new Date().toISOString().split('T')[0],categoria:cat});
+    const data = document.getElementById('cc-data-compra')?.value || new Date().toISOString().split('T')[0];
+    const fech = md.cartao[bank]?.fechamento || null;
+    const ateQuando = calcAteQuandoCC(data, fech, parcelas);
+    md.cartao[bank].parceladas.push({id:uid(),titulo:desc,valor,parcelas,ateQuando,data,categoria:cat});
   } else {
     const dia = (document.getElementById('cc-dia')?.value||'01').toString().padStart(2,'0');
     md.cartao[bank].assinaturas.push({id:uid(),titulo:desc,valor,dia,categoria:cat});
@@ -4185,29 +4256,44 @@ function saveEditCC(bank, type, id) {
 function removeCC(bank,type,id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.cartao[bank][type]=md.cartao[bank][type].filter(x=>x.id!==id);saveData();setFinancasTab('cartao');}
 
 function openAddCC(bank,type){
-  const isP=type==='parcelada', isA=type==='assinatura', isV=type==='avista';
+  const isP=type==='parcelada', isA=type==='assinatura';
   const catOpts = CATS_CC.map(c=>`<option value="${c.toLowerCase()}">${c}</option>`).join('');
+  const today = new Date().toISOString().split('T')[0];
+  const md = getMonthData();
+  const fech = md.cartao[bank]?.fechamento;
+  const fechInfo = fech ? `<span style="font-size:11px;color:var(--text3)">Fecha dia ${fech}</span>` : `<span style="font-size:11px;color:var(--red);cursor:pointer" onclick="closeModal();editFechamento('${bank}')">⚠ Fechamento não definido</span>`;
   openModal(`<div class="modal-handle"></div><div class="modal-title">${isP?'NOVA PARCELADA':isA?'NOVA ASSINATURA':'NOVA À VISTA'} — ${bank.toUpperCase()}</div>
     <div class="form-group"><label class="form-label">Título</label><input id="mT"></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">${isP?'Valor/parcela':isA?'Valor/mês':'Valor'} (R$)</label><input id="mV" type="number" step="0.01" inputmode="decimal"></div>
-      ${isP?`<div class="form-group"><label class="form-label">Nº Parcelas</label><input id="mP" type="number" value="12"></div>`:''}
+      ${isP?`<div class="form-group"><label class="form-label">Nº Parcelas</label><input id="mP" type="number" value="12" oninput="modalCalcAte('${bank}')"></div>`:''}
       ${isA?`<div class="form-group"><label class="form-label">Dia Cobrança</label><input id="mD" placeholder="01"></div>`:''}
     </div>
-    ${isP?`<div class="form-group"><label class="form-label">Até quando</label>
-      <div style="display:flex;gap:6px">
-        <select id="mA-m" style="flex:1"><option value="">Mês</option>
-          ${['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'].map((m,i)=>`<option value="${String(i+1).padStart(2,'0')}">${m}</option>`).join('')}
-        </select>
-        <select id="mA-y" style="flex:1"><option value="">Ano</option>
-          ${[2025,2026,2027,2028,2029,2030,2031].map(y=>`<option value="${y}">${y}</option>`).join('')}
-        </select>
-      </div>
-    </div>`:''}
+    ${isP?`<div class="form-group">
+      <label class="form-label">Data da compra ${fechInfo}</label>
+      <input id="mData" type="date" value="${today}" onchange="modalCalcAte('${bank}')">
+    </div>
+    <div id="mAtePreview" style="font-size:12px;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:8px">Informe nº de parcelas e data para calcular</div>`:''}
     <div class="form-group"><label class="form-label">Categoria</label>
       <select id="mCat"><option value="">— Selecione —</option>${catOpts}</select>
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addCC('${bank}','${type}')">Adicionar</button></div>`);
+}
+
+function modalCalcAte(bank) {
+  const nparc = parseInt(document.getElementById('mP')?.value||'0');
+  const data  = document.getElementById('mData')?.value;
+  const prev  = document.getElementById('mAtePreview');
+  if (!prev) return;
+  if (!nparc || !data) { prev.textContent = 'Informe nº de parcelas e data para calcular'; return; }
+  const md = getMonthData();
+  const fech = md.cartao[bank]?.fechamento || null;
+  const first = calcPrimeiraParcela(data, fech);
+  const ate   = calcAteQuandoCC(data, fech, nparc);
+  const [fy, fm] = first.split('-').map(Number);
+  const [ly, lm] = ate.split('-').map(Number);
+  prev.innerHTML = `1ª parcela: <strong style="color:var(--accent)">${MONTHS[fm-1]} ${fy}</strong> &nbsp;·&nbsp; Última: <strong style="color:var(--text)">${MONTHS[lm-1]} ${ly}</strong>`;
+  prev.dataset.ate = ate;
 }
 
 function addCC(bank,type){
@@ -4221,8 +4307,10 @@ function addCC(bank,type){
   const md=getMonthData();
   if(type==='parcelada'){
     const p=parseInt(document.getElementById('mP')?.value||'1')||1;
-    const a=getAteQuando('mA');
-    md.cartao[bank].parceladas.push({id:uid(),titulo:t,valor:v,parcelas:p,ateQuando:a,data:new Date().toISOString().split('T')[0],categoria:cat});
+    const data=document.getElementById('mData')?.value||new Date().toISOString().split('T')[0];
+    const fech=md.cartao[bank]?.fechamento||null;
+    const a=calcAteQuandoCC(data,fech,p);
+    md.cartao[bank].parceladas.push({id:uid(),titulo:t,valor:v,parcelas:p,ateQuando:a,data,categoria:cat});
   } else if(type==='assinatura'){
     const d=(document.getElementById('mD')?.value||'01').toString().padStart(2,'0');
     md.cartao[bank].assinaturas.push({id:uid(),titulo:t,valor:v,dia:d,categoria:cat});
