@@ -222,10 +222,12 @@
     padding: 5px 11px; border-radius: 6px; font-size: 12px;
     cursor: pointer; border: 1px solid; font-family: 'Barlow Condensed', sans-serif; font-weight: 500; transition: all 0.15s; background: none;
   }
-  .toggle-pago { border-color: rgba(76,175,80,0.4); color: var(--green); }
-  .toggle-pago:hover { background: rgba(76,175,80,0.1); }
-  .toggle-pendente { border-color: rgba(232,32,10,0.4); color: var(--red); }
-  .toggle-pendente:hover { background: rgba(232,32,10,0.1); }
+  .toggle-pago { border-color: rgba(76,175,80,0.4); color: var(--green); background: rgba(76,175,80,0.1); }
+  .toggle-pago:hover { background: rgba(76,175,80,0.18); }
+  .toggle-pendente { border-color: rgba(232,32,10,0.4); color: var(--red); background: rgba(232,32,10,0.1); }
+  .toggle-pendente:hover { background: rgba(232,32,10,0.18); }
+  .toggle-neutro { border-color: var(--border); color: var(--text3); background: none; }
+  .toggle-neutro:hover { border-color: var(--text3); color: var(--text2); background: var(--surface2); }
 
   /* TABS */
   .tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: 10px; padding: 4px; margin-bottom: 20px; width: 100%; }
@@ -2022,9 +2024,10 @@ function renderBalancoOriginal(md) {
               <td><span class="badge ${isGerenciada?'badge-blue':'badge-gray'}" style="font-size:10px">${catLabel}</span></td>
               <td><span class="badge ${g.recebido?'badge-green':'badge-yellow'}">${g.recebido?'✓':'Pend.'}</span></td>
               ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
-                <button class="toggle-btn ${g.recebido?'toggle-pago':'toggle-pendente'}" onclick="toggleGanho('${g.id}')" style="padding:4px 7px">${g.recebido?'✓':'○'}</button>
+                <button class="toggle-btn ${g.recebido?'toggle-pago':'toggle-neutro'}" onclick="setGanhoStatus('${g.id}',true)" style="padding:4px 9px;font-size:14px" title="Confirmar recebido">✓</button>
+                <button class="toggle-btn ${!g.recebido?'toggle-pendente':'toggle-neutro'}" onclick="setGanhoStatus('${g.id}',false)" style="padding:4px 9px;font-size:14px" title="Marcar como pendente">✕</button>
                 <button class="btn btn-ghost btn-sm" onclick="editGanho('${g.id}')" style="padding:4px 7px">✎</button>
-                <button class="btn btn-danger btn-sm" onclick="removeGanho('${g.id}')" style="padding:4px 7px">✕</button>
+                <button class="btn btn-danger btn-sm" onclick="removeGanho('${g.id}')" style="padding:4px 7px" title="Excluir">🗑</button>
               </div></td>`}
             </tr>`;
           }).join('')}</tbody>
@@ -2060,9 +2063,10 @@ function renderBalancoOriginal(md) {
             <td class="mono">${fmt(g.valor)}</td>
             <td><span class="badge ${g.pago?'badge-green':'badge-red'}">${g.pago?'✓':'Pend.'}</span></td>
             ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
-              <button class="toggle-btn ${g.pago?'toggle-pago':'toggle-pendente'}" onclick="toggleGasto('${g.id}')" style="padding:4px 7px">${g.pago?'✓':'○'}</button>
+              <button class="toggle-btn ${g.pago?'toggle-pago':'toggle-neutro'}" onclick="setGastoPago('${g.id}',true)" style="padding:4px 9px;font-size:14px" title="Confirmar pago">✓</button>
+              <button class="toggle-btn ${!g.pago?'toggle-pendente':'toggle-neutro'}" onclick="setGastoPago('${g.id}',false)" style="padding:4px 9px;font-size:14px" title="Marcar como pendente">✕</button>
               <button class="btn btn-ghost btn-sm" onclick="editGasto('${g.id}')" style="padding:4px 7px">✎</button>
-              <button class="btn btn-danger btn-sm" onclick="removeGasto('${g.id}')" style="padding:4px 7px">✕</button>
+              <button class="btn btn-danger btn-sm" onclick="removeGasto('${g.id}')" style="padding:4px 7px" title="Excluir">🗑</button>
             </div></td>`}
           </tr>`).join('')}</tbody>
         </table></div>
@@ -2194,6 +2198,8 @@ function deleteSelectedGastos() {
 }
 function toggleGanho(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(g)g.recebido=!g.recebido;saveData();setFinancasTab('balanco');}
 function toggleGasto(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(g)g.pago=!g.pago;saveData();setFinancasTab('balanco');}
+function setGanhoStatus(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(g&&g.recebido!==val){g.recebido=val;saveData();setFinancasTab('balanco');}}
+function setGastoPago(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(g&&g.pago!==val){g.pago=val;saveData();setFinancasTab('balanco');}}
 function removeGanho(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.balanco.ganhos=md.balanco.ganhos.filter(x=>x.id!==id);saveData();setFinancasTab('balanco');}
 function removeGasto(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.balanco.gastos=md.balanco.gastos.filter(x=>x.id!==id);saveData();setFinancasTab('balanco');}
 
