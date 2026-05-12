@@ -1527,59 +1527,91 @@ function renderDashboard(md) {
 
     <!-- COMPARAÇÃO MÊS ANTERIOR -->
     ${prevMd ? `
-    <div class="section-header"><div class="section-title">VS MÊS ANTERIOR · ${prevLabel?.toUpperCase()}</div></div>
-    <div class="table-card" style="margin-bottom:20px;padding:16px">
-      ${(()=>{
-        const rows = [
-          {l:'Saldo',     prev:prevExpSaldo,   curr:expSaldo,   inv:false, destaque:true},
-          {l:'Ganhos',    prev:prevExpGanhos,  curr:expGanhos,  inv:false},
-          {l:'Gastos',    prev:prevExpGastos,  curr:expGastos,  inv:true},
-          {l:'Calistenia',prev:prevExpCali,    curr:expCali,    inv:false},
-          {l:'Personal',  prev:prevExpPersonal,curr:expPersonal,inv:false},
-          {l:'Tattoo',    prev:prevExpTattoo,  curr:expTattoo,  inv:false},
-        ];
-        const maxVal = Math.max(...rows.map(r=>Math.max(Math.abs(r.prev),Math.abs(r.curr))), 1);
+    ${(()=>{
+      const rows = [
+        {l:'Saldo',      prev:prevExpSaldo,    curr:expSaldo,    inv:false, destaque:true},
+        {l:'Ganhos',     prev:prevExpGanhos,   curr:expGanhos,   inv:false},
+        {l:'Gastos',     prev:prevExpGastos,   curr:expGastos,   inv:true},
+        {l:'Calistenia', prev:prevExpCali,     curr:expCali,     inv:false},
+        {l:'Personal',   prev:prevExpPersonal, curr:expPersonal, inv:false},
+        {l:'Tattoo',     prev:prevExpTattoo,   curr:expTattoo,   inv:false},
+      ];
+      const maxVal = Math.max(...rows.map(r=>Math.max(Math.abs(r.prev),Math.abs(r.curr))), 1);
 
-        return `
-        <!-- Mês labels -->
-        <div style="display:flex;justify-content:space-between;margin-bottom:14px;padding:0 4px">
-          <div style="display:flex;align-items:center;gap:6px">
-            <div style="width:10px;height:10px;border-radius:2px;background:var(--text3)"></div>
-            <span style="font-size:11px;color:var(--text3)">${prevLabel}</span>
+      const betterCount = rows.filter(r=>{ const d=r.curr-r.prev; return d!==0&&(r.inv?d<0:d>0); }).length;
+      const worseCount  = rows.filter(r=>{ const d=r.curr-r.prev; return d!==0&&(r.inv?d>0:d<0); }).length;
+
+      return `
+      <div class="section-header" style="margin-bottom:10px">
+        <div class="section-title">${prevLabel?.toUpperCase()} → ${MONTHS[currentMonth.m]?.toUpperCase()}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${betterCount>0?`<span style="background:rgba(76,175,80,0.15);color:var(--green);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:700;font-family:'Barlow Condensed'">▲ ${betterCount} melhor${betterCount>1?'es':''}</span>`:''}
+          ${worseCount>0?`<span style="background:rgba(232,32,10,0.12);color:var(--red);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:700;font-family:'Barlow Condensed'">▼ ${worseCount} pior${worseCount>1?'es':''}</span>`:''}
+          ${betterCount===0&&worseCount===0?`<span style="color:var(--text3);font-size:11px">Sem alterações</span>`:''}
+        </div>
+      </div>
+      <div class="table-card" style="margin-bottom:20px">
+        <!-- Legenda -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;gap:18px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:20px;height:3px;background:var(--text3);border-radius:2px"></div>
+              <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">${prevLabel}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:20px;height:5px;background:var(--accent);border-radius:2px"></div>
+              <span style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1px">${MONTHS[currentMonth.m]}</span>
+            </div>
           </div>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:11px;color:var(--accent)">${MONTHS[currentMonth.m]}</span>
-            <div style="width:10px;height:10px;border-radius:2px;background:var(--accent)"></div>
-          </div>
+          <span style="font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase">Expectativa</span>
         </div>
 
-        ${rows.map(row => {
-          const diff = row.curr - row.prev;
-          const better = row.inv ? diff <= 0 : diff >= 0;
-          const diffCor = diff === 0 ? 'var(--text3)' : better ? 'var(--green)' : 'var(--red)';
-          const pPrev = Math.round(Math.abs(row.prev) / maxVal * 100);
-          const pCurr = Math.round(Math.abs(row.curr) / maxVal * 100);
-          const currBarColor = row.destaque ? 'var(--accent)' : better ? 'var(--green)' : diff === 0 ? 'var(--text3)' : 'var(--red)';
-          return `<div style="margin-bottom:${row.destaque?'18px':'12px'}">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-              <span style="font-size:${row.destaque?'12px':'11px'};color:${row.destaque?'var(--text)':'var(--text2)'};font-weight:${row.destaque?600:400}">${row.l}</span>
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-size:11px;color:var(--text3);font-family:'Barlow Condensed'">${fmt(row.prev)}</span>
-                <span style="font-size:${row.destaque?'15px':'12px'};color:var(--text);font-family:'Barlow Condensed';font-weight:600">${fmt(row.curr)}</span>
-                <span style="font-size:11px;color:${diffCor};font-family:'Barlow Condensed'">${diff>0?'+':''}${diff!==0?fmt(diff):''}</span>
+        <div style="padding:14px 16px">
+          ${rows.map(row => {
+            const diff    = row.curr - row.prev;
+            const better  = row.inv ? diff < 0 : diff > 0;
+            const neutral = diff === 0;
+            const dotCor  = neutral ? 'var(--text3)' : better ? 'var(--green)' : 'var(--red)';
+            const diffCor = neutral ? 'var(--text3)' : better ? 'var(--green)' : 'var(--red)';
+            const diffBg  = neutral ? 'transparent' : better ? 'rgba(76,175,80,0.15)' : 'rgba(232,32,10,0.12)';
+            const pPrev   = Math.round(Math.abs(row.prev) / maxVal * 100);
+            const pCurr   = Math.round(Math.abs(row.curr) / maxVal * 100);
+            const barCor  = row.destaque ? 'var(--accent)' : better ? 'var(--green)' : neutral ? 'var(--text3)' : 'var(--red)';
+            const arrow   = neutral ? '→' : better ? '▲' : '▼';
+            const pct     = row.prev !== 0 ? Math.round(Math.abs(diff)/Math.abs(row.prev)*100) : null;
+            const pctStr  = pct !== null ? (diff>0?'+':diff<0?'-':'')+pct+'%' : diff!==0?'∞':'';
+
+            return `
+            <div style="margin-bottom:${row.destaque?'18px':'13px'}">
+              <!-- Linha de valores -->
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+                <!-- Label com ponto indicador -->
+                <div style="display:flex;align-items:center;gap:7px">
+                  <div style="width:7px;height:7px;border-radius:50%;background:${dotCor};flex-shrink:0"></div>
+                  <span style="font-size:${row.destaque?'12px':'11px'};color:${row.destaque?'var(--text)':'var(--text2)'};font-weight:${row.destaque?600:500};text-transform:uppercase;letter-spacing:0.5px">${row.l}</span>
+                </div>
+                <!-- Anterior → Atual + badge % -->
+                <div style="display:flex;align-items:center;gap:7px">
+                  <span style="font-size:11px;color:var(--text3);font-family:'Barlow Condensed'">${fmt(row.prev)}</span>
+                  <span style="font-size:10px;color:${diffCor}">${arrow}</span>
+                  <span style="font-size:${row.destaque?'15px':'13px'};color:var(--text);font-family:'Barlow Condensed';font-weight:700">${fmt(row.curr)}</span>
+                  ${pctStr?`<span style="background:${diffBg};color:${diffCor};padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:'Barlow Condensed';white-space:nowrap">${pctStr}</span>`:''}
+                </div>
               </div>
-            </div>
-            <!-- Dual bar -->
-            <div style="position:relative;height:${row.destaque?'8px':'5px'};background:var(--surface3);border-radius:3px;overflow:hidden">
-              <!-- prev bar (ghost) -->
-              <div style="position:absolute;left:0;top:0;height:100%;width:${pPrev}%;background:rgba(255,255,255,0.12);border-radius:3px;transition:width 0.4s"></div>
-              <!-- curr bar -->
-              <div style="position:absolute;left:0;top:0;height:100%;width:${pCurr}%;background:${currBarColor};border-radius:3px;transition:width 0.4s;opacity:0.9"></div>
-            </div>
-          </div>`;
-        }).join('')}`;
-      })()}
-    </div>
+              <!-- Barras separadas: anterior (fina) e atual (grossa) -->
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <div style="height:3px;background:var(--surface3);border-radius:3px;overflow:hidden">
+                  <div style="height:100%;width:${pPrev}%;background:var(--text3);border-radius:3px;transition:width 0.5s ease"></div>
+                </div>
+                <div style="height:${row.destaque?'7px':'5px'};background:var(--surface3);border-radius:3px;overflow:hidden">
+                  <div style="height:100%;width:${pCurr}%;background:${barCor};border-radius:3px;transition:width 0.5s ease"></div>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    })()}
     ` : ''}
 
     <!-- ALERTAS + PENDENTES -->
