@@ -2022,12 +2022,12 @@ function renderBalancoOriginal(md) {
               </td>
               <td class="mono">${fmt(g.valor)}</td>
               <td><span class="badge ${isGerenciada?'badge-blue':'badge-gray'}" style="font-size:10px">${catLabel}</span></td>
-              <td><span class="badge ${g.recebido?'badge-green':'badge-yellow'}">${g.recebido?'✓':'Pend.'}</span></td>
+              <td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':'toggleGanho(\''+g.id+'\')'}">
+                <span class="badge ${g.recebido?'badge-green':'badge-yellow'}">${g.recebido?'✓ Recebido':'○ Pendente'}</span>
+              </td>
               ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
-                <button class="toggle-btn ${g.recebido?'toggle-pago':'toggle-neutro'}" onclick="setGanhoStatus('${g.id}',true)" style="padding:4px 9px;font-size:14px" title="Confirmar recebido">✓</button>
-                <button class="toggle-btn ${!g.recebido?'toggle-pendente':'toggle-neutro'}" onclick="setGanhoStatus('${g.id}',false)" style="padding:4px 9px;font-size:14px" title="Marcar como pendente">✕</button>
                 <button class="btn btn-ghost btn-sm" onclick="editGanho('${g.id}')" style="padding:4px 7px">✎</button>
-                <button class="btn btn-danger btn-sm" onclick="removeGanho('${g.id}')" style="padding:4px 7px" title="Excluir">🗑</button>
+                <button class="btn btn-danger btn-sm" onclick="removeGanho('${g.id}')" style="padding:4px 7px">✕</button>
               </div></td>`}
             </tr>`;
           }).join('')}</tbody>
@@ -2061,12 +2061,12 @@ function renderBalancoOriginal(md) {
               </div>
             </td>
             <td class="mono">${fmt(g.valor)}</td>
-            <td><span class="badge ${g.pago?'badge-green':'badge-red'}">${g.pago?'✓':'Pend.'}</span></td>
+            <td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':'toggleGasto(\''+g.id+'\')'}">
+              <span class="badge ${g.pago?'badge-green':'badge-red'}">${g.pago?'✓ Pago':'✕ Pendente'}</span>
+            </td>
             ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
-              <button class="toggle-btn ${g.pago?'toggle-pago':'toggle-neutro'}" onclick="setGastoPago('${g.id}',true)" style="padding:4px 9px;font-size:14px" title="Confirmar pago">✓</button>
-              <button class="toggle-btn ${!g.pago?'toggle-pendente':'toggle-neutro'}" onclick="setGastoPago('${g.id}',false)" style="padding:4px 9px;font-size:14px" title="Marcar como pendente">✕</button>
               <button class="btn btn-ghost btn-sm" onclick="editGasto('${g.id}')" style="padding:4px 7px">✎</button>
-              <button class="btn btn-danger btn-sm" onclick="removeGasto('${g.id}')" style="padding:4px 7px" title="Excluir">🗑</button>
+              <button class="btn btn-danger btn-sm" onclick="removeGasto('${g.id}')" style="padding:4px 7px">✕</button>
             </div></td>`}
           </tr>`).join('')}</tbody>
         </table></div>
