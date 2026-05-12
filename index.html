@@ -19,14 +19,15 @@
     --surface2: #1a1a1a;
     --surface3: #222222;
     --border: #2a2a2a;
-    --accent: #c8f135;
+    --accent: #E8200A;
+    --accent-hover: #c9190a;
     --accent2: #f1c135;
     --accent3: #35c8f1;
     --danger: #E8200A;
     --text: #F0F0F0;
-    --text2: #888888;
-    --text3: #555555;
-    --green: #35f18a;
+    --text2: #999999;
+    --text3: #6B6B6B;
+    --green: #4CAF50;
     --red: #E8200A;
     --radius: 12px;
     --safe-top: env(safe-area-inset-top, 0px);
@@ -40,7 +41,7 @@
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-  ::selection { background: rgba(200,241,53,0.2); color: var(--text); }
+  ::selection { background: rgba(232,32,10,0.25); color: var(--text); }
 
   body {
     font-family: 'Barlow Condensed', sans-serif;
@@ -99,7 +100,7 @@
     border-left: 3px solid transparent;
   }
   .nav-item:hover { color: var(--text); background: var(--surface2); }
-  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(200,241,53,0.05); font-weight: 500; }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(232,32,10,0.08); font-weight: 500; }
   .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
 
   .sidebar-footer { padding: 16px 24px; border-top: 1px solid var(--border); padding-bottom: calc(16px + var(--safe-bottom)); }
@@ -166,8 +167,8 @@
     font-family: 'Barlow Condensed', sans-serif; font-weight: 500;
     cursor: pointer; border: none; transition: all 0.15s;
   }
-  .btn-primary { background: var(--accent); color: #000; }
-  .btn-primary:hover { background: #d8ff45; }
+  .btn-primary { background: var(--accent); color: #fff; font-weight: 600; letter-spacing: 0.5px; }
+  .btn-primary:hover { background: var(--accent-hover); }
   .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
   .btn-ghost:hover { color: var(--text); border-color: var(--text3); }
   .btn-danger { background: rgba(232,32,10,0.15); color: var(--danger); border: 1px solid rgba(232,32,10,0.3); }
@@ -181,8 +182,8 @@
     box-shadow: var(--shadow-sm);
     transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .stat-card.accent { border-color: rgba(200,241,53,0.3); background: rgba(200,241,53,0.04); }
-  .stat-card.green { border-color: rgba(53,241,138,0.3); background: rgba(53,241,138,0.04); }
+  .stat-card.accent { border-color: rgba(232,32,10,0.3); background: rgba(232,32,10,0.04); }
+  .stat-card.green { border-color: rgba(76,175,80,0.3); background: rgba(76,175,80,0.04); }
   .stat-card.red { border-color: rgba(232,32,10,0.3); background: rgba(232,32,10,0.04); }
   .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); font-weight: 500; margin-bottom: 6px; }
   .stat-value { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 500; color: var(--text); line-height: 1; }
@@ -209,7 +210,7 @@
 
   /* BADGES */
   .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 99px; font-size: 11px; font-weight: 500; white-space: nowrap; }
-  .badge-green { background: rgba(53,241,138,0.15); color: var(--green); }
+  .badge-green { background: rgba(76,175,80,0.15); color: var(--green); }
   .badge-red { background: rgba(232,32,10,0.15); color: var(--red); }
   .badge-yellow { background: rgba(241,193,53,0.15); color: var(--accent2); }
   .badge-blue { background: rgba(53,200,241,0.15); color: var(--accent3); }
@@ -221,8 +222,8 @@
     padding: 5px 11px; border-radius: 6px; font-size: 12px;
     cursor: pointer; border: 1px solid; font-family: 'Barlow Condensed', sans-serif; font-weight: 500; transition: all 0.15s; background: none;
   }
-  .toggle-pago { border-color: rgba(53,241,138,0.4); color: var(--green); }
-  .toggle-pago:hover { background: rgba(53,241,138,0.1); }
+  .toggle-pago { border-color: rgba(76,175,80,0.4); color: var(--green); }
+  .toggle-pago:hover { background: rgba(76,175,80,0.1); }
   .toggle-pendente { border-color: rgba(232,32,10,0.4); color: var(--red); }
   .toggle-pendente:hover { background: rgba(232,32,10,0.1); }
 
@@ -257,7 +258,7 @@
 
   /* PROGRESS */
   .progress-bar { background: var(--surface3); border-radius: 99px; height: 5px; overflow: hidden; margin-top: 7px; }
-  .progress-fill { height: 100%; border-radius: 99px; background: var(--accent); transition: width 0.3s; }
+  .progress-fill { height: 100%; border-radius: 99px; background: var(--green); transition: width 0.3s; }
 
   /* SECTION */
   .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -267,7 +268,7 @@
   .point-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 14px; }
   .point-day { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 4px; text-align: center; font-size: 11px; cursor: pointer; transition: all 0.15s; }
   .point-day:hover, .point-day:active { border-color: var(--text3); }
-  .point-day.worked { background: rgba(200,241,53,0.08); border-color: rgba(200,241,53,0.3); }
+  .point-day.worked { background: rgba(76,175,80,0.08); border-color: rgba(76,175,80,0.3); }
   .point-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   .point-day .day-num { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; color: var(--text); font-weight: 500; }
   .point-day .day-hrs { font-size: 9px; color: var(--accent); margin-top: 1px; font-weight: 600; }
@@ -275,7 +276,7 @@
 
   /* CC */
   .cc-header { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
-  .cc-card { flex: 1; min-width: 220px; background: linear-gradient(135deg, var(--surface2) 0%, var(--surface3) 100%); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; }
+  .cc-card { flex: 1; min-width: 220px; background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; }
   .cc-bank { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); margin-bottom: 10px; }
   .cc-total { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 500; }
   .cc-breakdown { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
@@ -283,7 +284,7 @@
   .cc-item span { color: var(--text); font-weight: 500; font-family: 'Barlow Condensed', sans-serif; }
 
   .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; font-size: 11px; background: var(--surface3); color: var(--text2); font-family: 'Barlow Condensed', sans-serif; }
-  .notice { background: rgba(200,241,53,0.06); border: 1px solid rgba(200,241,53,0.2); border-radius: 10px; padding: 11px 14px; font-size: 13px; color: var(--text2); margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
+  .notice { background: rgba(232,32,10,0.05); border: 1px solid rgba(232,32,10,0.2); border-radius: 10px; padding: 11px 14px; font-size: 13px; color: var(--text2); margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
   .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 
   /* ANIMATIONS */
@@ -305,11 +306,11 @@
   /* ROW SELECTION */
   .row-select { display:none } /* hide native checkbox */
   .row-select-cell { width:28px;height:28px;border-radius:6px;border:1.5px solid var(--border);background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;-webkit-tap-highlight-color:transparent }
-  .row-select-cell.checked { background:var(--accent);border-color:var(--accent) }
-  .row-select-cell.checked::after { content:'✓';color:#000;font-size:13px;font-weight:700 }
+  .row-select-cell.checked { background:var(--green);border-color:var(--green) }
+  .row-select-cell.checked::after { content:'✓';color:#fff;font-size:13px;font-weight:700 }
   .row-select-cell-all { width:28px;height:28px;border-radius:6px;border:1.5px solid var(--border);background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;-webkit-tap-highlight-color:transparent }
-  .row-select-cell-all.checked { background:var(--accent);border-color:var(--accent) }
-  .row-select-cell-all.checked::after { content:'✓';color:#000;font-size:13px;font-weight:700 }
+  .row-select-cell-all.checked { background:var(--green);border-color:var(--green) }
+  .row-select-cell-all.checked::after { content:'✓';color:#fff;font-size:13px;font-weight:700 }
   .selection-bar { display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px;color:var(--text3);transition:color 0.15s }
   .selection-bar.has-selection { color:var(--text2) }
   .selection-bar .sel-sum { font-family:'Barlow Condensed';font-size:15px;font-weight:600;color:var(--text3);transition:color 0.15s }
@@ -550,13 +551,13 @@
       </div>
       <div class="topbar-actions" id="topbarActions"></div>
       <div style="display:flex;align-items:center;gap:2px;flex-shrink:0" id="topbarMonthNav">
-        <button onclick="stepMonth(-1)" style="background: rgb(200, 241, 53); border: 1px solid rgba(53,241,138,0.3); border-radius: 6px 0 0 6px; padding: 6px 9px; font-size: 14px; color: #000; cursor: pointer; line-height: 1; font-weight: 700">&#8249;</button>
+        <button onclick="stepMonth(-1)" style="background: var(--accent); border: 1px solid rgba(232,32,10,0.4); border-radius: 6px 0 0 6px; padding: 6px 9px; font-size: 14px; color: #fff; cursor: pointer; line-height: 1; font-weight: 700">&#8249;</button>
         <button onclick="openMonthPicker()" style="background:var(--surface2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:none;border-right:none;padding:6px 8px;font-size:12px;color:var(--text2);cursor:pointer;font-family:'Barlow Condensed';display:flex;align-items:center;gap:4px;white-space:nowrap" id="topbarMonthBtn">
           <span id="topbarMonthLabel">Abr 2026</span>
           <span id="topbarLockIcon" style="font-size:11px;display:none">&#128274;</span>
           <span style="font-size:10px;opacity:0.5">&#8597;</span>
         </button>
-        <button onclick="stepMonth(1)" id="topbarMonthNext" style="background: rgb(200, 241, 53); border: 1px solid rgba(53,241,138,0.3); border-radius: 0px 6px 6px 0px; padding: 6px 9px; font-size: 14px; color: #000; cursor: pointer; line-height: 1; font-weight: 700">&#8250;</button>
+        <button onclick="stepMonth(1)" id="topbarMonthNext" style="background: var(--accent); border: 1px solid rgba(232,32,10,0.4); border-radius: 0px 6px 6px 0px; padding: 6px 9px; font-size: 14px; color: #fff; cursor: pointer; line-height: 1; font-weight: 700">&#8250;</button>
       </div>
     </div>
     <div class="content" id="content"></div>
@@ -1396,7 +1397,7 @@ function renderDashboard(md) {
 
       <!-- EXPECTATIVA -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-        <div style="background:rgba(200,241,53,0.06);border-bottom:1px solid rgba(200,241,53,0.15);padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
+        <div style="background:rgba(232,32,10,0.05);border-bottom:1px solid rgba(232,32,10,0.15);padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
           <div>
             <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--accent);font-weight:500">Expectativa</div>
             <div style="font-size:10px;color:var(--text3);margin-top:1px">Se tudo fosse pago</div>
@@ -1435,9 +1436,9 @@ function renderDashboard(md) {
 
       <!-- REALIDADE -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-        <div style="background:rgba(53,241,138,0.05);border-bottom:1px solid rgba(53,241,138,0.15);padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
+        <div style="background:rgba(76,175,80,0.05);border-bottom:1px solid rgba(76,175,80,0.15);padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
           <div>
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--accent);font-weight:500">Realidade</div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--green);font-weight:500">Realidade</div>
             <div style="font-size:10px;color:var(--text3);margin-top:1px">O que já aconteceu</div>
           </div>
           <div style="text-align:right">
@@ -1448,7 +1449,7 @@ function renderDashboard(md) {
           <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
             <div style="text-align:center;flex:1">
               <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Recebido</div>
-              <div style="font-family:'Barlow Condensed';font-size:16px;color:var(--accent);margin-top:2px">${fmt(realGanhos)}</div>
+              <div style="font-family:'Barlow Condensed';font-size:16px;color:var(--green);margin-top:2px">${fmt(realGanhos)}</div>
             </div>
             <div style="width:1px;background:var(--border)"></div>
             <div style="text-align:center;flex:1">
@@ -1498,8 +1499,8 @@ function renderDashboard(md) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px" class="two-col">
       ${renderPieChart('Fontes de Ganho', (() => {
         const src = [
-          {l:'Calistenia', v:realCali,    cor:'#35f18a'},
-          {l:'Personal',   v:realPersonal,cor:'#c8f135'},
+          {l:'Calistenia', v:realCali,    cor:'#4CAF50'},
+          {l:'Personal',   v:realPersonal,cor:'#E8200A'},
           {l:'Tattoo',     v:realTattoo,  cor:'#35c8f1'},
           {l:'7Force',     v:real7force,  cor:'#f1c135'},
           ...md.balanco.ganhos
@@ -1514,7 +1515,7 @@ function renderDashboard(md) {
           const k=(g.categoria||g.nome).toLowerCase();
           catMap[k]=(catMap[k]||0)+g.valor;
         });
-        const cores=['#E8200A','#ff6b35','#f1c135','#35c8f1','#a78bfa','#f472b6','#35f18a','#fb923c','#94a3b8'];
+        const cores=['#E8200A','#ff6b35','#f1c135','#35c8f1','#a78bfa','#f472b6','#4CAF50','#fb923c','#94a3b8'];
         return Object.entries(catMap).filter(([,v])=>v>0)
           .sort((a,b)=>b[1]-a[1])
           .map(([k,v],i)=>({
@@ -2172,7 +2173,7 @@ function editGanho(id){
     <div class="form-group"><label class="form-label">Valor atual (R$)</label>
       <input id="mV" type="number" inputmode="decimal" value="${g.valor}">
     </div>
-    <div style="background:rgba(200,241,53,0.06);border:1px solid rgba(200,241,53,0.2);border-radius:8px;padding:10px 14px;margin-bottom:14px">
+    <div style="background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:8px;padding:10px 14px;margin-bottom:14px">
       <label class="form-label" style="color:var(--accent)">Somar ao valor atual (opcional)</label>
       <input id="mSoma" type="number" inputmode="decimal" placeholder="Ex: 150.00 → ${fmt(g.valor)} + 150 = ${fmt(g.valor+150)}" style="margin-top:6px">
       <div style="font-size:11px;color:var(--text3);margin-top:4px">Deixe em branco para manter o valor atual</div>
@@ -2185,7 +2186,7 @@ function editGanho(id){
       <button id="mPersBtn" onclick="togglePersBtn()" type="button" style="
         width:100%;padding:12px 16px;border-radius:8px;
         border:1.5px solid ${g.persistente?'var(--green)':'var(--border)'};
-        background:${g.persistente?'rgba(53,241,138,0.08)':'var(--surface2)'};
+        background:${g.persistente?'rgba(76,175,80,0.07)':'var(--surface2)'};
         color:${g.persistente?'var(--green)':'var(--text2)'};
         font-family:'Barlow Condensed';font-size:15px;font-weight:${g.persistente?600:400};
         cursor:pointer;display:flex;align-items:center;justify-content:space-between;
@@ -2519,7 +2520,7 @@ function renderCalisteniaContent(md) {
 
   return `<div>
     <div class="table-card">
-      ${ro ? '' : '<div id="tblCali-selbar" class="selection-bar"><span class="sel-count"></span><span class="sel-sum" style="color:var(--accent);font-weight:600"></span><button class="btn btn-danger btn-sm" onclick="deleteSelectedCali()" style="margin-left:auto">Excluir</button></div>'}
+      ${ro ? '' : '<div id="tblCali-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum" style="font-weight:600"></span><button class="btn btn-danger btn-sm" onclick="deleteSelectedCali()" style="margin-left:auto">Excluir</button></div>'}
       <div class="table-scroll"><table id="tblCali" style="table-layout:fixed;width:100%">
       <thead><tr>
         ${ro?'<th style="width:34px"></th>':`<th style="width:34px"><div class="row-select-cell-all" onclick="toggleSelectAll('tblCali')" title="Selecionar todos"></div></th>`}
@@ -2555,8 +2556,8 @@ function renderCalisteniaContent(md) {
           <td><div style="display:flex;gap:2px">
             <button class="btn btn-ghost btn-sm" onclick="abrirFichaAluno('${a.id}','calistenia')" style="padding:3px 6px" title="Ficha">ℹ</button>
             ${ro?'':`<button class="toggle-btn ${a.pausado?'toggle-pendente':'toggle-pago'}" onclick="togglePausadoCali('${a.id}')" style="padding:3px 6px">II</button>
-            <button class="btn btn-ghost btn-sm" onclick="editCali('${a.id}')" style="padding:3px 6px">E</button>
-            <button class="btn btn-danger btn-sm" onclick="removeCali('${a.id}')" style="padding:3px 6px">X</button>`}
+            <button class="btn btn-ghost btn-sm" onclick="editCali('${a.id}')" style="padding:3px 6px">✎</button>
+            <button class="btn btn-danger btn-sm" onclick="removeCali('${a.id}')" style="padding:3px 6px">✕</button>`}
           </div></td>
         </tr>`;
       }).join('')}</tbody>
@@ -2809,7 +2810,7 @@ function renderPersonalContent(md, tab) {
   return `<div>
     ${vencidos.length>0?`<div class="notice" style="margin-bottom:10px">⚠ ${vencidos.length} treino(s) vencido(s): ${vencidos.map(a=>a.nome).join(', ')}</div>`:''}
     <div class="table-card">
-      ${ro ? '' : '<div id="tblPersonal-selbar" class="selection-bar"><span class="sel-count"></span><span class="sel-sum" style="color:var(--green);font-weight:600"></span><button class="btn btn-danger btn-sm" onclick="deleteSelectedPersonal()" style="margin-left:auto">Excluir</button></div>'}
+      ${ro ? '' : '<div id="tblPersonal-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum" style="font-weight:600"></span><button class="btn btn-danger btn-sm" onclick="deleteSelectedPersonal()" style="margin-left:auto">Excluir</button></div>'}
       <div class="table-scroll"><table id="tblPersonal" style="table-layout:fixed;width:100%">
       <thead><tr>
         ${ro?'<th style="width:34px"></th>':`<th style="width:34px"><div class="row-select-cell-all" onclick="toggleSelectAll('tblPersonal')" title="Selecionar todos"></div></th>`}
@@ -2902,8 +2903,8 @@ function renderPersonalContent(md, tab) {
           </td>
           <td><div style="display:flex;gap:2px">
             <button class="btn btn-ghost btn-sm" onclick="abrirFichaAluno('${a.id}','${tab}')" style="padding:3px 6px" title="Ver ficha">ℹ</button>
-            ${ro?'':`<button class="btn btn-ghost btn-sm" onclick="editValorPersonal('${a.id}')" style="padding:3px 6px">E</button>
-            <button class="btn btn-danger btn-sm" onclick="removePersonal('${a.id}')" style="padding:3px 6px">X</button>`}
+            ${ro?'':`<button class="btn btn-ghost btn-sm" onclick="editValorPersonal('${a.id}')" style="padding:3px 6px">✎</button>
+            <button class="btn btn-danger btn-sm" onclick="removePersonal('${a.id}')" style="padding:3px 6px">✕</button>`}
           </div></td>
         </tr>`;
       }).join('')}</tbody>
@@ -2924,7 +2925,7 @@ function renderPersonalContent(md, tab) {
       </div>
       <div style="display:flex;gap:8px;padding:12px;flex-wrap:wrap">
         ${getPlanos().map((p,i)=>`
-          <div onclick="editarPlano(${i})" style="cursor:pointer;background:rgba(53,241,138,0.06);border:1px solid rgba(53,241,138,0.2);border-radius:8px;padding:10px 14px;text-align:center;min-width:100px;transition:border-color 0.15s" onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='rgba(53,241,138,0.2)'">
+          <div onclick="editarPlano(${i})" style="cursor:pointer;background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:8px;padding:10px 14px;text-align:center;min-width:100px;transition:border-color 0.15s" onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='rgba(76,175,80,0.2)'">
             <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">${p.label}</div>
             <div style="font-family:'Barlow Condensed';font-size:18px;margin-top:3px;color:var(--green)">${p.desc||'—'}</div>
             <div style="font-size:9px;color:var(--text3);margin-top:2px">toque para editar</div>
@@ -2970,7 +2971,7 @@ function renderRegistroAulas(list) {
 
           <!-- TOTAL DESTAQUE -->
           ${valorAula > 0 ? `
-          <div style="padding:8px 14px;background:rgba(200,241,53,0.04);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <div style="padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
             <span style="font-size:11px;color:var(--text3)">Total a cobrar no próx. mês</span>
             <span style="font-size:20px;font-weight:700;color:var(--accent);font-family:'Bebas Neue';letter-spacing:1px">${fmt(total)}</span>
           </div>` : ''}
@@ -3459,8 +3460,8 @@ function renderParceriasContent(md) {
           </td>
           <td><div style="display:flex;gap:2px">
             <button class="btn btn-ghost btn-sm" onclick="abrirFichaParceria('${p.id}')" style="padding:3px 6px" title="Ficha">ℹ</button>
-            ${ro?'':`<button class="btn btn-ghost btn-sm" onclick="editParceria('${p.id}')" style="padding:3px 6px">E</button>
-            <button class="btn btn-danger btn-sm" onclick="removeParceria('${p.id}')" style="padding:3px 6px">X</button>`}
+            ${ro?'':`<button class="btn btn-ghost btn-sm" onclick="editParceria('${p.id}')" style="padding:3px 6px">✎</button>
+            <button class="btn btn-danger btn-sm" onclick="removeParceria('${p.id}')" style="padding:3px 6px">✕</button>`}
           </div></td>
         </tr>`;
       }).join('')}
@@ -3845,9 +3846,10 @@ function removerMovPoupanca(id) {
 
 // ==================== TATTOO ====================
 function renderTattoo(md){
+  const ro = isReadOnly();
   const total=md.tattoo.filter(t=>t.pago).reduce((a,b)=>a+b.valor,0);
   const esperado=md.tattoo.reduce((a,b)=>a+b.valor,0);
-  document.getElementById('topbarActions').innerHTML=`<button class="btn btn-primary btn-sm" onclick="openAddTattoo()">+</button>`;
+  document.getElementById('topbarActions').innerHTML=`<button class="btn btn-primary btn-sm" onclick="openAddTattoo()">+ Cliente</button>`;
   const fInner = document.getElementById('financasInner') || document.getElementById('content');
   fInner.innerHTML=`<div>
     ${renderQuickAdd('balanco')}
@@ -3856,29 +3858,44 @@ function renderTattoo(md){
       <div class="stat-card"><div class="stat-label">Esperado</div><div class="stat-value">${fmt(esperado)}</div></div>
       <div class="stat-card"><div class="stat-label">Clientes</div><div class="stat-value">${md.tattoo.length}</div></div>
     </div>
-    <div class="table-card"><div class="table-scroll"><table id="tblTattoo" style="table-layout:fixed;min-width:400px">
-      <thead><tr>
-        <th data-col="nome" onclick="sortTable('tblTattoo','nome')">Cliente</th>
-        <th data-col="valor" onclick="sortTable('tblTattoo','valor','num')">Valor</th>
-        <th data-col="sinal" onclick="sortTable('tblTattoo','sinal','bool')">Sinal</th>
-        <th data-col="pago" onclick="sortTable('tblTattoo','pago','bool')">Pagamento</th>
-        <th></th>
-      </tr></thead>
-      <tbody>${md.tattoo.map(t=>`<tr data-nome="${t.cliente}" data-valor="${t.valor}" data-sinal="${t.sinal?'1':'0'}" data-pago="${t.pago?'1':'0'}">
-        <td style="font-weight:500">${t.cliente}</td>
-        <td class="mono">${fmt(t.valor)}</td>
-        <td><span class="badge ${t.sinal?'badge-green':'badge-gray'}">${t.sinal?'✓ Dado':'—'}</span></td>
-        <td><span class="badge ${t.pago?'badge-green':'badge-red'}">${t.pago?'✓ Pago':'Pendente'}</span></td>
-        <td style="display:flex;gap:4px">
-          <button class="toggle-btn ${t.sinal?'toggle-pago':'toggle-pendente'}" onclick="toggleSinal('${t.id}')" title="Sinal">S</button>
-          <button class="toggle-btn ${t.pago?'toggle-pago':'toggle-pendente'}" onclick="toggleTattoo('${t.id}')" title="Pago">R$</button>
-          <button class="btn btn-danger btn-sm" onclick="removeTattoo('${t.id}')">✕</button>
-        </td>
-      </tr>`).join('')}
-      ${md.tattoo.length===0?`<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:28px;font-size:13px">Nenhum cliente</td></tr>`:''}
-      </tbody>
-    </table></div>
+    <div class="table-card">
+      ${ro?'':`<div id="tblTattoo-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum"></span><button class="btn btn-danger btn-sm" onclick="deleteSelectedTattoo()" style="margin-left:auto">Excluir</button></div>`}
+      <div class="table-scroll"><table id="tblTattoo" style="table-layout:fixed;min-width:420px">
+        <thead><tr>
+          ${ro?'<th style="width:34px"></th>':`<th style="width:34px;padding:6px 4px"><div class="row-select-cell-all" onclick="toggleSelectAll('tblTattoo')" title="Selecionar todos"></div></th>`}
+          <th data-col="nome" onclick="sortTable('tblTattoo','nome')">Cliente</th>
+          <th data-col="valor" onclick="sortTable('tblTattoo','valor','num')">Valor</th>
+          <th data-col="sinal" onclick="sortTable('tblTattoo','sinal','bool')">Sinal</th>
+          <th data-col="pago" onclick="sortTable('tblTattoo','pago','bool')">Pagamento</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${md.tattoo.map(t=>`<tr data-nome="${t.cliente}" data-valor="${t.valor}" data-sinal="${t.sinal?'1':'0'}" data-pago="${t.pago?'1':'0'}">
+          ${ro?'<td></td>':`<td style="padding:4px 6px;width:34px"><input type="checkbox" class="row-select" data-id="${t.id}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblTattoo')" data-id="${t.id}" title="Selecionar"></div></td>`}
+          <td style="font-weight:500">${t.cliente}</td>
+          <td class="mono">${fmt(t.valor)}</td>
+          <td><span class="badge ${t.sinal?'badge-green':'badge-gray'}">${t.sinal?'✓ Dado':'—'}</span></td>
+          <td><span class="badge ${t.pago?'badge-green':'badge-red'}">${t.pago?'✓ Pago':'Pendente'}</span></td>
+          <td><div style="display:flex;gap:2px">
+            <button class="toggle-btn ${t.sinal?'toggle-pago':'toggle-pendente'}" onclick="toggleSinal('${t.id}')" title="Sinal">S</button>
+            <button class="toggle-btn ${t.pago?'toggle-pago':'toggle-pendente'}" onclick="toggleTattoo('${t.id}')" title="Pagamento">R$</button>
+            ${ro?'':`<button class="btn btn-danger btn-sm" onclick="removeTattoo('${t.id}')" style="padding:4px 7px">✕</button>`}
+          </div></td>
+        </tr>`).join('')}
+        ${md.tattoo.length===0?`<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:28px;font-size:13px">Nenhum cliente de tatuagem</td></tr>`:''}
+        </tbody>
+      </table></div>
+    </div>
   </div>`;
+}
+
+function deleteSelectedTattoo(){
+  if(guardReadOnly())return;
+  const md=getMonthData();
+  const checks=[...document.querySelectorAll('#tblTattoo tbody .row-select-cell.checked')];
+  if(!checks.length||!confirm('Excluir '+checks.length+' cliente(s)?'))return;
+  const ids=checks.map(c=>c.previousElementSibling?.dataset.id);
+  md.tattoo=md.tattoo.filter(t=>!ids.includes(t.id));
+  syncGanhosFromTables(md);saveData();renderTattoo(md);
 }
 
 function toggleSinal(id){const md=getMonthData();const t=md.tattoo.find(x=>x.id===id);if(t)t.sinal=!t.sinal;saveData();renderTattoo(md);}
@@ -4331,7 +4348,7 @@ const MODALITY_CONFIG = {
 };
 
 const PERIOD_CONFIG = {
-  'Manhã':   { bg: 'rgba(15,110,86,0.15)',  color: '#35f18a' },
+  'Manhã':   { bg: 'rgba(76,175,80,0.12)',  color: '#4CAF50' },
   'Tarde':   { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa' },
   'Dia todo':{ bg: 'rgba(255,255,255,0.07)', color: '#888'  },
 };
@@ -4732,7 +4749,7 @@ function renderTreino() {
               <div style="font-weight:500;color:var(--text);line-height:1.4">${nome}</div>
               ${(carga||hold) ? `<div style="display:flex;gap:6px;margin-top:3px">
                 ${carga?`<span style="font-size:10px;background:rgba(232,32,10,0.12);color:var(--accent);border-radius:4px;padding:1px 6px">⚖ ${carga}</span>`:''}
-                ${hold ?`<span style="font-size:10px;background:rgba(53,241,138,0.1);color:var(--green);border-radius:4px;padding:1px 6px">⏱ ${hold}</span>`:''}
+                ${hold ?`<span style="font-size:10px;background:rgba(76,175,80,0.1);color:var(--green);border-radius:4px;padding:1px 6px">⏱ ${hold}</span>`:''}
               </div>` : ''}
               ${nota?`<div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${nota}</div>`:''}
             </div>
@@ -4740,7 +4757,7 @@ function renderTreino() {
             <div style="color:var(--text2);text-align:center;font-family:'Barlow Condensed';font-size:12px">${reps}</div>
             <div style="color:var(--text3);text-align:center;font-size:11px">${ex.rest}</div>
             <div style="text-align:center">
-              <button onclick="treinoEditEx(${di},${si},${bi},${ei})" style="background:${hasEdit?'rgba(53,241,138,0.12)':'var(--surface2)'};border:1px solid ${hasEdit?'rgba(53,241,138,0.3)':'var(--border)'};border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:12px;color:${hasEdit?'var(--green)':'var(--text3)'};display:flex;align-items:center;justify-content:center" title="Editar">✎</button>
+              <button onclick="treinoEditEx(${di},${si},${bi},${ei})" style="background:${hasEdit?'rgba(76,175,80,0.12)':'var(--surface2)'};border:1px solid ${hasEdit?'rgba(76,175,80,0.3)':'var(--border)'};border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:12px;color:${hasEdit?'var(--green)':'var(--text3)'};display:flex;align-items:center;justify-content:center" title="Editar">✎</button>
             </div>
           </div>`;
         }).join('');
@@ -4789,7 +4806,7 @@ function renderTreino() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);align-items:center">
       ${legend}
       <div style="margin-left:auto;display:flex;gap:6px">
-        <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(15,110,86,0.15);color:#35f18a;letter-spacing:.5px">Manhã</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(76,175,80,0.12);color:#4CAF50;letter-spacing:.5px">Manhã</span>
         <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(139,92,246,0.15);color:#a78bfa;letter-spacing:.5px">Tarde</span>
       </div>
     </div>
@@ -4888,7 +4905,7 @@ function brandRenderPage(cnt) {
     const count   = _brandAssets.filter(a => a.cat === c.id).length;
     const active  = _brandCat === c.id;
     return `<button onclick="brandSetCat('${c.id}')"
-      style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 14px;border-radius:10px;border:1px solid ${active?'var(--accent)':'var(--border)'};background:${active?'rgba(200,241,53,0.07)':'var(--surface)'};cursor:pointer;min-width:68px;flex-shrink:0">
+      style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 14px;border-radius:10px;border:1px solid ${active?'var(--accent)':'var(--border)'};background:${active?'rgba(232,32,10,0.08)':'var(--surface)'};cursor:pointer;min-width:68px;flex-shrink:0">
       <span style="font-size:17px;color:${active?'var(--accent)':'var(--text3)'}">${c.icon}</span>
       <span style="font-size:11px;font-family:'Barlow Condensed';color:${active?'var(--accent)':'var(--text2)'};letter-spacing:.4px;white-space:nowrap">${c.label}</span>
       ${count?`<span style="font-size:10px;color:var(--text3)">${count}</span>`:''}
@@ -5245,7 +5262,7 @@ function openMonthPicker(){
     html+=`<div style="margin-bottom:14px"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">${y}</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">`;
     MONTHS.forEach((mn,mi)=>{
       const active=(currentMonth.m===mi&&currentMonth.y===y);
-      html+=`<button onclick="setMonth(${mi},${y})" style="background:${active?'var(--accent)':'var(--surface2)'};color:${active?'#000':'var(--text2)'};border:1px solid ${active?'transparent':'var(--border)'};border-radius:8px;padding:9px 4px;font-size:12px;cursor:pointer;font-family:'Barlow Condensed';font-weight:${active?600:400}">${mn.slice(0,3)}</button>`;
+      html+=`<button onclick="setMonth(${mi},${y})" style="background:${active?'var(--accent)':'var(--surface2)'};color:${active?'#fff':'var(--text2)'};border:1px solid ${active?'rgba(232,32,10,0.4)':'var(--border)'};border-radius:8px;padding:9px 4px;font-size:12px;cursor:pointer;font-family:'Barlow Condensed';font-weight:${active?600:400}">${mn.slice(0,3)}</button>`;
     });
     html+='</div></div>';
   });
