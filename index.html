@@ -1352,6 +1352,9 @@ function renderDashboard(md) {
     prevExpGastos  = (prevMd.balanco?.gastos||[]).reduce((s,g)=>s+g.valor, 0);
     prevExpSaldo   = prevExpGanhos - prevExpGastos;
   }
+  const prevRealGanhos = prevMd ? (prevMd.balanco?.ganhos||[]).reduce((s,g)=>s+(g.recebido?g.valor:0), 0) : 0;
+  const prevRealGastos = prevMd ? (prevMd.balanco?.gastos||[]).reduce((s,g)=>s+(g.pago?g.valor:0), 0) : 0;
+  const prevRealSaldo  = prevRealGanhos - prevRealGastos;
 
   // ── Pendências ──
   const pendentesG  = md.balanco.ganhos.filter(g=>!g.recebido);
@@ -1529,7 +1532,7 @@ function renderDashboard(md) {
     ${prevMd ? `
     ${(()=>{
       const rows = [
-        {l:'Saldo',      prev:prevExpSaldo,    curr:expSaldo,    inv:false, destaque:true},
+        {l:'Saldo Real',  prev:prevRealSaldo,   curr:realSaldo,   inv:false, destaque:true},
         {l:'Ganhos',     prev:prevExpGanhos,   curr:expGanhos,   inv:false},
         {l:'Gastos',     prev:prevExpGastos,   curr:expGastos,   inv:true},
         {l:'Calistenia', prev:prevExpCali,     curr:expCali,     inv:false},
