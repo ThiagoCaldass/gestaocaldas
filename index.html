@@ -2023,7 +2023,7 @@ function renderBalancoOriginal(md) {
               <td class="mono">${fmt(g.valor)}</td>
               <td><span class="badge ${isGerenciada?'badge-blue':'badge-gray'}" style="font-size:10px">${catLabel}</span></td>
               <td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':'toggleGanho(\''+g.id+'\')'}">
-                <span class="badge ${g.recebido?'badge-green':'badge-yellow'}">${g.recebido?'✓ Recebido':'○ Pendente'}</span>
+                <span class="badge ${g.recebido?'badge-green':'badge-yellow'}">${g.recebido?'✓':'○'}</span>
               </td>
               ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
                 <button class="btn btn-ghost btn-sm" onclick="editGanho('${g.id}')" style="padding:4px 7px">✎</button>
@@ -2062,7 +2062,7 @@ function renderBalancoOriginal(md) {
             </td>
             <td class="mono">${fmt(g.valor)}</td>
             <td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':'toggleGasto(\''+g.id+'\')'}">
-              <span class="badge ${g.pago?'badge-green':'badge-red'}">${g.pago?'✓ Pago':'✕ Pendente'}</span>
+              <span class="badge ${g.pago?'badge-green':'badge-red'}">${g.pago?'✓':'✕'}</span>
             </td>
             ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
               <button class="btn btn-ghost btn-sm" onclick="editGasto('${g.id}')" style="padding:4px 7px">✎</button>
