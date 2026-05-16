@@ -341,7 +341,9 @@ ${JSON.stringify(snapshot, null, 2)}`,
 
     for (const block of claude.content || []) {
       if (block.type === 'tool_use') {
+        console.log('TOOL:', block.name, JSON.stringify(block.input));
         const result = runTool(block.name, block.input, md);
+        console.log('RESULT:', result);
         reply += result + '\n';
         changed = true;
       } else if (block.type === 'text' && block.text) {
@@ -349,6 +351,7 @@ ${JSON.stringify(snapshot, null, 2)}`,
       }
     }
 
+    console.log('GASTOS APÓS TOOL:', JSON.stringify(md.balanco.gastos.map(g => ({ nome: g.nome, valor: g.valor, historico: g.historico?.length }))));
     if (changed) await saveData(key, md);
 
     const finalReply = reply.trim() || 'Não entendi 🤔\nTente: _"gastei 50 reais de mercado"_';
