@@ -248,7 +248,9 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return;
 
   try {
+    console.log('BODY:', JSON.stringify(req.body));
     const message = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    console.log('MESSAGE:', JSON.stringify(message));
     if (!message || message.type !== 'text') return;
 
     const from = message.from;   // ex: "5511999999999"
