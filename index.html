@@ -5761,14 +5761,12 @@ function aiExecuteTool(name, input) {
       existing.valor = Math.round((existing.valor + Number(input.valor)) * 100) / 100;
       if (input.pago !== undefined) existing.pago = !!input.pago;
       saveData();
-      if (currentPage === 'financas' || currentPage === 'balanco') navigate(currentPage);
-      return `✓ "${existing.nome}" atualizado: R$${antes} → R$${existing.valor} (+${input.valor})`;
+            return `✓ "${existing.nome}" atualizado: R$${antes} → R$${existing.valor} (+${input.valor})`;
     }
     const item = { id: uid(), nome: input.nome, valor: Number(input.valor), categoria: input.categoria||'outros', pago: !!input.pago, persistente: false, historico: [] };
     md.balanco.gastos.push(item);
     saveData();
-    if (currentPage === 'financas' || currentPage === 'balanco') navigate(currentPage);
-    return `✓ Gasto criado: ${item.nome} R$${item.valor} (${item.pago?'pago':'pendente'})`;
+        return `✓ Gasto criado: ${item.nome} R$${item.valor} (${item.pago?'pago':'pendente'})`;
   }
 
   if (name === 'add_ganho') {
@@ -5779,14 +5777,12 @@ function aiExecuteTool(name, input) {
       existing.valor = Math.round((existing.valor + Number(input.valor)) * 100) / 100;
       if (input.recebido !== undefined) existing.recebido = !!input.recebido;
       saveData();
-      if (currentPage === 'financas' || currentPage === 'balanco') navigate(currentPage);
-      return `✓ "${existing.nome}" atualizado: R$${antes} → R$${existing.valor} (+${input.valor})`;
+            return `✓ "${existing.nome}" atualizado: R$${antes} → R$${existing.valor} (+${input.valor})`;
     }
     const item = { id: uid(), nome: input.nome, valor: Number(input.valor), recebido: !!input.recebido, persistente: false };
     md.balanco.ganhos.push(item);
     saveData();
-    if (currentPage === 'financas' || currentPage === 'balanco') navigate(currentPage);
-    return `✓ Ganho criado: ${input.nome} R$${input.valor} (${input.recebido?'recebido':'pendente'})`;
+        return `✓ Ganho criado: ${input.nome} R$${input.valor} (${input.recebido?'recebido':'pendente'})`;
   }
 
   if (name === 'update_gasto') {
@@ -5801,8 +5797,7 @@ function aiExecuteTool(name, input) {
     }
     if (item.valor < 0) item.valor = 0;
     saveData();
-    if (currentPage === 'financas' || currentPage === 'balanco') navigate(currentPage);
-    return `✓ "${item.nome}" atualizado: R$${antes} → R$${item.valor}`;
+        return `✓ "${item.nome}" atualizado: R$${antes} → R$${item.valor}`;
   }
 
   if (name === 'update_ganho') {
@@ -5817,8 +5812,7 @@ function aiExecuteTool(name, input) {
     }
     if (item.valor < 0) item.valor = 0;
     saveData();
-    if (currentPage === 'financas' || currentPage === 'balanco') navigate(currentPage);
-    return `✓ "${item.nome}" atualizado: R$${antes} → R$${item.valor}`;
+        return `✓ "${item.nome}" atualizado: R$${antes} → R$${item.valor}`;
   }
 
   if (name === 'marcar_gasto_pago') {
@@ -5827,7 +5821,6 @@ function aiExecuteTool(name, input) {
     if (!item) return `✗ Gasto com "${input.nome_parcial}" não encontrado. Gastos disponíveis: ${md.balanco.gastos.map(g=>g.nome).join(', ')}`;
     item.pago = true;
     saveData();
-    if (currentPage === 'financas') navigate(currentPage);
     return `✓ "${item.nome}" marcado como pago`;
   }
 
@@ -5837,7 +5830,6 @@ function aiExecuteTool(name, input) {
     if (!item) return `✗ Ganho com "${input.nome_parcial}" não encontrado. Ganhos disponíveis: ${md.balanco.ganhos.map(g=>g.nome).join(', ')}`;
     item.recebido = true;
     saveData();
-    if (currentPage === 'financas') navigate(currentPage);
     return `✓ "${item.nome}" marcado como recebido`;
   }
 
@@ -5862,7 +5854,6 @@ function aiExecuteTool(name, input) {
     item.pago = true;
     syncGanhosFromTables(md);
     saveData();
-    if (currentPage === 'alunos') navigate(currentPage);
     return `✓ ${item.nome} (${found_tipo}) marcado como pago`;
   }
 
@@ -5877,7 +5868,6 @@ function aiExecuteTool(name, input) {
     const antes = p.divulgacoes || 0;
     p.divulgacoes = Math.max(0, antes + delta);
     saveData();
-    if (currentPage === 'alunos') navigate(currentPage);
     return `✓ ${p.nome}: divulgações ${antes} → ${p.divulgacoes} (${delta > 0 ? '+' : ''}${delta})`;
   }
 
@@ -5885,7 +5875,6 @@ function aiExecuteTool(name, input) {
     const item = { id: uid(), cliente: input.cliente, valor: Number(input.valor), sinal: Number(input.sinal||0), pago: !!input.pago };
     md.tattoo.push(item);
     saveData();
-    if (currentPage === 'tattoo') navigate(currentPage);
     return `✓ Tatuagem registrada: ${input.cliente} R$${input.valor}`;
   }
 
@@ -5901,7 +5890,6 @@ function aiExecuteTool(name, input) {
     globalPoupanca.movimentos.push({ id: uid(), tipo: 'deposito', valor: v, data: new Date().toISOString().slice(0,10), desc });
     saveData();
     savePoupanca();
-    if (currentPage === 'financas') navigate(currentPage);
     return `✓ R$${v} depositado na poupança. Saldo: R$${globalPoupanca.saldo}`;
   }
 
@@ -5950,8 +5938,6 @@ function aiExecuteTool(name, input) {
     }
 
     saveData();
-    if (['aluno_cali','aluno_online','aluno_presencial','parceria'].includes(ent) && currentPage === 'alunos') navigate(currentPage);
-    if (['gasto','ganho'].includes(ent) && currentPage === 'financas') navigate(currentPage);
 
     const nome_display = item.nome || item.cliente || input.nome_parcial;
     return `✓ ${nome_display} → ${fld}: ${antes} → ${item[fld]}`;
@@ -6062,6 +6048,15 @@ Regras:
 
     // Limpar histórico se ficar muito longo (manter só as últimas 12 trocas)
     if (_aiHistory.length > 24) _aiHistory = _aiHistory.slice(-24);
+
+    // Re-render página atual com dados em memória (sem recarregar do Supabase)
+    if (toolResults.length > 0) {
+      const mdR = getMonthData();
+      if (currentPage === 'financas') renderFinancas(mdR);
+      else if (currentPage === 'alunos') renderAlunos(mdR);
+      else if (currentPage === 'tattoo') renderTattoo(mdR);
+      else if (currentPage === 'dashboard') renderDashboard(mdR);
+    }
 
   } catch(e) {
     aiRemoveTyping();
