@@ -154,23 +154,46 @@ function runTool(name, input, md) {
   const b = md.balanco;
 
   if (name === 'add_gasto') {
+    const q = input.nome.toLowerCase();
+    const existing = b.gastos.find(g =>
+      g.nome.toLowerCase().includes(q) || q.includes(g.nome.toLowerCase())
+    );
+    if (existing) {
+      const antes = existing.valor;
+      existing.valor = Math.round((existing.valor + Number(input.valor)) * 100) / 100;
+      if (input.pago !== undefined) existing.pago = !!input.pago;
+      existing.historico = existing.historico || [];
+      existing.historico.unshift({ valor: Number(input.valor), data: new Date().toISOString(), fonte: 'whatsapp' });
+      return `✅ *${existing.nome}* atualizado:\nR$ ${antes.toFixed(2)} → R$ ${existing.valor.toFixed(2)} (+${Number(input.valor).toFixed(2)})`;
+    }
     const item = {
-      id: uid(), nome: input.nome, valor: input.valor,
+      id: uid(), nome: input.nome, valor: Number(input.valor),
       categoria: input.categoria || 'outros',
       pago: input.pago ?? false, persistente: false,
+      historico: [{ valor: Number(input.valor), data: new Date().toISOString(), fonte: 'whatsapp' }],
     };
     b.gastos.push(item);
-    return `✅ Gasto adicionado:\n*${item.nome}* — R$ ${item.valor.toFixed(2)}\nStatus: ${item.pago ? 'Pago' : 'Pendente'}`;
+    return `✅ Gasto criado:\n*${item.nome}* — R$ ${item.valor.toFixed(2)}\nStatus: ${item.pago ? 'Pago' : 'Pendente'}`;
   }
 
   if (name === 'add_ganho') {
+    const q = input.nome.toLowerCase();
+    const existing = b.ganhos.find(g =>
+      g.nome.toLowerCase().includes(q) || q.includes(g.nome.toLowerCase())
+    );
+    if (existing) {
+      const antes = existing.valor;
+      existing.valor = Math.round((existing.valor + Number(input.valor)) * 100) / 100;
+      if (input.recebido !== undefined) existing.recebido = !!input.recebido;
+      return `✅ *${existing.nome}* atualizado:\nR$ ${antes.toFixed(2)} → R$ ${existing.valor.toFixed(2)} (+${Number(input.valor).toFixed(2)})`;
+    }
     const item = {
-      id: uid(), nome: input.nome, valor: input.valor,
+      id: uid(), nome: input.nome, valor: Number(input.valor),
       categoria: input.categoria || 'avulso',
       recebido: input.recebido ?? false,
     };
     b.ganhos.push(item);
-    return `✅ Ganho adicionado:\n*${item.nome}* — R$ ${item.valor.toFixed(2)}\nStatus: ${item.recebido ? 'Recebido' : 'Pendente'}`;
+    return `✅ Ganho criado:\n*${item.nome}* — R$ ${item.valor.toFixed(2)}\nStatus: ${item.recebido ? 'Recebido' : 'Pendente'}`;
   }
 
   if (name === 'update_gasto') {
