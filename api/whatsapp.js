@@ -67,59 +67,30 @@ function emptyMonth() {
 const TOOLS = [
   {
     name: 'add_gasto',
-    description: 'Adiciona um gasto ao balanço do mês atual.',
+    description: 'Registra um gasto. Se já existir um gasto com nome similar, soma o valor ao existente. Sempre use esta ferramenta para gastos, nunca calcule o total manualmente.',
     input_schema: {
       type: 'object',
       properties: {
-        nome:      { type: 'string',  description: 'Descrição do gasto (ex: Mercado, Aluguel)' },
-        valor:     { type: 'number',  description: 'Valor em reais' },
+        nome:      { type: 'string',  description: 'Descrição do gasto (ex: Mercado, Aluguel). Use o nome mais próximo ao existente.' },
+        valor:     { type: 'number',  description: 'Valor A SOMAR em reais — nunca o total acumulado, sempre o delta.' },
         categoria: { type: 'string',  description: 'Categoria (ex: alimentação, transporte, saúde, lazer, casa)' },
-        pago:      { type: 'boolean', description: 'Se já foi pago. Default false.' },
+        pago:      { type: 'boolean', description: 'Se já foi pago. Default true para "gastei", false para "vou gastar".' },
       },
       required: ['nome', 'valor'],
     },
   },
   {
     name: 'add_ganho',
-    description: 'Adiciona um ganho ao balanço do mês atual.',
+    description: 'Registra um ganho. Se já existir um ganho com nome similar, soma o valor ao existente. Sempre use esta ferramenta para ganhos.',
     input_schema: {
       type: 'object',
       properties: {
         nome:      { type: 'string',  description: 'Fonte/descrição do ganho' },
-        valor:     { type: 'number',  description: 'Valor em reais' },
+        valor:     { type: 'number',  description: 'Valor A SOMAR em reais — nunca o total acumulado, sempre o delta.' },
         categoria: { type: 'string',  description: 'avulso | calistenia | personal | tattoo | 7force' },
-        recebido:  { type: 'boolean', description: 'Se já foi recebido. Default false.' },
+        recebido:  { type: 'boolean', description: 'Se já foi recebido. Default true para "recebi", false para "vou receber".' },
       },
       required: ['nome', 'valor'],
-    },
-  },
-  {
-    name: 'update_gasto',
-    description: 'Atualiza campos de um gasto existente pelo ID.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        id:        { type: 'string'  },
-        nome:      { type: 'string'  },
-        valor:     { type: 'number'  },
-        categoria: { type: 'string'  },
-        pago:      { type: 'boolean' },
-      },
-      required: ['id'],
-    },
-  },
-  {
-    name: 'update_ganho',
-    description: 'Atualiza campos de um ganho existente pelo ID.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        id:       { type: 'string'  },
-        nome:     { type: 'string'  },
-        valor:    { type: 'number'  },
-        recebido: { type: 'boolean' },
-      },
-      required: ['id'],
     },
   },
   {
