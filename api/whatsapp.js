@@ -261,9 +261,7 @@ export default async function handler(req, res) {
 
     // Busca dados do mês atual
     const key = monthKey();
-    console.log('Buscando dados do mês:', key);
     let md = await fetchData(key) || emptyMonth();
-    console.log('Dados carregados. Chamando Claude...');
 
     // Snapshot compacto para o Claude
     const snapshot = {
@@ -308,7 +306,6 @@ ${JSON.stringify(snapshot, null, 2)}`,
     });
 
     const claude = await claudeRes.json();
-    console.log('Claude status:', claudeRes.status, '| type:', claude.type, '| error:', JSON.stringify(claude.error));
 
     let reply = '';
     let changed = false;
@@ -324,11 +321,9 @@ ${JSON.stringify(snapshot, null, 2)}`,
     }
 
     if (changed) await saveData(key, md);
-    console.log('Dados salvos. Enviando resposta...');
 
     const finalReply = reply.trim() || 'Não entendi 🤔\nTente: _"gastei 50 reais de mercado"_';
     await sendMessage(from, finalReply);
-    console.log('Resposta enviada:', finalReply);
 
     return res.status(200).end();
 
