@@ -306,6 +306,7 @@ ${JSON.stringify(snapshot, null, 2)}`,
     });
 
     const claude = await claudeRes.json();
+    console.log('Claude status:', claudeRes.status, '| type:', claude.type, '| error:', JSON.stringify(claude.error));
 
     let reply = '';
     let changed = false;
