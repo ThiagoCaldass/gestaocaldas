@@ -35,16 +35,17 @@ async function fetchData(key) {
 }
 
 async function saveData(key, data) {
-  await fetch(`${SUPABASE_URL}/rest/v1/gestor_data`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data`, {
     method: 'POST',
     headers: {
       apikey: SUPABASE_KEY,
       Authorization: `Bearer ${SUPABASE_KEY}`,
       'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates',
+      Prefer: 'resolution=merge-duplicates,return=minimal',
     },
     body: JSON.stringify({ month_key: key, data }),
   });
+  console.log('saveData status:', res.status, await res.text());
 }
 
 function emptyMonth() {
