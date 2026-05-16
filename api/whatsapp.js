@@ -211,7 +211,7 @@ function runTool(name, input, md) {
 // ── WhatsApp ─────────────────────────────────────────────────────────────────
 
 async function sendMessage(to, text) {
-  await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`, {
+  const res = await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${WA_TOKEN}`,
@@ -224,6 +224,8 @@ async function sendMessage(to, text) {
       text: { body: text },
     }),
   });
+  const json = await res.json();
+  console.log('sendMessage status:', res.status, JSON.stringify(json));
 }
 
 // ── Handler principal ─────────────────────────────────────────────────────────
