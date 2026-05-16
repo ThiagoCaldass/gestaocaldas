@@ -257,6 +257,7 @@ export default async function handler(req, res) {
     const text = message.text.body.trim();
 
     // Segurança: só aceita mensagens do seu número
+    console.log(`FROM: ${from} | MEU_NUMERO: ${MEU_NUMERO} | MATCH: ${from === MEU_NUMERO}`);
     if (MEU_NUMERO && from !== MEU_NUMERO) {
       console.log(`Número não autorizado: ${from}`);
       return;
@@ -264,7 +265,9 @@ export default async function handler(req, res) {
 
     // Busca dados do mês atual
     const key = monthKey();
+    console.log('Buscando dados do mês:', key);
     let md = await fetchData(key) || emptyMonth();
+    console.log('Dados carregados. Chamando Claude...');
 
     // Snapshot compacto para o Claude
     const snapshot = {
