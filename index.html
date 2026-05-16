@@ -2954,6 +2954,7 @@ function renderPersonalContent(md, tab) {
           <td><div style="display:flex;gap:2px">
             <button class="btn btn-ghost btn-sm" onclick="abrirFichaAluno('${a.id}','${tab}')" style="padding:3px 6px" title="Ver ficha">ℹ</button>
             ${ro?'':`<button class="btn btn-ghost btn-sm" onclick="editValorPersonal('${a.id}')" style="padding:3px 6px">✎</button>
+            <button class="toggle-btn ${a.pausado?'toggle-pendente':'toggle-pago'}" onclick="togglePausadoPersonal('${a.id}')" style="padding:3px 6px" title="${a.pausado?'Reativar':'Pausar'}">II</button>
             <button class="btn btn-danger btn-sm" onclick="removePersonal('${a.id}')" style="padding:3px 6px">✕</button>`}
           </div></td>
         </tr>`;
