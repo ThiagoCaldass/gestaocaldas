@@ -801,6 +801,15 @@ function saveData() {
     try {
       await sbUpsert(k, cachedData[k]);
       setSyncStatus('synced', 'Sincronizado');
+      // Notifica Telegram sobre alteração manual
+      const md = cachedData[k];
+      const tG  = (md?.balanco?.ganhos||[]).reduce((a,b)=>a+b.valor,0);
+      const tGt = (md?.balanco?.gastos||[]).reduce((a,b)=>a+b.valor,0);
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: `✏️ *App atualizado*\nGanhos: R$ ${tG.toFixed(2)}\nGastos: R$ ${tGt.toFixed(2)}\nSaldo: R$ ${(tG-tGt).toFixed(2)}` }),
+      }).catch(() => {});
     } catch(e) {
       setSyncStatus('error', 'Erro ao salvar');
       console.error('Sync error:', e);

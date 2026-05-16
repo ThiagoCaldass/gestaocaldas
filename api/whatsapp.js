@@ -7,10 +7,12 @@
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 const SUPABASE_KEY  = process.env.SUPABASE_KEY;
 const CLAUDE_KEY    = process.env.CLAUDE_API_KEY;
-const WA_TOKEN      = process.env.WA_TOKEN;       // Token de acesso Meta
-const WA_PHONE_ID   = process.env.WA_PHONE_ID;    // ID do número WhatsApp
-const VERIFY_TOKEN  = process.env.VERIFY_TOKEN;   // String que você define
-const MEU_NUMERO    = process.env.MEU_NUMERO;      // Ex: 5511999999999
+const WA_TOKEN      = process.env.WA_TOKEN;
+const WA_PHONE_ID   = process.env.WA_PHONE_ID;
+const VERIFY_TOKEN  = process.env.VERIFY_TOKEN;
+const MEU_NUMERO    = process.env.MEU_NUMERO;
+const TG_TOKEN      = process.env.TG_TOKEN;
+const TG_CHAT_ID    = process.env.TG_CHAT_ID;
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
 
@@ -208,6 +210,17 @@ function runTool(name, input, md) {
   return '❌ Ferramenta desconhecida.';
 }
 
+// ── Telegram ─────────────────────────────────────────────────────────────────
+
+async function sendTelegram(text) {
+  if (!TG_TOKEN || !TG_CHAT_ID) return;
+  await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: 'Markdown' }),
+  });
+}
+
 // ── WhatsApp ─────────────────────────────────────────────────────────────────
 
 async function sendMessage(to, text) {
@@ -323,7 +336,10 @@ ${JSON.stringify(snapshot, null, 2)}`,
     }
 
     console.log('GASTOS APÓS TOOL:', JSON.stringify(md.balanco.gastos.map(g => ({ nome: g.nome, valor: g.valor, historico: g.historico?.length }))));
-    if (changed) await saveData(key, md);
+    if (changed) {
+      await saveData(key, md);
+      await sendTelegram(`📱 *WhatsApp*\n${reply.trim()}`);
+    }
 
     const finalReply = reply.trim() || 'Não entendi 🤔\nTente: _"gastei 50 reais de mercado"_';
     await sendMessage(from, finalReply);
