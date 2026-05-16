@@ -4,211 +4,20 @@
  * interpreta com Claude e atualiza o Supabase.
  */
 
-const SUPABASE_URL  = process.env.SUPABASE_URL;
-const SUPABASE_KEY  = process.env.SUPABASE_KEY;
-const CLAUDE_KEY    = process.env.CLAUDE_API_KEY;
-const WA_TOKEN      = process.env.WA_TOKEN;
-const WA_PHONE_ID   = process.env.WA_PHONE_ID;
-const VERIFY_TOKEN  = process.env.VERIFY_TOKEN;
-const MEU_NUMERO    = process.env.MEU_NUMERO;
-const TG_TOKEN      = process.env.TG_TOKEN;
-const TG_CHAT_ID    = process.env.TG_CHAT_ID;
+import {
+  TOOLS, runTool, buildSystemPrompt,
+  fetchData, saveData, saveUndo, loadUndo, emptyMonth, monthKey,
+} from './_tools.js';
 
-// ── Utilitários ──────────────────────────────────────────────────────────────
-
-function monthKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function uid() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
-// ── Supabase ─────────────────────────────────────────────────────────────────
-
-async function fetchData(key) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/gestor_data?month_key=eq.${key}&select=data`,
-    { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
-  );
-  const rows = await res.json();
-  return rows?.[0]?.data || null;
-}
-
-async function saveData(key, data) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data`, {
-    method: 'POST',
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates,return=minimal',
-    },
-    body: JSON.stringify({ month_key: key, data }),
-  });
-  console.log('saveData status:', res.status, await res.text());
-}
-
-function emptyMonth() {
-  return {
-    balanco: { ganhos: [], gastos: [] },
-    calistenia: [],
-    personal: { online: [], presencial: [] },
-    tattoo: [],
-    parcerias: [],
-    cartao: {
-      bb:    { fechamento: null, parceladas: [], avista: [], assinaturas: [] },
-      inter: { fechamento: null, parceladas: [], avista: [], assinaturas: [] },
-    },
-  };
-}
-
-// ── Ferramentas (mesmas do Assistente TC) ────────────────────────────────────
-
-const TOOLS = [
-  {
-    name: 'add_gasto',
-    description: 'Registra um gasto. Se já existir um gasto com nome similar, soma o valor ao existente. Sempre use esta ferramenta para gastos, nunca calcule o total manualmente.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        nome:      { type: 'string',  description: 'Descrição do gasto (ex: Mercado, Aluguel). Use o nome mais próximo ao existente.' },
-        valor:     { type: 'number',  description: 'Valor A SOMAR em reais — nunca o total acumulado, sempre o delta.' },
-        categoria: { type: 'string',  description: 'Categoria (ex: alimentação, transporte, saúde, lazer, casa)' },
-        pago:      { type: 'boolean', description: 'Se já foi pago. Default true para "gastei", false para "vou gastar".' },
-      },
-      required: ['nome', 'valor'],
-    },
-  },
-  {
-    name: 'add_ganho',
-    description: 'Registra um ganho. Se já existir um ganho com nome similar, soma o valor ao existente. Sempre use esta ferramenta para ganhos.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        nome:      { type: 'string',  description: 'Fonte/descrição do ganho' },
-        valor:     { type: 'number',  description: 'Valor A SOMAR em reais — nunca o total acumulado, sempre o delta.' },
-        categoria: { type: 'string',  description: 'avulso | calistenia | personal | tattoo | 7force' },
-        recebido:  { type: 'boolean', description: 'Se já foi recebido. Default true para "recebi", false para "vou receber".' },
-      },
-      required: ['nome', 'valor'],
-    },
-  },
-  {
-    name: 'marcar_gasto_pago',
-    description: 'Marca um gasto como pago ou pendente.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        id:   { type: 'string'  },
-        pago: { type: 'boolean' },
-      },
-      required: ['id', 'pago'],
-    },
-  },
-  {
-    name: 'marcar_ganho_recebido',
-    description: 'Marca um ganho como recebido ou pendente.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        id:       { type: 'string'  },
-        recebido: { type: 'boolean' },
-      },
-      required: ['id', 'recebido'],
-    },
-  },
-];
-
-// ── Execução das ferramentas ──────────────────────────────────────────────────
-
-function runTool(name, input, md) {
-  const b = md.balanco;
-
-  if (name === 'add_gasto') {
-    const q = input.nome.toLowerCase();
-    const existing = b.gastos.find(g =>
-      g.nome.toLowerCase().includes(q) || q.includes(g.nome.toLowerCase())
-    );
-    if (existing) {
-      const antes = existing.valor;
-      const delta = Number(input.valor);
-      existing.valor = Math.round((existing.valor + delta) * 100) / 100;
-      if (input.pago !== undefined) existing.pago = !!input.pago;
-      existing.historico = existing.historico || [];
-      existing.historico.push({ delta, ts: Date.now(), tipo: 'soma' });
-      return `✅ *${existing.nome}* atualizado:\nR$ ${antes.toFixed(2)} → R$ ${existing.valor.toFixed(2)} (+${delta.toFixed(2)})`;
-    }
-    const item = {
-      id: uid(), nome: input.nome, valor: Number(input.valor),
-      categoria: input.categoria || 'outros',
-      pago: input.pago ?? false, persistente: false,
-      ts: Date.now(), historico: [],
-    };
-    b.gastos.push(item);
-    return `✅ Gasto criado:\n*${item.nome}* — R$ ${item.valor.toFixed(2)}\nStatus: ${item.pago ? 'Pago' : 'Pendente'}`;
-  }
-
-  if (name === 'add_ganho') {
-    const q = input.nome.toLowerCase();
-    const existing = b.ganhos.find(g =>
-      g.nome.toLowerCase().includes(q) || q.includes(g.nome.toLowerCase())
-    );
-    if (existing) {
-      const antes = existing.valor;
-      const delta = Number(input.valor);
-      existing.valor = Math.round((existing.valor + delta) * 100) / 100;
-      if (input.recebido !== undefined) existing.recebido = !!input.recebido;
-      existing.historico = existing.historico || [];
-      existing.historico.push({ delta, ts: Date.now(), tipo: 'soma' });
-      return `✅ *${existing.nome}* atualizado:\nR$ ${antes.toFixed(2)} → R$ ${existing.valor.toFixed(2)} (+${delta.toFixed(2)})`;
-    }
-    const item = {
-      id: uid(), nome: input.nome, valor: Number(input.valor),
-      categoria: input.categoria || 'avulso',
-      recebido: input.recebido ?? false,
-      ts: Date.now(), historico: [],
-    };
-    b.ganhos.push(item);
-    return `✅ Ganho criado:\n*${item.nome}* — R$ ${item.valor.toFixed(2)}\nStatus: ${item.recebido ? 'Recebido' : 'Pendente'}`;
-  }
-
-  if (name === 'update_gasto') {
-    const g = b.gastos.find(x => x.id === input.id);
-    if (!g) return '❌ Gasto não encontrado.';
-    if (input.nome      !== undefined) g.nome      = input.nome;
-    if (input.valor     !== undefined) g.valor     = input.valor;
-    if (input.categoria !== undefined) g.categoria = input.categoria;
-    if (input.pago      !== undefined) g.pago      = input.pago;
-    return `✅ Gasto *${g.nome}* atualizado — R$ ${g.valor.toFixed(2)}`;
-  }
-
-  if (name === 'update_ganho') {
-    const g = b.ganhos.find(x => x.id === input.id);
-    if (!g) return '❌ Ganho não encontrado.';
-    if (input.nome     !== undefined) g.nome     = input.nome;
-    if (input.valor    !== undefined) g.valor    = input.valor;
-    if (input.recebido !== undefined) g.recebido = input.recebido;
-    return `✅ Ganho *${g.nome}* atualizado — R$ ${g.valor.toFixed(2)}`;
-  }
-
-  if (name === 'marcar_gasto_pago') {
-    const g = b.gastos.find(x => x.id === input.id);
-    if (!g) return '❌ Gasto não encontrado.';
-    g.pago = input.pago;
-    return `✅ *${g.nome}* marcado como ${input.pago ? 'Pago ✓' : 'Pendente'}`;
-  }
-
-  if (name === 'marcar_ganho_recebido') {
-    const g = b.ganhos.find(x => x.id === input.id);
-    if (!g) return '❌ Ganho não encontrado.';
-    g.recebido = input.recebido;
-    return `✅ *${g.nome}* marcado como ${input.recebido ? 'Recebido ✓' : 'Pendente'}`;
-  }
-
-  return '❌ Ferramenta desconhecida.';
-}
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const CLAUDE_KEY   = process.env.CLAUDE_API_KEY;
+const WA_TOKEN     = process.env.WA_TOKEN;
+const WA_PHONE_ID  = process.env.WA_PHONE_ID;
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+const MEU_NUMERO   = process.env.MEU_NUMERO;
+const TG_TOKEN     = process.env.TG_TOKEN;
+const TG_CHAT_ID   = process.env.TG_CHAT_ID;
 
 // ── Telegram ─────────────────────────────────────────────────────────────────
 
@@ -224,7 +33,7 @@ async function sendTelegram(text) {
 // ── WhatsApp ─────────────────────────────────────────────────────────────────
 
 async function sendMessage(to, text) {
-  const res = await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`, {
+  await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${WA_TOKEN}`,
@@ -237,15 +46,13 @@ async function sendMessage(to, text) {
       text: { body: text },
     }),
   });
-  const json = await res.json();
-  console.log('sendMessage status:', res.status, JSON.stringify(json));
 }
 
 // ── Handler principal ─────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
 
-  // 1. Verificação do webhook (Meta faz um GET quando você cadastra a URL)
+  // Verificação do webhook (Meta faz um GET quando você cadastra a URL)
   if (req.method === 'GET') {
     const mode      = req.query['hub.mode'];
     const token     = req.query['hub.verify_token'];
@@ -272,24 +79,12 @@ export default async function handler(req, res) {
       return res.status(200).end();
     }
 
-    // Busca dados do mês atual
     const key = monthKey();
-    let md = await fetchData(key) || emptyMonth();
+    let md = await fetchData(key, SUPABASE_URL, SUPABASE_KEY) || emptyMonth();
 
-    // Snapshot compacto para o Claude
-    const snapshot = {
-      mes: key,
-      gastos: md.balanco.gastos.map(g => ({
-        id: g.id, nome: g.nome, valor: g.valor,
-        categoria: g.categoria, pago: g.pago,
-      })),
-      ganhos: md.balanco.ganhos.map(g => ({
-        id: g.id, nome: g.nome, valor: g.valor,
-        categoria: g.categoria, recebido: g.recebido,
-      })),
-    };
+    // Salva snapshot para undo antes de qualquer alteração
+    const snapshot = JSON.parse(JSON.stringify(md));
 
-    // Chama Claude
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -300,19 +95,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
         max_tokens: 1024,
-        system: `Você é o assistente financeiro do Thiago Caldas via WhatsApp.
-Interprete mensagens em português e use as ferramentas para registrar gastos e ganhos.
-
-Regras:
-- "gastei X de Y" ou "comprei X por Y" → add_gasto (pago: true)
-- "vou gastar X" ou "tenho gasto de X" → add_gasto (pago: false)
-- "recebi X" ou "entrou X" → add_ganho (recebido: true)
-- "vou receber X" → add_ganho (recebido: false)
-- Se citar um gasto que já existe na lista, atualize o valor em vez de criar novo
-- Seja breve e objetivo nas respostas
-
-Estado atual do mês ${key}:
-${JSON.stringify(snapshot, null, 2)}`,
+        system: buildSystemPrompt(key, md),
         tools: TOOLS,
         messages: [{ role: 'user', content: text }],
       }),
@@ -320,28 +103,40 @@ ${JSON.stringify(snapshot, null, 2)}`,
 
     const claude = await claudeRes.json();
 
-    let reply = '';
+    let reply   = '';
     let changed = false;
 
     for (const block of claude.content || []) {
       if (block.type === 'tool_use') {
-        console.log('TOOL:', block.name, JSON.stringify(block.input));
-        const result = runTool(block.name, block.input, md);
-        console.log('RESULT:', result);
-        reply += result + '\n';
-        changed = true;
+        if (block.name === 'desfazer') {
+          const undo = await loadUndo(key, SUPABASE_URL, SUPABASE_KEY);
+          if (undo) {
+            md = undo;
+            changed = true;
+            reply += '↩️ Última alteração desfeita.\n';
+          } else {
+            reply += '❌ Nenhuma alteração anterior encontrada para desfazer.\n';
+          }
+        } else {
+          // Salva snapshot apenas na primeira ferramenta real
+          if (!changed) {
+            await saveUndo(key, snapshot, SUPABASE_URL, SUPABASE_KEY);
+          }
+          const result = runTool(block.name, block.input, md);
+          reply += result + '\n';
+          changed = true;
+        }
       } else if (block.type === 'text' && block.text) {
         reply += block.text;
       }
     }
 
-    console.log('GASTOS APÓS TOOL:', JSON.stringify(md.balanco.gastos.map(g => ({ nome: g.nome, valor: g.valor, historico: g.historico?.length }))));
     if (changed) {
-      await saveData(key, md);
+      await saveData(key, md, SUPABASE_URL, SUPABASE_KEY);
       await sendTelegram(`📱 *WhatsApp*\n${reply.trim()}`);
     }
 
-    const finalReply = reply.trim() || 'Não entendi 🤔\nTente: _"gastei 50 reais de mercado"_';
+    const finalReply = reply.trim() || 'Não entendi 🤔\nExemplos:\n_"gastei 50 de mercado"_\n_"João pagou"_\n_"nova aluna Ana presencial 300"_';
     await sendMessage(from, finalReply);
 
     return res.status(200).end();
