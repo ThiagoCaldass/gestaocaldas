@@ -242,25 +242,19 @@ export default async function handler(req, res) {
     return res.status(403).end();
   }
 
-  // 2. Responde 200 imediatamente (Meta exige resposta em < 5s)
-  res.status(200).end();
-
-  if (req.method !== 'POST') return;
+  if (req.method !== 'POST') return res.status(200).end();
 
   try {
-    console.log('BODY:', JSON.stringify(req.body));
     const message = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    console.log('MESSAGE:', JSON.stringify(message));
-    if (!message || message.type !== 'text') return;
+    if (!message || message.type !== 'text') return res.status(200).end();
 
-    const from = message.from;   // ex: "5511999999999"
+    const from = message.from;
     const text = message.text.body.trim();
 
     // Segurança: só aceita mensagens do seu número
-    console.log(`FROM: ${from} | MEU_NUMERO: ${MEU_NUMERO} | MATCH: ${from === MEU_NUMERO}`);
     if (MEU_NUMERO && from !== MEU_NUMERO) {
       console.log(`Número não autorizado: ${from}`);
-      return;
+      return res.status(200).end();
     }
 
     // Busca dados do mês atual
@@ -327,11 +321,16 @@ ${JSON.stringify(snapshot, null, 2)}`,
     }
 
     if (changed) await saveData(key, md);
+    console.log('Dados salvos. Enviando resposta...');
 
     const finalReply = reply.trim() || 'Não entendi 🤔\nTente: _"gastei 50 reais de mercado"_';
     await sendMessage(from, finalReply);
+    console.log('Resposta enviada:', finalReply);
+
+    return res.status(200).end();
 
   } catch (err) {
     console.error('Erro no webhook:', err);
+    return res.status(200).end();
   }
 }
