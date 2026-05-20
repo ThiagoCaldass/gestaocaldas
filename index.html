@@ -2990,9 +2990,13 @@ function renderPersonalContent(md, tab) {
 function renderRegistroAulas(list) {
   const ativos = list.filter(a => !a.pausado);
   if (ativos.length === 0) return '';
+  const totalAulas = ativos.reduce((s,a) => s + (a.aulasDatas||[]).length * (a.valorAula||0), 0);
   return `
     <div class="section-header" style="margin-top:20px">
-      <div class="section-title">CONTROLE DE AULAS — REFERÊNCIA PRÓXIMO MÊS</div>
+      <div class="section-title" style="display:flex;align-items:center;gap:10px">
+        CONTROLE DE AULAS — REFERÊNCIA PRÓXIMO MÊS
+        ${totalAulas > 0 ? `<span style="font-size:13px;font-weight:600;color:var(--accent)">${fmt(totalAulas)}</span>` : ''}
+      </div>
       <div style="display:flex;align-items:center;gap:12px">
         <div style="font-size:11px;color:var(--text3)">Apenas visual · não afeta os ganhos do mês atual</div>
         ${isReadOnly()?'':'<button class="btn btn-ghost btn-sm" onclick="resetarPresencas()" style="font-size:11px;color:var(--red)">↺ Zerar presenças</button>'}
