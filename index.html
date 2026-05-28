@@ -535,6 +535,8 @@
       <div class="nav-item" data-page="tattoo" onclick="navigate('tattoo');closeSidebar()"><span class="icon">◆</span> Tatuagem</div>
       <div class="nav-section">Social Media</div>
       <div class="nav-item" data-page="brand" onclick="navigate('brand');closeSidebar()"><span class="icon">◉</span> Identidade Visual</div>
+      <div class="nav-section">Análise</div>
+      <div class="nav-item" data-page="historico" onclick="navigate('historico');closeSidebar()"><span class="icon">◷</span> Histórico</div>
     </div>
     <div class="sidebar-footer">
       <div class="month-badge" onclick="openMonthPicker()">
@@ -1231,8 +1233,9 @@ async function navigate(page) {
 
   const titles = {
     dashboard:'DASHBOARD', balanco:'BALANÇO', cartao:'CARTÃO',
-    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', tattoo:'TATUAGEM', treino:'TREINO', brand:'IDENTIDADE VISUAL'
+    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', tattoo:'TATUAGEM', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO'
   };
+  document.getElementById('topbarMonthNav').style.display = page === 'historico' ? 'none' : '';
   document.getElementById('pageTitle').textContent = titles[page]||page.toUpperCase();
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="confirmarResetMes()" title="Resetar mês" style="color:var(--text3);font-size:11px">↺ Reset</button>`;
   document.getElementById('content').innerHTML = '';
@@ -1258,7 +1261,123 @@ async function navigate(page) {
     case 'tattoo':       renderTattoo(md); break;
     case 'treino':       renderTreino(); break;
     case 'brand':        renderBrand(); break;
+    case 'historico':    await renderHistorico(); break;
   }
+}
+
+// ==================== HISTÓRICO ====================
+
+async function renderHistorico() {
+  const el = document.getElementById('content');
+  el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">Carregando histórico...</div>';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data?select=month_key,data&order=month_key.desc`, { headers: sbHeaders });
+    const rows = await res.json();
+    const monthRegex = /^\d{4}-\d{2}$/;
+    const months = rows.filter(r => monthRegex.test(r.month_key));
+    if (months.length === 0) {
+      el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">Nenhum dado histórico encontrado.</div>';
+      return;
+    }
+    const byYear = {};
+    months.forEach(r => {
+      const y = r.month_key.split('-')[0];
+      if (!byYear[y]) byYear[y] = [];
+      byYear[y].push(r);
+    });
+    const years = Object.keys(byYear).sort((a,b) => b-a);
+    const MONTHS_BR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+    function metricsFrom(data) {
+      if (!data) return null;
+      const ganhos = (data.balanco?.ganhos||[]).reduce((s,g)=>s+(g.valor||0),0);
+      const gastos  = (data.balanco?.gastos||[]).reduce((s,g)=>s+(g.valor||0),0);
+      const cali    = (data.calistenia||[]).filter(a=>!a.pausado);
+      const caliV   = calcValoresCali(cali).reduce((s,a)=>s+(a.valorFinal||0),0);
+      const online  = (data.personal?.online||[]).filter(a=>!a.pausado);
+      const onlineV = online.reduce((s,a)=>s+(a.valor||0),0);
+      const pres    = (data.personal?.presencial||[]).filter(a=>!a.pausado);
+      const presV   = pres.reduce((s,a)=>s+(a.valor||0),0);
+      return { ganhos, gastos, saldo:ganhos-gastos, caliQt:cali.length, caliV, onlineQt:online.length, onlineV, presQt:pres.length, presV };
+    }
+
+    let html = '<div style="padding:16px;max-width:900px;margin:0 auto">';
+    years.forEach((year,yi) => {
+      const ym = byYear[year];
+      let yG=0, yGt=0;
+      ym.forEach(r=>{ const m=metricsFrom(r.data); if(m){yG+=m.ganhos;yGt+=m.gastos;} });
+      const yS = yG - yGt;
+      const open = yi === 0;
+      html += `
+      <div class="table-card" style="margin-bottom:16px">
+        <div class="table-header" style="cursor:pointer" onclick="toggleHistoricoYear('${year}')">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:18px;font-weight:700;font-family:'Bebas Neue';letter-spacing:1px">${year}</span>
+            <span style="font-size:11px;color:var(--text3)">${ym.length} mês(es)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px">
+            <div style="text-align:right"><div style="font-size:10px;color:var(--text3)">ganhos</div><div style="font-size:13px;font-weight:600;color:var(--green);font-family:'Barlow Condensed'">${fmt(yG)}</div></div>
+            <div style="text-align:right"><div style="font-size:10px;color:var(--text3)">gastos</div><div style="font-size:13px;font-weight:600;color:var(--red);font-family:'Barlow Condensed'">${fmt(yGt)}</div></div>
+            <div style="text-align:right"><div style="font-size:10px;color:var(--text3)">saldo</div><div style="font-size:13px;font-weight:600;color:${yS>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed'">${fmt(yS)}</div></div>
+            <span id="hist-arrow-${year}" style="color:var(--text3);display:inline-block;transition:transform 0.2s;transform:${open?'rotate(0deg)':'rotate(-90deg)'}">▼</span>
+          </div>
+        </div>
+        <div id="hist-year-${year}" style="display:${open?'block':'none'};overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:560px">
+            <thead>
+              <tr style="background:var(--surface2)">
+                <th style="padding:8px 14px;text-align:left;color:var(--text3);font-weight:500;font-size:11px">Mês</th>
+                <th style="padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;font-size:11px">Ganhos</th>
+                <th style="padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;font-size:11px">Gastos</th>
+                <th style="padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;font-size:11px">Saldo</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--text3);font-weight:500;font-size:11px">Calistenia</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--text3);font-weight:500;font-size:11px">Online</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--text3);font-weight:500;font-size:11px">Presencial</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${ym.map(r => {
+                const mIdx = parseInt(r.month_key.split('-')[1]) - 1;
+                const m = metricsFrom(r.data);
+                if (!m) return `<tr><td colspan="7" style="padding:10px 14px;color:var(--text3);font-size:11px">${MONTHS_BR[mIdx]} — sem dados</td></tr>`;
+                return `<tr style="border-top:1px solid var(--border)">
+                  <td style="padding:10px 14px;font-weight:500">${MONTHS_BR[mIdx]}</td>
+                  <td style="padding:10px;text-align:right;color:var(--green);font-family:'Barlow Condensed'">${fmt(m.ganhos)}</td>
+                  <td style="padding:10px;text-align:right;color:var(--red);font-family:'Barlow Condensed'">${fmt(m.gastos)}</td>
+                  <td style="padding:10px;text-align:right;font-weight:700;color:${m.saldo>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed'">${fmt(m.saldo)}</td>
+                  <td style="padding:10px;text-align:center">
+                    <span style="font-weight:600">${m.caliQt}</span>
+                    ${m.caliV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.caliV)}</span>`:''}
+                  </td>
+                  <td style="padding:10px;text-align:center">
+                    <span style="font-weight:600">${m.onlineQt}</span>
+                    ${m.onlineV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.onlineV)}</span>`:''}
+                  </td>
+                  <td style="padding:10px;text-align:center">
+                    <span style="font-weight:600">${m.presQt}</span>
+                    ${m.presV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.presV)}</span>`:''}
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  } catch(e) {
+    console.error('Histórico error:', e);
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--red)">Erro ao carregar histórico.</div>';
+  }
+}
+
+function toggleHistoricoYear(year) {
+  const panel = document.getElementById(`hist-year-${year}`);
+  const arrow  = document.getElementById(`hist-arrow-${year}`);
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  arrow.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
 }
 
 // ==================== DASHBOARD ====================
