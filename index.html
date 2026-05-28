@@ -450,6 +450,15 @@
     .content { padding: 10px; }
     th, td { padding: 6px 8px; font-size: 11px; }
   }
+  /* HISTÓRICO — mobile */
+  @media (max-width: 600px) {
+    .hist-year-hdr { flex-wrap: wrap; gap: 8px !important; }
+    .hist-totals   { gap: 8px !important; flex-wrap: wrap; justify-content: flex-end; }
+    .hist-total    { min-width: 52px; }
+    .hist-table td, .hist-table th { padding: 7px 6px !important; font-size: 11px !important; }
+    .hist-table td:first-child, .hist-table th:first-child { padding-left: 10px !important; }
+  }
+
   /* DRAG & DROP REORDER */
   tr.dragging { opacity: 0.4; }
   tr.drag-over { border-top: 2px solid var(--accent); }
@@ -1271,7 +1280,7 @@ async function navigate(page) {
 
 // ==================== HISTÓRICO ====================
 
-let histSort      = { field: 'month_key', dir: 'asc' };
+let histSort      = { field: 'month_key', dir: 'desc' };
 let histOpenYears = null; // Set<string> — null = padrão (primeiro ano aberto)
 let historicoCache = null; // Array<{ month_key, base, m, ovr }>
 
@@ -1412,20 +1421,20 @@ function buildHistoricoHTML() {
 
     html += `
     <div class="table-card" style="margin-bottom:16px">
-      <div class="table-header" style="cursor:pointer" onclick="toggleHistoricoYear('${year}')">
+      <div class="table-header hist-year-hdr" style="cursor:pointer" onclick="toggleHistoricoYear('${year}')">
         <div style="display:flex;align-items:center;gap:12px">
           <span style="font-size:18px;font-weight:700;font-family:'Bebas Neue';letter-spacing:1px">${year}</span>
           <span style="font-size:11px;color:var(--text3)">${ym.length} mês(es)</span>
         </div>
-        <div style="display:flex;align-items:center;gap:16px">
-          <div style="text-align:right"><div style="font-size:10px;color:var(--text3)">ganhos</div><div style="font-size:13px;font-weight:600;color:var(--green);font-family:'Barlow Condensed'">${fmt(yG)}</div></div>
-          <div style="text-align:right"><div style="font-size:10px;color:var(--text3)">gastos</div><div style="font-size:13px;font-weight:600;color:var(--red);font-family:'Barlow Condensed'">${fmt(yGt)}</div></div>
-          <div style="text-align:right"><div style="font-size:10px;color:var(--text3)">saldo</div><div style="font-size:13px;font-weight:600;color:${yS>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed'">${fmt(yS)}</div></div>
+        <div class="hist-totals" style="display:flex;align-items:center;gap:16px">
+          <div class="hist-total" style="text-align:right"><div style="font-size:10px;color:var(--text3)">ganhos</div><div style="font-size:13px;font-weight:600;color:var(--green);font-family:'Barlow Condensed'">${fmt(yG)}</div></div>
+          <div class="hist-total" style="text-align:right"><div style="font-size:10px;color:var(--text3)">gastos</div><div style="font-size:13px;font-weight:600;color:var(--red);font-family:'Barlow Condensed'">${fmt(yGt)}</div></div>
+          <div class="hist-total" style="text-align:right"><div style="font-size:10px;color:var(--text3)">saldo</div><div style="font-size:13px;font-weight:600;color:${yS>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed'">${fmt(yS)}</div></div>
           <span id="hist-arrow-${year}" style="color:var(--text3);display:inline-block;transition:transform 0.2s;transform:${open?'rotate(0deg)':'rotate(-90deg)'}">▼</span>
         </div>
       </div>
-      <div id="hist-year-${year}" style="display:${open?'block':'none'};overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:580px">
+      <div id="hist-year-${year}" style="display:${open?'block':'none'};overflow-x:auto;-webkit-overflow-scrolling:touch">
+        <table class="hist-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:520px">
           <thead>
             <tr style="background:var(--surface2)">
               ${hdr('Mês','month_key','left')}
