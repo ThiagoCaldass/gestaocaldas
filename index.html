@@ -554,14 +554,17 @@
         <div class="page-title" id="pageTitle">DASHBOARD</div>
       </div>
       <div class="topbar-actions" id="topbarActions"></div>
-      <div style="display:flex;align-items:center;gap:2px;flex-shrink:0" id="topbarMonthNav">
-        <button onclick="stepMonth(-1)" style="background: var(--accent); border: 1px solid rgba(232,32,10,0.4); border-radius: 6px 0 0 6px; padding: 6px 9px; font-size: 14px; color: #fff; cursor: pointer; line-height: 1; font-weight: 700">&#8249;</button>
-        <button onclick="openMonthPicker()" style="background:var(--surface2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:none;border-right:none;padding:6px 8px;font-size:12px;color:var(--text2);cursor:pointer;font-family:'Barlow Condensed';display:flex;align-items:center;gap:4px;white-space:nowrap" id="topbarMonthBtn">
-          <span id="topbarMonthLabel">Abr 2026</span>
-          <span id="topbarLockIcon" style="font-size:11px;display:none">&#128274;</span>
-          <span style="font-size:10px;opacity:0.5">&#8597;</span>
-        </button>
-        <button onclick="stepMonth(1)" id="topbarMonthNext" style="background: var(--accent); border: 1px solid rgba(232,32,10,0.4); border-radius: 0px 6px 6px 0px; padding: 6px 9px; font-size: 14px; color: #fff; cursor: pointer; line-height: 1; font-weight: 700">&#8250;</button>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0" id="topbarMonthNav">
+        <div style="display:flex;align-items:center;gap:2px">
+          <button onclick="stepMonth(-1)" style="background: var(--accent); border: 1px solid rgba(232,32,10,0.4); border-radius: 6px 0 0 6px; padding: 6px 9px; font-size: 14px; color: #fff; cursor: pointer; line-height: 1; font-weight: 700">&#8249;</button>
+          <button onclick="openMonthPicker()" style="background:var(--surface2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:none;border-right:none;padding:6px 8px;font-size:12px;color:var(--text2);cursor:pointer;font-family:'Barlow Condensed';display:flex;align-items:center;gap:4px;white-space:nowrap" id="topbarMonthBtn">
+            <span id="topbarMonthLabel">Abr 2026</span>
+            <span id="topbarLockIcon" style="font-size:11px;display:none">&#128274;</span>
+            <span style="font-size:10px;opacity:0.5">&#8597;</span>
+          </button>
+          <button onclick="stepMonth(1)" id="topbarMonthNext" style="background: var(--accent); border: 1px solid rgba(232,32,10,0.4); border-radius: 0px 6px 6px 0px; padding: 6px 9px; font-size: 14px; color: #fff; cursor: pointer; line-height: 1; font-weight: 700">&#8250;</button>
+        </div>
+        <button onclick="navigate('historico');closeSidebar()" style="background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;padding:0;font-family:'Barlow Condensed';letter-spacing:0.5px;line-height:1" title="Ver histórico">◷ HISTÓRICO</button>
       </div>
     </div>
     <div class="content" id="content"></div>
@@ -1236,7 +1239,7 @@ async function navigate(page) {
     dashboard:'DASHBOARD', balanco:'BALANÇO', cartao:'CARTÃO',
     calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', tattoo:'TATUAGEM', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO'
   };
-  document.getElementById('topbarMonthNav').style.display = page === 'historico' ? 'none' : '';
+  document.getElementById('topbarMonthNav').style.display = page === 'historico' ? 'none' : 'flex';
   document.getElementById('pageTitle').textContent = titles[page]||page.toUpperCase();
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="confirmarResetMes()" title="Resetar mês" style="color:var(--text3);font-size:11px">↺ Reset</button>`;
   document.getElementById('content').innerHTML = '';
