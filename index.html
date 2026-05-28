@@ -1389,27 +1389,81 @@ function buildHistoricoHTML() {
     return dir === 'asc' ? agg(a) - agg(b) : agg(b) - agg(a);
   });
 
-  // Header ordenável
+  const isMobile = window.innerWidth <= 640;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  // Header ordenável (desktop)
   const hdr = (label, f, align='right') => {
     const on = histSort.field === f;
     const arrow = on ? (histSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
     return `<th style="padding:8px 10px;text-align:${align};font-weight:500;font-size:11px;cursor:pointer;user-select:none;white-space:nowrap;color:${on?'var(--accent)':'var(--text3)'}" onclick="setHistSort('${f}')">${label}${arrow}</th>`;
   };
 
-  // Célula editável
-  const eCell = (mk, f, val, _ignored, isCurrency=true, align='right') => {
+  // Célula editável (desktop)
+  const eCell = (mk, f, val, isCurrency=true, align='right') => {
     const disp  = isCurrency ? fmt(val) : val;
     const color = f==='ganhos'?'var(--green)':f==='gastos'?'var(--red)':f==='saldo'?(val>=0?'var(--green)':'var(--red)'):'var(--text)';
     const bg    = histSort.field===f ? 'background:rgba(232,32,10,0.04);' : '';
-    return `<td style="padding:9px 10px;text-align:${align};cursor:pointer;${bg}" title="Clique para editar" onclick="editHistoricoField('${mk}','${f}',${val},${isCurrency})">
+    return `<td style="padding:9px 10px;text-align:${align};cursor:pointer;${bg}" onclick="editHistoricoField('${mk}','${f}',${val},${isCurrency})">
       <span style="color:${color};font-family:${isCurrency?"'Barlow Condensed'":'inherit'};font-weight:${f==='saldo'?'700':'400'}">${disp}</span>
     </td>`;
   };
 
-  let html = `<div style="padding:16px;max-width:900px;margin:0 auto">
+  // Pills de ordenação (mobile)
+  const sortPills = [
+    ['month_key','Data'],['ganhos','Ganhos'],['gastos','Gastos'],
+    ['saldo','Saldo'],['caliV','Cali'],['onlineV','Online'],['presV','Pres'],
+  ].map(([f,l]) => {
+    const on = histSort.field === f;
+    const arrow = on ? (histSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<button onclick="setHistSort('${f}')" style="padding:5px 11px;border-radius:14px;font-size:12px;border:1px solid ${on?'var(--accent)':'var(--border)'};background:${on?'rgba(232,32,10,0.1)':'var(--surface2)'};color:${on?'var(--accent)':'var(--text2)'};cursor:pointer;white-space:nowrap">${l}${arrow}</button>`;
+  }).join('');
+
+  // Card de mês (mobile)
+  const monthCard = (r) => {
+    const mIdx  = parseInt(r.month_key.split('-')[1]) - 1;
+    const { m, ovr } = r;
+    const hasOvr = Object.keys(ovr).length > 0;
+    const sColor = m.saldo >= 0 ? 'var(--green)' : 'var(--red)';
+    return `
+    <div style="padding:12px 14px;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
+        <span style="font-weight:600;font-size:14px">${MONTHS_BR[mIdx]}</span>
+        <span style="font-size:16px;font-weight:700;color:${sColor};font-family:'Barlow Condensed'">${m.saldo>=0?'+':''}${fmt(m.saldo)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px">
+        <div onclick="editHistoricoField('${r.month_key}','ganhos',${m.ganhos},true)" style="cursor:pointer;padding:7px 10px;border-radius:8px;background:rgba(76,175,80,0.08);border:1px solid rgba(76,175,80,0.15)">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">Ganhos</div>
+          <div style="color:var(--green);font-family:'Barlow Condensed';font-size:16px;font-weight:600">${fmt(m.ganhos)}</div>
+        </div>
+        <div onclick="editHistoricoField('${r.month_key}','gastos',${m.gastos},true)" style="cursor:pointer;padding:7px 10px;border-radius:8px;background:rgba(232,32,10,0.06);border:1px solid rgba(232,32,10,0.15)">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">Gastos</div>
+          <div style="color:var(--red);font-family:'Barlow Condensed';font-size:16px;font-weight:600">${fmt(m.gastos)}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+        ${[['cali','Cali',m.caliQt,m.caliV],['online','Online',m.onlineQt,m.onlineV],['presencial','Pres',m.presQt,m.presV]].map(([tipo,label,qt,v])=>`
+        <div onclick="editHistoricoMes('${r.month_key}','${tipo}',${qt},${v})" style="cursor:pointer;text-align:center;padding:7px 4px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">${label}</div>
+          <div style="font-weight:700;font-size:14px">${qt}</div>
+          ${v>0?`<div style="font-size:10px;color:var(--text3);margin-top:1px">${fmt(v)}</div>`:''}
+        </div>`).join('')}
+      </div>
+      ${hasOvr?`<div style="margin-top:8px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="resetHistoricoMes('${r.month_key}')" style="font-size:11px;color:var(--text3)">↺ Reverter</button></div>`:''}
+    </div>`;
+  };
+
+  // ── Monta HTML ──────────────────────────────────────────────────────────────
+
+  let html = `<div style="padding:${isMobile?'10px':'16px'};max-width:900px;margin:0 auto">
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
       <button class="btn btn-primary btn-sm" onclick="openAddHistoricoMes()">+ Adicionar mês</button>
     </div>`;
+
+  if (isMobile) {
+    html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${sortPills}</div>`;
+  }
 
   years.forEach((year, yi) => {
     const ym  = byYear[year];
@@ -1419,61 +1473,55 @@ function buildHistoricoHTML() {
     const open = histOpenYears ? histOpenYears.has(String(year)) : yi === 0;
 
     html += `
-    <div class="table-card" style="margin-bottom:16px">
-      <div class="table-header hist-year-hdr" style="cursor:pointer" onclick="toggleHistoricoYear('${year}')">
-        <div style="display:flex;align-items:center;gap:12px">
+    <div class="table-card" style="margin-bottom:14px">
+      <div class="table-header hist-year-hdr" style="cursor:pointer;padding:${isMobile?'12px 14px':'14px 18px'}" onclick="toggleHistoricoYear('${year}')">
+        <div style="display:flex;align-items:center;gap:10px">
           <span style="font-size:18px;font-weight:700;font-family:'Bebas Neue';letter-spacing:1px">${year}</span>
           <span style="font-size:11px;color:var(--text3)">${ym.length} mês(es)</span>
         </div>
-        <div class="hist-totals" style="display:flex;align-items:center;gap:16px">
+        <div class="hist-totals" style="display:flex;align-items:center;gap:${isMobile?'10px':'16px'}">
           <div class="hist-total" style="text-align:right"><div style="font-size:10px;color:var(--text3)">ganhos</div><div style="font-size:13px;font-weight:600;color:var(--green);font-family:'Barlow Condensed'">${fmt(yG)}</div></div>
           <div class="hist-total" style="text-align:right"><div style="font-size:10px;color:var(--text3)">gastos</div><div style="font-size:13px;font-weight:600;color:var(--red);font-family:'Barlow Condensed'">${fmt(yGt)}</div></div>
           <div class="hist-total" style="text-align:right"><div style="font-size:10px;color:var(--text3)">saldo</div><div style="font-size:13px;font-weight:600;color:${yS>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed'">${fmt(yS)}</div></div>
           <span id="hist-arrow-${year}" style="color:var(--text3);display:inline-block;transition:transform 0.2s;transform:${open?'rotate(0deg)':'rotate(-90deg)'}">▼</span>
         </div>
       </div>
-      <div id="hist-year-${year}" style="display:${open?'block':'none'};overflow-x:auto;-webkit-overflow-scrolling:touch">
-        <table class="hist-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:520px">
-          <thead>
-            <tr style="background:var(--surface2)">
-              ${hdr('Mês','month_key','left')}
-              ${hdr('Ganhos ✎','ganhos')}
-              ${hdr('Gastos ✎','gastos')}
-              ${hdr('Saldo','saldo')}
-              ${hdr('Calistenia ✎','caliV','center')}
-              ${hdr('Online ✎','onlineV','center')}
-              ${hdr('Presencial ✎','presV','center')}
-              <th style="width:28px"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${ym.map(r => {
-              const mIdx   = parseInt(r.month_key.split('-')[1]) - 1;
-              const { m, ovr } = r;
-              const hasOvr = Object.keys(ovr).length > 0;
-              return `<tr style="border-top:1px solid var(--border)">
-                <td style="padding:9px 14px;font-weight:500;white-space:nowrap">${MONTHS_BR[mIdx]}</td>
-                ${eCell(r.month_key,'ganhos',m.ganhos,!!ovr.ganhos)}
-                ${eCell(r.month_key,'gastos',m.gastos,!!ovr.gastos)}
-                <td style="padding:9px 10px;text-align:right;font-weight:700;color:${m.saldo>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed';${histSort.field==='saldo'?'background:rgba(232,32,10,0.04)':''}">${fmt(m.saldo)}</td>
-                <td style="padding:9px 10px;text-align:center;cursor:pointer;${histSort.field==='caliV'?'background:rgba(232,32,10,0.04)':''}" onclick="editHistoricoMes('${r.month_key}','cali',${m.caliQt},${m.caliV})">
-                  <span style="font-weight:600">${m.caliQt}</span>
-                  ${m.caliV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.caliV)}</span>`:''}
-                </td>
-                <td style="padding:9px 10px;text-align:center;cursor:pointer;${histSort.field==='onlineV'?'background:rgba(232,32,10,0.04)':''}" onclick="editHistoricoMes('${r.month_key}','online',${m.onlineQt},${m.onlineV})">
-                  <span style="font-weight:600">${m.onlineQt}</span>
-                  ${m.onlineV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.onlineV)}</span>`:''}
-                </td>
-                <td style="padding:9px 10px;text-align:center;cursor:pointer;${histSort.field==='presV'?'background:rgba(232,32,10,0.04)':''}" onclick="editHistoricoMes('${r.month_key}','presencial',${m.presQt},${m.presV})">
-                  <span style="font-weight:600">${m.presQt}</span>
-                  ${m.presV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.presV)}</span>`:''}
-                </td>
-                <td style="padding:4px;text-align:center">${hasOvr?`<button class="btn btn-ghost btn-sm" onclick="resetHistoricoMes('${r.month_key}')" style="padding:2px 5px;font-size:10px;color:var(--text3)" title="Reverter">↺</button>`:''}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-        <div style="padding:8px 14px;font-size:10px;color:var(--text3)">✎ Clique em qualquer valor para editar · ↺ Reverte para os dados originais · Clique no cabeçalho para ordenar</div>
+      <div id="hist-year-${year}" style="display:${open?'block':'none'}">
+        ${isMobile
+          ? ym.map(r => monthCard(r)).join('')
+          : `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+              <table class="hist-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:520px">
+                <thead><tr style="background:var(--surface2)">
+                  ${hdr('Mês','month_key','left')}
+                  ${hdr('Ganhos ✎','ganhos')}
+                  ${hdr('Gastos ✎','gastos')}
+                  ${hdr('Saldo','saldo')}
+                  ${hdr('Calistenia ✎','caliV','center')}
+                  ${hdr('Online ✎','onlineV','center')}
+                  ${hdr('Presencial ✎','presV','center')}
+                  <th style="width:28px"></th>
+                </tr></thead>
+                <tbody>
+                  ${ym.map(r => {
+                    const mIdx = parseInt(r.month_key.split('-')[1]) - 1;
+                    const { m, ovr } = r;
+                    const hasOvr = Object.keys(ovr).length > 0;
+                    return `<tr style="border-top:1px solid var(--border)">
+                      <td style="padding:9px 14px;font-weight:500;white-space:nowrap">${MONTHS_BR[mIdx]}</td>
+                      ${eCell(r.month_key,'ganhos',m.ganhos)}
+                      ${eCell(r.month_key,'gastos',m.gastos)}
+                      <td style="padding:9px 10px;text-align:right;font-weight:700;color:${m.saldo>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed';${histSort.field==='saldo'?'background:rgba(232,32,10,0.04)':''}">${fmt(m.saldo)}</td>
+                      <td style="padding:9px 10px;text-align:center;cursor:pointer;${histSort.field==='caliV'?'background:rgba(232,32,10,0.04)':''}" onclick="editHistoricoMes('${r.month_key}','cali',${m.caliQt},${m.caliV})"><span style="font-weight:600">${m.caliQt}</span>${m.caliV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.caliV)}</span>`:''}</td>
+                      <td style="padding:9px 10px;text-align:center;cursor:pointer;${histSort.field==='onlineV'?'background:rgba(232,32,10,0.04)':''}" onclick="editHistoricoMes('${r.month_key}','online',${m.onlineQt},${m.onlineV})"><span style="font-weight:600">${m.onlineQt}</span>${m.onlineV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.onlineV)}</span>`:''}</td>
+                      <td style="padding:9px 10px;text-align:center;cursor:pointer;${histSort.field==='presV'?'background:rgba(232,32,10,0.04)':''}" onclick="editHistoricoMes('${r.month_key}','presencial',${m.presQt},${m.presV})"><span style="font-weight:600">${m.presQt}</span>${m.presV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.presV)}</span>`:''}</td>
+                      <td style="padding:4px;text-align:center">${hasOvr?`<button class="btn btn-ghost btn-sm" onclick="resetHistoricoMes('${r.month_key}')" style="padding:2px 5px;font-size:10px;color:var(--text3)">↺</button>`:''}</td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+              <div style="padding:8px 14px;font-size:10px;color:var(--text3)">✎ Clique em qualquer valor para editar · ↺ Reverte · Cabeçalho para ordenar</div>
+            </div>`
+        }
       </div>
     </div>`;
   });
