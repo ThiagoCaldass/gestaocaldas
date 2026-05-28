@@ -1397,13 +1397,12 @@ function buildHistoricoHTML() {
   };
 
   // Célula editável
-  const eCell = (mk, f, val, isEdited, isCurrency=true, align='right') => {
+  const eCell = (mk, f, val, _ignored, isCurrency=true, align='right') => {
     const disp  = isCurrency ? fmt(val) : val;
-    const dot   = isEdited ? `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:3px;vertical-align:middle"></span>` : '';
     const color = f==='ganhos'?'var(--green)':f==='gastos'?'var(--red)':f==='saldo'?(val>=0?'var(--green)':'var(--red)'):'var(--text)';
     const bg    = histSort.field===f ? 'background:rgba(232,32,10,0.04);' : '';
     return `<td style="padding:9px 10px;text-align:${align};cursor:pointer;${bg}" title="Clique para editar" onclick="editHistoricoField('${mk}','${f}',${val},${isCurrency})">
-      <span style="color:${color};font-family:${isCurrency?"'Barlow Condensed'":'inherit'};font-weight:${f==='saldo'?'700':'400'}">${disp}${dot}</span>
+      <span style="color:${color};font-family:${isCurrency?"'Barlow Condensed'":'inherit'};font-weight:${f==='saldo'?'700':'400'}">${disp}</span>
     </td>`;
   };
 
@@ -1458,16 +1457,16 @@ function buildHistoricoHTML() {
                 ${eCell(r.month_key,'gastos',m.gastos,!!ovr.gastos)}
                 <td style="padding:9px 10px;text-align:right;font-weight:700;color:${m.saldo>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed';${histSort.field==='saldo'?'background:rgba(232,32,10,0.04)':''}">${fmt(m.saldo)}</td>
                 <td style="padding:9px 10px;text-align:center;cursor:pointer;${histSort.field==='caliV'?'background:rgba(232,32,10,0.04)':''}" onclick="editHistoricoMes('${r.month_key}','cali',${m.caliQt},${m.caliV})">
-                  <span style="font-weight:600;${ovr.caliQt!==undefined?'color:var(--accent)':''}">${m.caliQt}${ovr.caliQt!==undefined?'<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:3px;vertical-align:middle"></span>':''}</span>
-                  ${m.caliV>0?`<span style="display:block;font-size:10px;color:${ovr.caliV!==undefined?'var(--accent)':'var(--text3)'}">${fmt(m.caliV)}</span>`:''}
+                  <span style="font-weight:600">${m.caliQt}</span>
+                  ${m.caliV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.caliV)}</span>`:''}
                 </td>
                 <td style="padding:9px 10px;text-align:center;cursor:pointer;${histSort.field==='onlineV'?'background:rgba(232,32,10,0.04)':''}" onclick="editHistoricoMes('${r.month_key}','online',${m.onlineQt},${m.onlineV})">
-                  <span style="font-weight:600;${ovr.onlineQt!==undefined?'color:var(--accent)':''}">${m.onlineQt}${ovr.onlineQt!==undefined?'<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:3px;vertical-align:middle"></span>':''}</span>
-                  ${m.onlineV>0?`<span style="display:block;font-size:10px;color:${ovr.onlineV!==undefined?'var(--accent)':'var(--text3)'}">${fmt(m.onlineV)}</span>`:''}
+                  <span style="font-weight:600">${m.onlineQt}</span>
+                  ${m.onlineV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.onlineV)}</span>`:''}
                 </td>
                 <td style="padding:9px 10px;text-align:center;cursor:pointer;${histSort.field==='presV'?'background:rgba(232,32,10,0.04)':''}" onclick="editHistoricoMes('${r.month_key}','presencial',${m.presQt},${m.presV})">
-                  <span style="font-weight:600;${ovr.presQt!==undefined?'color:var(--accent)':''}">${m.presQt}${ovr.presQt!==undefined?'<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:3px;vertical-align:middle"></span>':''}</span>
-                  ${m.presV>0?`<span style="display:block;font-size:10px;color:${ovr.presV!==undefined?'var(--accent)':'var(--text3)'}">${fmt(m.presV)}</span>`:''}
+                  <span style="font-weight:600">${m.presQt}</span>
+                  ${m.presV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.presV)}</span>`:''}
                 </td>
                 <td style="padding:4px;text-align:center">${hasOvr?`<button class="btn btn-ghost btn-sm" onclick="resetHistoricoMes('${r.month_key}')" style="padding:2px 5px;font-size:10px;color:var(--text3)" title="Reverter">↺</button>`:''}</td>
               </tr>`;
@@ -1498,8 +1497,8 @@ function editHistoricoField(mk, field, currentVal, isCurrency) {
 
 function editHistoricoMes(mk, tipo, qtAtual, vAtual) {
   const label = tipo==='cali'?'Calistenia':tipo==='online'?'Online':'Presencial';
-  const qtKey = tipo==='cali'?'caliQt':tipo+'Qt';
-  const vKey  = tipo==='cali'?'caliV':tipo+'V';
+  const qtKey = tipo==='cali'?'caliQt':tipo==='presencial'?'presQt':tipo+'Qt';
+  const vKey  = tipo==='cali'?'caliV':tipo==='presencial'?'presV':tipo+'V';
   openModal(`<div class="modal-handle"></div>
     <div class="modal-title">EDITAR HISTÓRICO</div>
     <div style="color:var(--text3);font-size:12px;margin-bottom:16px">${mk} · ${label}</div>
