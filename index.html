@@ -625,6 +625,7 @@ const DAYS_BR = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 let currentPage = 'dashboard';
 let currentMonth = { m: new Date().getMonth(), y: new Date().getFullYear() };
 let cachedData = {}; // local cache by monthKey
+let historicoOverrides = {}; // manual overrides for the Histórico page
 let syncTimeout = null;
 let poupancaSyncTimeout = null;
 let planosSyncTimeout = null;
@@ -1271,14 +1272,22 @@ async function renderHistorico() {
   const el = document.getElementById('content');
   el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">Carregando histórico...</div>';
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data?select=month_key,data&order=month_key.desc`, { headers: sbHeaders });
-    const rows = await res.json();
+    // Busca meses + overrides em paralelo
+    const [mRes, oRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/gestor_data?select=month_key,data&order=month_key.desc`, { headers: sbHeaders }),
+      fetch(`${SUPABASE_URL}/rest/v1/gestor_data?month_key=eq.__historico_overrides__&select=data`, { headers: sbHeaders }),
+    ]);
+    const rows  = await mRes.json();
+    const oRows = await oRes.json();
+    historicoOverrides = oRows[0]?.data || {};
+
     const monthRegex = /^\d{4}-\d{2}$/;
     const months = rows.filter(r => monthRegex.test(r.month_key));
     if (months.length === 0) {
       el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">Nenhum dado histórico encontrado.</div>';
       return;
     }
+
     const byYear = {};
     months.forEach(r => {
       const y = r.month_key.split('-')[0];
@@ -1288,26 +1297,41 @@ async function renderHistorico() {
     const years = Object.keys(byYear).sort((a,b) => b-a);
     const MONTHS_BR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
-    function metricsFrom(data) {
+    function baseMetrics(data) {
       if (!data) return null;
       const ganhos = (data.balanco?.ganhos||[]).reduce((s,g)=>s+(g.valor||0),0);
       const gastos  = (data.balanco?.gastos||[]).reduce((s,g)=>s+(g.valor||0),0);
       const cali    = (data.calistenia||[]).filter(a=>!a.pausado);
       const caliV   = calcValoresCali(cali).reduce((s,a)=>s+(a.valorFinal||0),0);
       const online  = (data.personal?.online||[]).filter(a=>!a.pausado);
-      const onlineV = online.reduce((s,a)=>s+(a.valor||0),0);
       const pres    = (data.personal?.presencial||[]).filter(a=>!a.pausado);
-      const presV   = pres.reduce((s,a)=>s+(a.valor||0),0);
-      return { ganhos, gastos, saldo:ganhos-gastos, caliQt:cali.length, caliV, onlineQt:online.length, onlineV, presQt:pres.length, presV };
+      return { ganhos, gastos, caliQt:cali.length, caliV, onlineQt:online.length, onlineV:online.reduce((s,a)=>s+(a.valor||0),0), presQt:pres.length, presV:pres.reduce((s,a)=>s+(a.valor||0),0) };
+    }
+
+    function applyOverrides(base, mk) {
+      const ovr = historicoOverrides[mk] || {};
+      const m = { ...base, ...ovr };
+      m.saldo = m.ganhos - m.gastos;
+      return m;
+    }
+
+    // helper: célula editável
+    function eCell(mk, field, val, isEdited, isCurrency=true, align='right') {
+      const disp = isCurrency ? fmt(val) : val;
+      const dot  = isEdited ? `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:3px;vertical-align:middle" title="Editado manualmente"></span>` : '';
+      const color = field==='ganhos'?'var(--green)':field==='gastos'?'var(--red)':field==='saldo'?(val>=0?'var(--green)':'var(--red)'):'var(--text)';
+      return `<td style="padding:9px 10px;text-align:${align};cursor:pointer" title="Clique para editar" onclick="editHistoricoField('${mk}','${field}',${val},${isCurrency})">
+        <span style="color:${color};font-family:${isCurrency?"'Barlow Condensed'":'inherit'};font-weight:${field==='saldo'?'700':'400'}">${disp}${dot}</span>
+      </td>`;
     }
 
     let html = '<div style="padding:16px;max-width:900px;margin:0 auto">';
     years.forEach((year,yi) => {
       const ym = byYear[year];
       let yG=0, yGt=0;
-      ym.forEach(r=>{ const m=metricsFrom(r.data); if(m){yG+=m.ganhos;yGt+=m.gastos;} });
-      const yS = yG - yGt;
-      const open = yi === 0;
+      ym.forEach(r=>{ const b=baseMetrics(r.data); if(b){ const m=applyOverrides(b,r.month_key); yG+=m.ganhos; yGt+=m.gastos; } });
+      const yS = yG-yGt;
+      const open = yi===0;
       html += `
       <div class="table-card" style="margin-bottom:16px">
         <div class="table-header" style="cursor:pointer" onclick="toggleHistoricoYear('${year}')">
@@ -1323,44 +1347,50 @@ async function renderHistorico() {
           </div>
         </div>
         <div id="hist-year-${year}" style="display:${open?'block':'none'};overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:560px">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:580px">
             <thead>
               <tr style="background:var(--surface2)">
                 <th style="padding:8px 14px;text-align:left;color:var(--text3);font-weight:500;font-size:11px">Mês</th>
-                <th style="padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;font-size:11px">Ganhos</th>
-                <th style="padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;font-size:11px">Gastos</th>
+                <th style="padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;font-size:11px">Ganhos ✎</th>
+                <th style="padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;font-size:11px">Gastos ✎</th>
                 <th style="padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;font-size:11px">Saldo</th>
-                <th style="padding:8px 10px;text-align:center;color:var(--text3);font-weight:500;font-size:11px">Calistenia</th>
-                <th style="padding:8px 10px;text-align:center;color:var(--text3);font-weight:500;font-size:11px">Online</th>
-                <th style="padding:8px 10px;text-align:center;color:var(--text3);font-weight:500;font-size:11px">Presencial</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--text3);font-weight:500;font-size:11px">Calistenia ✎</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--text3);font-weight:500;font-size:11px">Online ✎</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--text3);font-weight:500;font-size:11px">Presencial ✎</th>
+                <th style="width:28px"></th>
               </tr>
             </thead>
             <tbody>
               ${ym.map(r => {
-                const mIdx = parseInt(r.month_key.split('-')[1]) - 1;
-                const m = metricsFrom(r.data);
-                if (!m) return `<tr><td colspan="7" style="padding:10px 14px;color:var(--text3);font-size:11px">${MONTHS_BR[mIdx]} — sem dados</td></tr>`;
+                const mIdx = parseInt(r.month_key.split('-')[1])-1;
+                const base = baseMetrics(r.data);
+                if (!base) return `<tr><td colspan="8" style="padding:10px 14px;color:var(--text3);font-size:11px">${MONTHS_BR[mIdx]} — sem dados</td></tr>`;
+                const m   = applyOverrides(base, r.month_key);
+                const ovr = historicoOverrides[r.month_key]||{};
+                const hasOvr = Object.keys(ovr).length > 0;
                 return `<tr style="border-top:1px solid var(--border)">
-                  <td style="padding:10px 14px;font-weight:500">${MONTHS_BR[mIdx]}</td>
-                  <td style="padding:10px;text-align:right;color:var(--green);font-family:'Barlow Condensed'">${fmt(m.ganhos)}</td>
-                  <td style="padding:10px;text-align:right;color:var(--red);font-family:'Barlow Condensed'">${fmt(m.gastos)}</td>
-                  <td style="padding:10px;text-align:right;font-weight:700;color:${m.saldo>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed'">${fmt(m.saldo)}</td>
-                  <td style="padding:10px;text-align:center">
-                    <span style="font-weight:600">${m.caliQt}</span>
-                    ${m.caliV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.caliV)}</span>`:''}
+                  <td style="padding:9px 14px;font-weight:500">${MONTHS_BR[mIdx]}</td>
+                  ${eCell(r.month_key,'ganhos',m.ganhos,!!ovr.ganhos)}
+                  ${eCell(r.month_key,'gastos',m.gastos,!!ovr.gastos)}
+                  <td style="padding:9px 10px;text-align:right;font-weight:700;color:${m.saldo>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed'">${fmt(m.saldo)}</td>
+                  <td style="padding:9px 10px;text-align:center;cursor:pointer" onclick="editHistoricoMes('${r.month_key}','cali',${m.caliQt},${m.caliV})">
+                    <span style="font-weight:600;${ovr.caliQt!==undefined?'color:var(--accent)':''}">${m.caliQt}${ovr.caliQt!==undefined?'<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:3px;vertical-align:middle"></span>':''}</span>
+                    ${m.caliV>0?`<span style="display:block;font-size:10px;color:${ovr.caliV!==undefined?'var(--accent)':'var(--text3)'}">${fmt(m.caliV)}</span>`:''}
                   </td>
-                  <td style="padding:10px;text-align:center">
-                    <span style="font-weight:600">${m.onlineQt}</span>
-                    ${m.onlineV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.onlineV)}</span>`:''}
+                  <td style="padding:9px 10px;text-align:center;cursor:pointer" onclick="editHistoricoMes('${r.month_key}','online',${m.onlineQt},${m.onlineV})">
+                    <span style="font-weight:600;${ovr.onlineQt!==undefined?'color:var(--accent)':''}">${m.onlineQt}${ovr.onlineQt!==undefined?'<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:3px;vertical-align:middle"></span>':''}</span>
+                    ${m.onlineV>0?`<span style="display:block;font-size:10px;color:${ovr.onlineV!==undefined?'var(--accent)':'var(--text3)'}">${fmt(m.onlineV)}</span>`:''}
                   </td>
-                  <td style="padding:10px;text-align:center">
-                    <span style="font-weight:600">${m.presQt}</span>
-                    ${m.presV>0?`<span style="display:block;font-size:10px;color:var(--text3)">${fmt(m.presV)}</span>`:''}
+                  <td style="padding:9px 10px;text-align:center;cursor:pointer" onclick="editHistoricoMes('${r.month_key}','presencial',${m.presQt},${m.presV})">
+                    <span style="font-weight:600;${ovr.presQt!==undefined?'color:var(--accent)':''}">${m.presQt}${ovr.presQt!==undefined?'<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:3px;vertical-align:middle"></span>':''}</span>
+                    ${m.presV>0?`<span style="display:block;font-size:10px;color:${ovr.presV!==undefined?'var(--accent)':'var(--text3)'}">${fmt(m.presV)}</span>`:''}
                   </td>
+                  <td style="padding:4px;text-align:center">${hasOvr?`<button class="btn btn-ghost btn-sm" onclick="resetHistoricoMes('${r.month_key}')" style="padding:2px 5px;font-size:10px;color:var(--text3)" title="Reverter para valores originais">↺</button>`:''}</td>
                 </tr>`;
               }).join('')}
             </tbody>
           </table>
+          <div style="padding:8px 14px;font-size:10px;color:var(--text3)">✎ Clique em qualquer valor para editar manualmente · ↺ Reverte para os dados originais do mês</div>
         </div>
       </div>`;
     });
@@ -1378,6 +1408,65 @@ function toggleHistoricoYear(year) {
   const isOpen = panel.style.display !== 'none';
   panel.style.display = isOpen ? 'none' : 'block';
   arrow.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
+}
+
+function editHistoricoField(mk, field, currentVal, isCurrency) {
+  const labels = { ganhos:'Ganhos', gastos:'Gastos' };
+  openModal(`<div class="modal-handle"></div>
+    <div class="modal-title">EDITAR HISTÓRICO</div>
+    <div style="color:var(--text3);font-size:12px;margin-bottom:4px">${mk} · ${labels[field]||field}</div>
+    <input id="histEditVal" type="number" step="${isCurrency?'0.01':'1'}" class="input" value="${currentVal}" style="width:100%;margin-bottom:14px" onkeydown="if(event.key==='Enter')saveHistoricoField('${mk}','${field}',${isCurrency})">
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveHistoricoField('${mk}','${field}',${isCurrency})">Salvar</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('histEditVal')?.select(),60);
+}
+
+function editHistoricoMes(mk, tipo, qtAtual, vAtual) {
+  const label = tipo==='cali'?'Calistenia':tipo==='online'?'Online':'Presencial';
+  const qtKey = tipo==='cali'?'caliQt':tipo+'Qt';
+  const vKey  = tipo==='cali'?'caliV':tipo+'V';
+  openModal(`<div class="modal-handle"></div>
+    <div class="modal-title">EDITAR HISTÓRICO</div>
+    <div style="color:var(--text3);font-size:12px;margin-bottom:16px">${mk} · ${label}</div>
+    <label style="font-size:12px;color:var(--text2)">Quantidade de alunos</label>
+    <input id="histQtVal" type="number" step="1" min="0" class="input" value="${qtAtual}" style="width:100%;margin:4px 0 12px">
+    <label style="font-size:12px;color:var(--text2)">Faturamento (R$)</label>
+    <input id="histVVal" type="number" step="0.01" min="0" class="input" value="${vAtual}" style="width:100%;margin:4px 0 14px">
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveHistoricoMes('${mk}','${qtKey}','${vKey}')">Salvar</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('histQtVal')?.select(),60);
+}
+
+async function saveHistoricoField(mk, field, isCurrency) {
+  const raw = document.getElementById('histEditVal')?.value;
+  const val = isCurrency ? parseFloat(raw) : parseInt(raw);
+  if (isNaN(val)) return;
+  if (!historicoOverrides[mk]) historicoOverrides[mk] = {};
+  historicoOverrides[mk][field] = val;
+  await sbUpsert('__historico_overrides__', historicoOverrides);
+  closeModal();
+  renderHistorico();
+}
+
+async function saveHistoricoMes(mk, qtKey, vKey) {
+  const qt = parseInt(document.getElementById('histQtVal')?.value);
+  const v  = parseFloat(document.getElementById('histVVal')?.value);
+  if (!historicoOverrides[mk]) historicoOverrides[mk] = {};
+  if (!isNaN(qt)) historicoOverrides[mk][qtKey] = qt;
+  if (!isNaN(v))  historicoOverrides[mk][vKey]  = v;
+  await sbUpsert('__historico_overrides__', historicoOverrides);
+  closeModal();
+  renderHistorico();
+}
+
+async function resetHistoricoMes(mk) {
+  delete historicoOverrides[mk];
+  await sbUpsert('__historico_overrides__', historicoOverrides);
+  renderHistorico();
 }
 
 // ==================== DASHBOARD ====================
