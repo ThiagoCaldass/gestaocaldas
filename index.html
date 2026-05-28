@@ -1298,6 +1298,7 @@ async function renderHistorico() {
       byYear[y].push(r);
     });
     const years = Object.keys(byYear).sort((a,b) => b-a);
+    years.forEach(y => byYear[y].sort((a,b) => a.month_key.localeCompare(b.month_key)));
     const MONTHS_BR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
     function baseMetrics(data) {
