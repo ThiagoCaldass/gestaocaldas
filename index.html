@@ -1482,7 +1482,6 @@ function buildHistoricoHTML() {
         <div class="hist-totals" style="display:flex;align-items:center;gap:${isMobile?'10px':'16px'}">
           <div class="hist-total" style="text-align:right"><div style="font-size:10px;color:var(--text3)">ganhos</div><div style="font-size:13px;font-weight:600;color:var(--green);font-family:'Barlow Condensed'">${fmt(yG)}</div></div>
           <div class="hist-total" style="text-align:right"><div style="font-size:10px;color:var(--text3)">gastos</div><div style="font-size:13px;font-weight:600;color:var(--red);font-family:'Barlow Condensed'">${fmt(yGt)}</div></div>
-          <div class="hist-total" style="text-align:right"><div style="font-size:10px;color:var(--text3)">saldo</div><div style="font-size:13px;font-weight:600;color:${yS>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed'">${fmt(yS)}</div></div>
           <span id="hist-arrow-${year}" style="color:var(--text3);display:inline-block;transition:transform 0.2s;transform:${open?'rotate(0deg)':'rotate(-90deg)'}">▼</span>
         </div>
       </div>
