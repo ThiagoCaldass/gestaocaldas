@@ -5,5 +5,11 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)",     "dest": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/digest",
+      "schedule": "0 11 * * *"
+    }
   ]
 }
