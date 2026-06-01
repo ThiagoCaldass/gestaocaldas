@@ -8,6 +8,7 @@
  */
 
 import { fetchData, monthKey } from './_tools.js';
+import { STORIES_60DIAS } from './_stories.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -36,44 +37,56 @@ async function sendTelegram(text) {
 
 // ── Lógica principal ──────────────────────────────────────────────────────────
 
+// Retorna quantos dias faltam até o diaAcerto no mês atual (negativo = já passou)
+function daysUntilAcerto(diaAcertoStr, todayNum) {
+  const m = (diaAcertoStr || '').match(/\d+/);
+  if (!m) return null;
+  return parseInt(m[0]) - todayNum;
+}
+
 function buildDigest(md) {
   const today  = new Date();
   const todayS = today.toISOString().split('T')[0];
   const in3S   = new Date(today.getTime() + 3 * 86400000).toISOString().split('T')[0];
-
-  // Últimos 3 dias do mês (para alerta de cobrança de mensalidade)
-  const lastDay    = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const daysToEOM  = lastDay - today.getDate(); // 0 = último dia, 1 = penúltimo, etc.
-  const nearEOM    = daysToEOM <= 2; // hoje, amanhã ou depois-de-amanhã = últimos 3 dias
+  const todayNum = today.getDate();
 
   const DAYS   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const dayLabel = `${DAYS[today.getDay()]}, ${today.getDate()} ${MONTHS[today.getMonth()]}`;
 
   const lines = [`📋 *Afazeres do dia — ${dayLabel}*\n`];
-  // tasks: lista estruturada para iOS Shortcuts
-  // cada item: { title, notes, category }
   const tasks = [];
 
-  // ── 1. Alunos online e presencial sem pagamento (só nos últimos 3 dias do mês)
-  if (nearEOM) {
-    const onlinePend = (md.personal?.online || []).filter(a => !a.pago && !a.pausado);
-    const presPend   = (md.personal?.presencial || []).filter(a => !a.pago && !a.pausado);
-    const total      = onlinePend.length + presPend.length;
-    if (total > 0) {
-      lines.push(`👥 *Cobrar alunos (${total}) — faltam ${daysToEOM === 0 ? 'hoje' : daysToEOM === 1 ? '1 dia' : '2 dias'} para fechar o mês*`);
-      onlinePend.forEach(a => {
-        const v = money(a.valor);
-        lines.push(`  • ${a.nome} — ${v}`);
-        tasks.push({ title: `Cobrar ${a.nome}`, notes: `Personal Online • ${v}`, category: 'cobranca' });
-      });
-      presPend.forEach(a => {
-        const v = money(a.valor);
-        lines.push(`  • ${a.nome} — ${v}`);
-        tasks.push({ title: `Cobrar ${a.nome}`, notes: `Personal Presencial • ${v}`, category: 'cobranca' });
-      });
-      lines.push('');
-    }
+  // ── 1. Alunos online e presencial com renovação em ≤3 dias (ou já vencida)
+  const onlinePend = (md.personal?.online || []).filter(a => {
+    if (a.pago || a.pausado) return false;
+    const diff = daysUntilAcerto(a.diaAcerto, todayNum);
+    return diff !== null && diff <= 3;
+  });
+  const presPend = (md.personal?.presencial || []).filter(a => {
+    if (a.pago || a.pausado) return false;
+    const diff = daysUntilAcerto(a.diaAcerto, todayNum);
+    return diff !== null && diff <= 3;
+  });
+  const totalPend = onlinePend.length + presPend.length;
+
+  if (totalPend > 0) {
+    lines.push(`👥 *Cobrar alunos (${totalPend})*`);
+    onlinePend.forEach(a => {
+      const diff = daysUntilAcerto(a.diaAcerto, todayNum);
+      const when = diff < 0 ? `venceu ${Math.abs(diff)}d atrás` : diff === 0 ? 'vence hoje' : `vence em ${diff}d`;
+      const v = money(a.valor);
+      lines.push(`  • ${a.nome} — ${v} _(${when})_`);
+      tasks.push({ title: `Cobrar ${a.nome}`, notes: `Online • ${v} • ${when}`, category: 'cobranca' });
+    });
+    presPend.forEach(a => {
+      const diff = daysUntilAcerto(a.diaAcerto, todayNum);
+      const when = diff < 0 ? `venceu ${Math.abs(diff)}d atrás` : diff === 0 ? 'vence hoje' : `vence em ${diff}d`;
+      const v = money(a.valor);
+      lines.push(`  • ${a.nome} — ${v} _(${when})_`);
+      tasks.push({ title: `Cobrar ${a.nome}`, notes: `Presencial • ${v} • ${when}`, category: 'cobranca' });
+    });
+    lines.push('');
   }
 
   // ── 2. Treino vencendo (proxAtt ≤ hoje+3 dias, ou já vencido) ───────────────
@@ -92,6 +105,22 @@ function buildDigest(md) {
         title: `Atualizar treino – ${a.nome}`,
         notes: `${a._tipo} • ${venceu ? 'Venceu em' : 'Vence em'} ${fmtDate(a.proxAtt)}`,
         category: 'treino',
+      });
+    });
+    lines.push('');
+  }
+
+  // ── 3. Stories do dia ────────────────────────────────────────────────────────
+  const storyDia = STORIES_60DIAS.find(d => d.data === todayS);
+  if (storyDia) {
+    lines.push(`📱 *Story do dia — Dia ${storyDia.dia}*`);
+    lines.push(`_${storyDia.categoria} · ${storyDia.tema}_`);
+    lines.push(`  ${storyDia.stories.length} stories para postar hoje`);
+    storyDia.stories.forEach(s => {
+      tasks.push({
+        title: `${s.num} — ${storyDia.tema}`,
+        notes: s.copy,
+        category: 'story',
       });
     });
     lines.push('');
