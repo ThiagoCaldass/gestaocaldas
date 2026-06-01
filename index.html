@@ -1199,12 +1199,9 @@ function closeSidebar() {
 }
 
 // ==================== SORT STATE ====================
-const sortState = {}; // { tableId: { col, dir } }
+const sortState = {}; // { tableId: { col, dir, type } }
 
-function sortTable(tableId, col, type='str') {
-  const st = sortState[tableId] || { col: null, dir: 1 };
-  const dir = st.col === col ? -st.dir : 1;
-  sortState[tableId] = { col, dir };
+function _applySortToTable(tableId, col, dir, type) {
   const tbl = document.getElementById(tableId);
   if (!tbl) return;
   const tbody = tbl.querySelector('tbody');
@@ -1220,10 +1217,7 @@ function sortTable(tableId, col, type='str') {
     return cmp * dir;
   });
   rows.forEach(r => tbody.appendChild(r));
-  // Update header arrows
-  const tblRef = document.getElementById(tableId);
-  if (!tblRef) return;
-  tblRef.querySelectorAll('th').forEach(th => {
+  tbl.querySelectorAll('th').forEach(th => {
     th.querySelector('.sort-arrow')?.remove();
     if (th.dataset.col === col) {
       const arr = document.createElement('span');
@@ -1232,6 +1226,20 @@ function sortTable(tableId, col, type='str') {
       arr.style.cssText = 'color:var(--accent);font-size:10px';
       th.appendChild(arr);
     }
+  });
+}
+
+function sortTable(tableId, col, type='str') {
+  const st  = sortState[tableId] || { col: null, dir: 1 };
+  const dir = st.col === col ? -st.dir : 1;
+  sortState[tableId] = { col, dir, type };
+  _applySortToTable(tableId, col, dir, type);
+}
+
+// Reaplicar ordenação salva após qualquer re-render
+function reapplyAllSorts() {
+  Object.entries(sortState).forEach(([tableId, st]) => {
+    if (st.col) _applySortToTable(tableId, st.col, st.dir, st.type || 'str');
   });
 }
 
@@ -2477,6 +2485,7 @@ function renderBalancoOriginal(md) {
     initDragDrop('tblGanhos');
     initDragDrop('tblGastos');
   }
+  reapplyAllSorts();
 }
 
 function renderExtrato(md) {
@@ -2914,6 +2923,7 @@ function renderAlunos(md) {
                                     renderParceriasContent(md)}
     </div>
   </div>`;
+  reapplyAllSorts();
 }
 
 function setAlunosTab(tab) {
@@ -2926,6 +2936,7 @@ function setAlunosTab(tab) {
     tab==='online'      ? renderPersonalContent(md,'online') :
     tab==='presencial'  ? renderPersonalContent(md,'presencial') :
                           renderParceriasContent(md);
+  reapplyAllSorts();
   // Update tab buttons
   document.querySelectorAll('.tab').forEach((t,i)=>{
     const tabs=['calistenia','online','presencial','parcerias'];
@@ -4319,6 +4330,7 @@ function renderTattoo(md){
       </table></div>
     </div>
   </div>`;
+  reapplyAllSorts();
 }
 
 function deleteSelectedTattoo(){
@@ -4599,6 +4611,7 @@ function renderCartaoOriginal(md){
       </div>`;
     }).join('')}
   </div>`;
+  reapplyAllSorts();
 }
 
 function selectCCTipo(el, tipo) {
