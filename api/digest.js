@@ -8,7 +8,6 @@
  */
 
 import { fetchData, monthKey } from './_tools.js';
-import { STORIES_60DIAS } from './_stories.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -42,6 +41,11 @@ function buildDigest(md) {
   const todayS = today.toISOString().split('T')[0];
   const in3S   = new Date(today.getTime() + 3 * 86400000).toISOString().split('T')[0];
 
+  // Últimos 3 dias do mês (para alerta de cobrança de mensalidade)
+  const lastDay    = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const daysToEOM  = lastDay - today.getDate(); // 0 = último dia, 1 = penúltimo, etc.
+  const nearEOM    = daysToEOM <= 2; // hoje, amanhã ou depois-de-amanhã = últimos 3 dias
+
   const DAYS   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const dayLabel = `${DAYS[today.getDay()]}, ${today.getDate()} ${MONTHS[today.getMonth()]}`;
@@ -51,30 +55,25 @@ function buildDigest(md) {
   // cada item: { title, notes, category }
   const tasks = [];
 
-  // ── 1. Alunos sem pagamento ────────────────────────────────────────────────
-  const caliPend   = (md.calistenia || []).filter(a => !a.pago && !a.pausado);
-  const onlinePend = (md.personal?.online || []).filter(a => !a.pago && !a.pausado);
-  const presPend   = (md.personal?.presencial || []).filter(a => !a.pago && !a.pausado);
-  const totalAlunos = caliPend.length + onlinePend.length + presPend.length;
-
-  if (totalAlunos > 0) {
-    lines.push(`👥 *Cobrar alunos (${totalAlunos})*`);
-    caliPend.forEach(a => {
-      const v = money(a.valorFinal ?? a.valorBase ?? a.valor);
-      lines.push(`  • ${a.nome} — ${v}`);
-      tasks.push({ title: `Cobrar ${a.nome}`, notes: `Calistenia • ${v}`, category: 'cobranca' });
-    });
-    onlinePend.forEach(a => {
-      const v = money(a.valor);
-      lines.push(`  • ${a.nome} — ${v}`);
-      tasks.push({ title: `Cobrar ${a.nome}`, notes: `Personal Online • ${v}`, category: 'cobranca' });
-    });
-    presPend.forEach(a => {
-      const v = money(a.valor);
-      lines.push(`  • ${a.nome} — ${v}`);
-      tasks.push({ title: `Cobrar ${a.nome}`, notes: `Personal Presencial • ${v}`, category: 'cobranca' });
-    });
-    lines.push('');
+  // ── 1. Alunos online e presencial sem pagamento (só nos últimos 3 dias do mês)
+  if (nearEOM) {
+    const onlinePend = (md.personal?.online || []).filter(a => !a.pago && !a.pausado);
+    const presPend   = (md.personal?.presencial || []).filter(a => !a.pago && !a.pausado);
+    const total      = onlinePend.length + presPend.length;
+    if (total > 0) {
+      lines.push(`👥 *Cobrar alunos (${total}) — faltam ${daysToEOM === 0 ? 'hoje' : daysToEOM === 1 ? '1 dia' : '2 dias'} para fechar o mês*`);
+      onlinePend.forEach(a => {
+        const v = money(a.valor);
+        lines.push(`  • ${a.nome} — ${v}`);
+        tasks.push({ title: `Cobrar ${a.nome}`, notes: `Personal Online • ${v}`, category: 'cobranca' });
+      });
+      presPend.forEach(a => {
+        const v = money(a.valor);
+        lines.push(`  • ${a.nome} — ${v}`);
+        tasks.push({ title: `Cobrar ${a.nome}`, notes: `Personal Presencial • ${v}`, category: 'cobranca' });
+      });
+      lines.push('');
+    }
   }
 
   // ── 2. Treino vencendo (proxAtt ≤ hoje+3 dias, ou já vencido) ───────────────
@@ -95,67 +94,6 @@ function buildDigest(md) {
         category: 'treino',
       });
     });
-    lines.push('');
-  }
-
-  // ── 3. Gastos pendentes ───────────────────────────────────────────────────
-  const gastosPend = (md.balanco?.gastos || []).filter(g => !g.pago);
-  if (gastosPend.length > 0) {
-    const total = gastosPend.reduce((s, g) => s + (g.valor || 0), 0);
-    lines.push(`💸 *Pagar contas (${gastosPend.length}) — ${money(total)}*`);
-    gastosPend.slice(0, 6).forEach(g => {
-      lines.push(`  • ${g.nome} — ${money(g.valor)}`);
-      tasks.push({ title: `Pagar ${g.nome}`, notes: money(g.valor), category: 'gasto' });
-    });
-    if (gastosPend.length > 6) {
-      lines.push(`  _...e mais ${gastosPend.length - 6}_`);
-      tasks.push({ title: `+${gastosPend.length - 6} contas a pagar`, notes: '', category: 'gasto' });
-    }
-    lines.push('');
-  }
-
-  // ── 4. Ganhos avulsos pendentes ──────────────────────────────────────────
-  const ganhosPend = (md.balanco?.ganhos || [])
-    .filter(g => !g.recebido && !['calistenia','personal','tattoo','7force'].includes((g.categoria||'').toLowerCase()));
-  if (ganhosPend.length > 0) {
-    const total = ganhosPend.reduce((s, g) => s + (g.valor || 0), 0);
-    lines.push(`💰 *A receber (${ganhosPend.length}) — ${money(total)}*`);
-    ganhosPend.slice(0, 4).forEach(g => {
-      lines.push(`  • ${g.nome} — ${money(g.valor)}`);
-      tasks.push({ title: `Receber de ${g.nome}`, notes: money(g.valor), category: 'ganho' });
-    });
-    if (ganhosPend.length > 4) {
-      lines.push(`  _...e mais ${ganhosPend.length - 4}_`);
-      tasks.push({ title: `+${ganhosPend.length - 4} a receber`, notes: '', category: 'ganho' });
-    }
-    lines.push('');
-  }
-
-  // ── 5. Tatuagens não pagas ────────────────────────────────────────────────
-  const tattooPend = (md.tattoo || []).filter(t => !t.pago);
-  if (tattooPend.length > 0) {
-    lines.push(`🎨 *Cobrar tatuagem (${tattooPend.length})*`);
-    tattooPend.slice(0, 4).forEach(t => {
-      const v = money(t.valor);
-      lines.push(`  • ${t.cliente || 'Cliente'} — ${v}`);
-      tasks.push({ title: `Cobrar tatuagem – ${t.cliente || 'Cliente'}`, notes: v, category: 'tattoo' });
-    });
-    lines.push('');
-  }
-
-  // ── 6. Story do dia ──────────────────────────────────────────────────────────
-  const storyDia = STORIES_60DIAS.find(d => d.data === todayS);
-  if (storyDia) {
-    lines.push(`📱 *Story do dia — Dia ${storyDia.dia}*`);
-    lines.push(`_${storyDia.categoria} · ${storyDia.tema}_`);
-    storyDia.stories.forEach(s => {
-      tasks.push({
-        title: `Story ${s.num.replace('Story ', '')} — ${storyDia.tema}`,
-        notes: s.copy,
-        category: 'story',
-      });
-    });
-    lines.push(`  ${storyDia.stories.length} stories para postar hoje`);
     lines.push('');
   }
 
