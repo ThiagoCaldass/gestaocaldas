@@ -8,6 +8,7 @@
  */
 
 import { fetchData, monthKey } from './_tools.js';
+import { STORIES_60DIAS } from './_stories.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -39,7 +40,7 @@ async function sendTelegram(text) {
 function buildDigest(md) {
   const today  = new Date();
   const todayS = today.toISOString().split('T')[0];
-  const in7S   = new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0];
+  const in3S   = new Date(today.getTime() + 3 * 86400000).toISOString().split('T')[0];
 
   const DAYS   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -76,11 +77,11 @@ function buildDigest(md) {
     lines.push('');
   }
 
-  // ── 2. Treino vencendo (proxAtt ≤ hoje+7 dias) ────────────────────────────
+  // ── 2. Treino vencendo (proxAtt ≤ hoje+3 dias, ou já vencido) ───────────────
   const allPersonal = [
     ...(md.personal?.online || []).map(a => ({ ...a, _tipo: 'Online' })),
     ...(md.personal?.presencial || []).map(a => ({ ...a, _tipo: 'Pres' })),
-  ].filter(a => !a.pausado && a.proxAtt && a.proxAtt <= in7S);
+  ].filter(a => !a.pausado && a.proxAtt && a.proxAtt <= in3S);
 
   if (allPersonal.length > 0) {
     lines.push(`🏋️ *Atualizar treino (${allPersonal.length})*`);
@@ -139,6 +140,22 @@ function buildDigest(md) {
       lines.push(`  • ${t.cliente || 'Cliente'} — ${v}`);
       tasks.push({ title: `Cobrar tatuagem – ${t.cliente || 'Cliente'}`, notes: v, category: 'tattoo' });
     });
+    lines.push('');
+  }
+
+  // ── 6. Story do dia ──────────────────────────────────────────────────────────
+  const storyDia = STORIES_60DIAS.find(d => d.data === todayS);
+  if (storyDia) {
+    lines.push(`📱 *Story do dia — Dia ${storyDia.dia}*`);
+    lines.push(`_${storyDia.categoria} · ${storyDia.tema}_`);
+    storyDia.stories.forEach(s => {
+      tasks.push({
+        title: `Story ${s.num.replace('Story ', '')} — ${storyDia.tema}`,
+        notes: s.copy,
+        category: 'story',
+      });
+    });
+    lines.push(`  ${storyDia.stories.length} stories para postar hoje`);
     lines.push('');
   }
 
