@@ -638,6 +638,7 @@ const DAYS_BR = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 let currentPage = 'dashboard';
 let currentMonth = { m: new Date().getMonth(), y: new Date().getFullYear() };
 let cachedData = {}; // local cache by monthKey
+let dirtyKeys  = new Set(); // keys with unsaved changes in-flight
 let historicoOverrides = {}; // manual overrides for the Histórico page
 let syncTimeout = null;
 let poupancaSyncTimeout = null;
@@ -807,15 +808,35 @@ function setSyncStatus(state, label) {
   lbl.textContent = label;
 }
 
+// Flush pendente imediatamente (sem debounce) — usado ao ocultar o app
+async function flushSave() {
+  if (!syncTimeout) return;
+  clearTimeout(syncTimeout);
+  syncTimeout = null;
+  const k = monthKey();
+  if (!dirtyKeys.has(k)) return;
+  try {
+    await sbUpsert(k, cachedData[k]);
+    dirtyKeys.delete(k);
+    setSyncStatus('synced', 'Sincronizado');
+  } catch(e) {
+    setSyncStatus('error', 'Erro ao salvar');
+    console.error('Sync error (flush):', e);
+  }
+}
+
 // Save with debounce — saves locally immediately, syncs to Supabase after 800ms
 function saveData() {
   const k = monthKey();
+  dirtyKeys.add(k);
   try { localStorage.setItem(`gestor_${k}`, JSON.stringify(cachedData[k])); } catch(e) {}
   setSyncStatus('syncing', 'Salvando...');
   clearTimeout(syncTimeout);
   syncTimeout = setTimeout(async () => {
+    syncTimeout = null;
     try {
       await sbUpsert(k, cachedData[k]);
+      dirtyKeys.delete(k);
       setSyncStatus('synced', 'Sincronizado');
       // Notifica Telegram sobre alteração manual
       const md = cachedData[k];
@@ -969,6 +990,13 @@ async function executarResetMes() {
 // Load month data from Supabase (with local fallback)
 async function loadMonthData() {
   const k = monthKey();
+
+  // Não sobrescreve dados com save pendente — evita race condition
+  if (dirtyKeys.has(k)) {
+    setSyncStatus('syncing', 'Salvando...');
+    return;
+  }
+
   setSyncStatus('syncing', 'Carregando...');
 
   // 1. Try Supabase
@@ -5911,6 +5939,11 @@ function validateMonthYear(prefix) {
   if (!m.value && y.value) { showFieldError(prefix+'-m', 'Selecione o mês'); return false; }
   return true;
 }
+// Flush imediato quando o app é ocultado/fechado (confiável no iOS PWA)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushSave();
+});
+
 // ==================== INIT ====================
 (async()=>{
   try {
