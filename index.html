@@ -1675,14 +1675,13 @@ async function saveAddHistoricoMes() {
 // ── Sync balanco ganhos lines from tables ──
 // valor = soma dos alunos que já pagaram; recebido = sempre true (vai acumulando)
 function syncGanhosFromTables(md) {
-  const CATS_COM_TABELA = ['calistenia','personal','tattoo'];
+  const CATS_COM_TABELA = ['calistenia','personal'];
   const caliCalc = calcValoresCali(md.calistenia);
 
   const pagos = {
     calistenia: caliCalc.filter(a=>a.pago&&!a.pausado).reduce((s,a)=>s+a.valorFinal, 0),
     personal:   [...md.personal.online,...md.personal.presencial]
                   .filter(a=>a.pago&&!a.pausado).reduce((s,a)=>s+(a.valor||0), 0),
-    tattoo:     md.tattoo.filter(t=>t.pago).reduce((s,t)=>s+t.valor, 0)
   };
 
   CATS_COM_TABELA.forEach(cat => {
@@ -1699,7 +1698,6 @@ function renderDashboard(md) {
   if (!md.balanco)    md.balanco    = { ganhos:[], gastos:[] };
   if (!md.calistenia) md.calistenia = [];
   if (!md.personal)   md.personal   = { online:[], presencial:[] };
-  if (!md.tattoo)     md.tattoo     = [];
   if (!md.ponto)      md.ponto      = { dias:{}, valorHora:15.9 };
   syncGanhosFromTables(md);
   const hoje = new Date();
@@ -1708,31 +1706,23 @@ function renderDashboard(md) {
   const alunosOnline = md.personal.online.length;
   const alunosPres = md.personal.presencial.length;
 
-  // ── EXPECTATIVA: fiel à planilha ──
-  // Personal, Calistenia e Tattoo vêm das tabelas de alunos.
-  // TODO o resto (incluindo 7Force) vem do balanço como se tudo fosse recebido.
-  const CATS_COM_TABELA = ['calistenia','personal','tattoo'];
+  // ── EXPECTATIVA ──
+  const CATS_COM_TABELA = ['calistenia','personal'];
 
   const expCali     = caliCalc.reduce((s,a)=>s+a.valorFinal, 0);
   const expPersonal = [
     ...md.personal.online.filter(a=>!a.pausado),
     ...md.personal.presencial.filter(a=>!a.pausado)
   ].reduce((s,a)=>s+(a.valor||0), 0);
-  const expTattoo   = md.tattoo.filter(t=>t.valor>0).reduce((s,t)=>s+t.valor, 0);
 
-  // Tudo do balanço que NÃO seja calistenia/personal/tattoo (7Force, WillBank, etc.) — mesmo pendentes
+  // Tudo do balanço que NÃO seja calistenia/personal (outros ganhos avulsos) — mesmo pendentes
   const expBalancoResto = md.balanco.ganhos
     .filter(g => !CATS_COM_TABELA.includes((g.categoria||'avulso').toLowerCase()))
     .reduce((s,g)=>s+g.valor, 0);
 
-  const expGanhos = expCali + expPersonal + expTattoo + expBalancoResto;
+  const expGanhos = expCali + expPersonal + expBalancoResto;
   const expGastos = md.balanco.gastos.reduce((a,b)=>a+b.valor, 0);
   const expSaldo  = expGanhos - expGastos;
-
-  // Para barras de progresso por fonte
-  const exp7force = md.balanco.ganhos
-    .filter(g=>(g.categoria||'avulso').toLowerCase()==='7force')
-    .reduce((s,g)=>s+g.valor, 0);
 
   // ── REALIDADE: apenas o que já entrou/saiu de fato ──
   const realGanhos  = md.balanco.ganhos.reduce((a,b)=>a+(b.recebido?b.valor:0), 0);
@@ -1745,8 +1735,9 @@ function renderDashboard(md) {
     ...md.personal.online.filter(a=>a.pago&&!a.pausado),
     ...md.personal.presencial.filter(a=>a.pago&&!a.pausado)
   ].reduce((s,a)=>s+(a.valor||0), 0);
-  const real7force  = md.balanco.ganhos.filter(g=>(g.categoria||'').toLowerCase()==='7force'&&g.recebido).reduce((s,g)=>s+g.valor, 0);
-  const realTattoo  = md.tattoo.filter(t=>t.pago).reduce((s,t)=>s+t.valor, 0);
+  const realOutros  = md.balanco.ganhos
+    .filter(g=>!CATS_COM_TABELA.includes((g.categoria||'').toLowerCase()) && g.recebido)
+    .reduce((s,g)=>s+g.valor, 0);
 
   // ── Mês anterior: expectativa ──
   const prevMonthKey = (() => {
@@ -1759,17 +1750,16 @@ function renderDashboard(md) {
   const prevLabel = prevMd ? MONTHS[(() => { const p = prevMonthKey.split('-'); return parseInt(p[1])-1; })()] : null;
 
   let prevExpGanhos = 0, prevExpGastos = 0, prevExpSaldo = 0;
-  let prevExpCali = 0, prevExpPersonal = 0, prevExpTattoo = 0, prevExpResto = 0;
+  let prevExpCali = 0, prevExpPersonal = 0, prevExpResto = 0;
   if (prevMd) {
     const prevCaliCalc = calcValoresCali(prevMd.calistenia || []);
     prevExpCali    = prevCaliCalc.reduce((s,a)=>s+a.valorFinal, 0);
     prevExpPersonal= [...(prevMd.personal?.online||[]),...(prevMd.personal?.presencial||[])]
                       .filter(a=>!a.pausado).reduce((s,a)=>s+(a.valor||0), 0);
-    prevExpTattoo  = (prevMd.tattoo||[]).reduce((s,t)=>s+t.valor, 0);
     prevExpResto   = (prevMd.balanco?.ganhos||[])
-                      .filter(g=>!['calistenia','personal','tattoo'].includes((g.categoria||'').toLowerCase()))
+                      .filter(g=>!['calistenia','personal'].includes((g.categoria||'').toLowerCase()))
                       .reduce((s,g)=>s+g.valor, 0);
-    prevExpGanhos  = prevExpCali + prevExpPersonal + prevExpTattoo + prevExpResto;
+    prevExpGanhos  = prevExpCali + prevExpPersonal + prevExpResto;
     prevExpGastos  = (prevMd.balanco?.gastos||[]).reduce((s,g)=>s+g.valor, 0);
     prevExpSaldo   = prevExpGanhos - prevExpGastos;
   }
@@ -1847,8 +1837,7 @@ function renderDashboard(md) {
             ${[
               {l:'Calistenia', v:expCali},
               {l:'Personal',   v:expPersonal},
-              {l:'Tattoo',     v:expTattoo},
-              {l:'7Force + outros', v:expBalancoResto},
+              {l:'Outros',     v:expBalancoResto},
             ].filter(x=>x.v>0).map(x=>`
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px">
                 <span style="color:var(--text3)">${x.l}</span>
@@ -1882,10 +1871,9 @@ function renderDashboard(md) {
             </div>
           </div>
           <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:2px">Progresso por fonte</div>
-          ${rowFonte('Calistenia', realCali,    expCali,    'calistenia')}
-          ${rowFonte('Personal',   realPersonal, expPersonal,'personal')}
-          ${rowFonte('7Force',     real7force,   exp7force,  'financas')}
-          ${rowFonte('Tattoo',     realTattoo,   expTattoo,  'financas')}
+          ${rowFonte('Calistenia', realCali,    expCali,       'calistenia')}
+          ${rowFonte('Personal',   realPersonal, expPersonal,  'personal')}
+          ${expBalancoResto > 0 ? rowFonte('Outros', realOutros, expBalancoResto, 'financas') : ''}
         </div>
       </div>
     </div>
@@ -1925,11 +1913,9 @@ function renderDashboard(md) {
         const src = [
           {l:'Calistenia', v:realCali,    cor:'#4CAF50'},
           {l:'Personal',   v:realPersonal,cor:'#E8200A'},
-          {l:'Tattoo',     v:realTattoo,  cor:'#35c8f1'},
-          {l:'7Force',     v:real7force,  cor:'#f1c135'},
           ...md.balanco.ganhos
-            .filter(g=>!['calistenia','personal','tattoo','7force'].includes((g.categoria||'').toLowerCase())&&g.recebido&&g.valor>0)
-            .map((g,i)=>({l:g.nome, v:g.valor, cor:['#a78bfa','#f472b6','#fb923c'][i%3]}))
+            .filter(g=>!['calistenia','personal'].includes((g.categoria||'').toLowerCase())&&g.recebido&&g.valor>0)
+            .map((g,i)=>({l:g.nome, v:g.valor, cor:['#f1c135','#a78bfa','#f472b6','#fb923c','#35c8f1'][i%5]}))
         ].filter(x=>x.v>0);
         return src;
       })())}
@@ -1958,7 +1944,6 @@ function renderDashboard(md) {
         {l:'Gastos',     prev:prevExpGastos,   curr:expGastos,   inv:true},
         {l:'Calistenia', prev:prevExpCali,     curr:expCali,     inv:false},
         {l:'Personal',   prev:prevExpPersonal, curr:expPersonal, inv:false},
-        {l:'Tattoo',     prev:prevExpTattoo,   curr:expTattoo,   inv:false},
       ];
       const maxVal = Math.max(...rows.map(r=>Math.max(Math.abs(r.prev),Math.abs(r.curr))), 1);
 
@@ -2428,8 +2413,8 @@ function renderBalancoOriginal(md) {
           </tr></thead>
           <tbody id="tblGanhosBody">${md.balanco.ganhos.map(g=>{
             const cat=g.categoria||'avulso';
-            const isGerenciada=['calistenia','personal','7force','tattoo'].includes(cat);
-            const catLabel={'calistenia':'Cali','personal':'Personal','7force':'7Force','tattoo':'Tattoo','avulso':'Avulso'}[cat]||'Avulso';
+            const isGerenciada=['calistenia','personal'].includes(cat);
+            const catLabel={'calistenia':'Cali','personal':'Personal','avulso':'Avulso'}[cat]||'Avulso';
             return `<tr data-nome="${g.nome}" data-valor="${g.valor}" data-status="${g.recebido?'1':'0'}">
               ${ro?'<td></td><td></td>':`<td style="width:20px;padding:0 2px;text-align:center"><span class="drag-handle" title="Arrastar para reordenar">⠿</span></td><td style="padding:4px 6px;width:34px"><input type="checkbox" class="row-select" data-id="${g.id}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblGanhos')" data-id="${g.id}" title="Selecionar"></div></td>`}
               <td>
@@ -2626,8 +2611,8 @@ function removeGasto(id){if(guardReadOnly())return;if(!confirm('Remover?'))retur
 function editGanho(id){
   if(guardReadOnly())return;
   const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(!g)return;
-  const cats=['avulso','calistenia','personal','7force','tattoo'];
-  const catLabels = {avulso:'Avulso',calistenia:'Calistenia',personal:'Personal','7force':'7Force',tattoo:'Tattoo'};
+  const cats=['avulso','calistenia','personal'];
+  const catLabels = {avulso:'Avulso',calistenia:'Calistenia',personal:'Personal'};
   const catOpts=cats.map(c=>'<option value="'+c+'"'+((g.categoria||'avulso')===c?' selected':'')+'>'+catLabels[c]+'</option>').join('');
   openModal(`<div class="modal-handle"></div><div class="modal-title">EDITAR GANHO</div>
     <div class="form-group"><label class="form-label">Fonte</label><input id="mN" value="${g.nome}"></div>
@@ -2738,8 +2723,6 @@ function openAddGanho(){openModal(`<div class="modal-handle"></div><div class="m
       <option value="avulso">Avulso (entrada extra)</option>
       <option value="calistenia">Calistenia</option>
       <option value="personal">Personal</option>
-      <option value="7force">7Force</option>
-      <option value="tattoo">Tattoo</option>
     </select>
   </div>
   <div style="font-size:11px;color:var(--accent3);margin-top:-8px;margin-bottom:12px;padding:7px 10px;background:rgba(53,200,241,0.06);border-radius:6px;border:1px solid rgba(53,200,241,0.15)">
