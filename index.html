@@ -541,10 +541,8 @@
 
       <div class="nav-section">Trabalho</div>
       <div class="nav-item" data-page="alunos" onclick="navigate('alunos');closeSidebar()"><span class="icon">◯</span> Alunos</div>
-      <div class="nav-item" data-page="tattoo" onclick="navigate('tattoo');closeSidebar()"><span class="icon">◆</span> Tatuagem</div>
       <div class="nav-section">Social Media</div>
       <div class="nav-item" data-page="brand" onclick="navigate('brand');closeSidebar()"><span class="icon">◉</span> Identidade Visual</div>
-      <div class="nav-item" data-page="stories" onclick="navigate('stories');closeSidebar()"><span class="icon">◻</span> Stories 60 Dias</div>
       <div class="nav-section">Análise</div>
       <div class="nav-item" data-page="historico" onclick="navigate('historico');closeSidebar()"><span class="icon">◷</span> Histórico</div>
     </div>
@@ -1283,9 +1281,9 @@ async function navigate(page) {
 
   const titles = {
     dashboard:'DASHBOARD', balanco:'BALANÇO', cartao:'CARTÃO',
-    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', tattoo:'TATUAGEM', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO', stories:'STORIES 60 DIAS'
+    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO'
   };
-  document.getElementById('topbarMonthNav').style.display = (page === 'historico' || page === 'stories') ? 'none' : 'flex';
+  document.getElementById('topbarMonthNav').style.display = page === 'historico' ? 'none' : 'flex';
   document.getElementById('pageTitle').textContent = titles[page]||page.toUpperCase();
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="confirmarResetMes()" title="Resetar mês" style="color:var(--text3);font-size:11px">↺ Reset</button>`;
   document.getElementById('content').innerHTML = '';
@@ -1308,11 +1306,9 @@ async function navigate(page) {
     case 'alunos':       renderAlunos(md); break;
     case 'calistenia':   alunosTab='calistenia'; navigate('alunos'); break;
     case 'personal':     alunosTab=personalTab||'online'; navigate('alunos'); break;
-    case 'tattoo':       renderTattoo(md); break;
     case 'treino':       renderTreino(); break;
     case 'brand':        renderBrand(); break;
     case 'historico':    await renderHistorico(); break;
-    case 'stories':      renderStories(); break;
   }
 }
 
@@ -1889,7 +1885,7 @@ function renderDashboard(md) {
           ${rowFonte('Calistenia', realCali,    expCali,    'calistenia')}
           ${rowFonte('Personal',   realPersonal, expPersonal,'personal')}
           ${rowFonte('7Force',     real7force,   exp7force,  'financas')}
-          ${rowFonte('Tattoo',     realTattoo,   expTattoo,  'tattoo')}
+          ${rowFonte('Tattoo',     realTattoo,   expTattoo,  'financas')}
         </div>
       </div>
     </div>
@@ -4316,74 +4312,6 @@ function removerMovPoupanca(id) {
   setFinancasTab('porquinho');
 }
 
-// ==================== TATTOO ====================
-function renderTattoo(md){
-  const ro = isReadOnly();
-  const total=md.tattoo.filter(t=>t.pago).reduce((a,b)=>a+b.valor,0);
-  const esperado=md.tattoo.reduce((a,b)=>a+b.valor,0);
-  document.getElementById('topbarActions').innerHTML=`<button class="btn btn-primary btn-sm" onclick="openAddTattoo()">+ Cliente</button>`;
-  const fInner = document.getElementById('financasInner') || document.getElementById('content');
-  fInner.innerHTML=`<div>
-    ${renderQuickAdd('balanco')}
-    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card green"><div class="stat-label">Recebido</div><div class="stat-value stat-green">${fmt(total)}</div></div>
-      <div class="stat-card"><div class="stat-label">Esperado</div><div class="stat-value">${fmt(esperado)}</div></div>
-      <div class="stat-card"><div class="stat-label">Clientes</div><div class="stat-value">${md.tattoo.length}</div></div>
-    </div>
-    <div class="table-card">
-      ${ro?'':`<div id="tblTattoo-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum"></span><button class="btn btn-danger btn-sm" onclick="deleteSelectedTattoo()" style="margin-left:auto">Excluir</button></div>`}
-      <div class="table-scroll"><table id="tblTattoo" style="table-layout:fixed;min-width:420px">
-        <thead><tr>
-          ${ro?'<th style="width:34px"></th>':`<th style="width:34px;padding:6px 4px"><div class="row-select-cell-all" onclick="toggleSelectAll('tblTattoo')" title="Selecionar todos"></div></th>`}
-          <th data-col="nome" onclick="sortTable('tblTattoo','nome')">Cliente</th>
-          <th data-col="valor" onclick="sortTable('tblTattoo','valor','num')">Valor</th>
-          <th data-col="sinal" onclick="sortTable('tblTattoo','sinal','bool')">Sinal</th>
-          <th data-col="pago" onclick="sortTable('tblTattoo','pago','bool')">Pagamento</th>
-          <th></th>
-        </tr></thead>
-        <tbody>${md.tattoo.map(t=>`<tr data-nome="${t.cliente}" data-valor="${t.valor}" data-sinal="${t.sinal?'1':'0'}" data-pago="${t.pago?'1':'0'}">
-          ${ro?'<td></td>':`<td style="padding:4px 6px;width:34px"><input type="checkbox" class="row-select" data-id="${t.id}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblTattoo')" data-id="${t.id}" title="Selecionar"></div></td>`}
-          <td style="font-weight:500">${t.cliente}</td>
-          <td class="mono">${fmt(t.valor)}</td>
-          <td><span class="badge ${t.sinal?'badge-green':'badge-gray'}">${t.sinal?'✓ Dado':'—'}</span></td>
-          <td><span class="badge ${t.pago?'badge-green':'badge-red'}">${t.pago?'✓ Pago':'Pendente'}</span></td>
-          <td><div style="display:flex;gap:2px">
-            <button class="toggle-btn ${t.sinal?'toggle-pago':'toggle-pendente'}" onclick="toggleSinal('${t.id}')" title="Sinal">S</button>
-            <button class="toggle-btn ${t.pago?'toggle-pago':'toggle-pendente'}" onclick="toggleTattoo('${t.id}')" title="Pagamento">R$</button>
-            ${ro?'':`<button class="btn btn-danger btn-sm" onclick="removeTattoo('${t.id}')" style="padding:4px 7px">✕</button>`}
-          </div></td>
-        </tr>`).join('')}
-        ${md.tattoo.length===0?`<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:28px;font-size:13px">Nenhum cliente de tatuagem</td></tr>`:''}
-        </tbody>
-      </table></div>
-    </div>
-  </div>`;
-  reapplyAllSorts();
-}
-
-function deleteSelectedTattoo(){
-  if(guardReadOnly())return;
-  const md=getMonthData();
-  const checks=[...document.querySelectorAll('#tblTattoo tbody .row-select-cell.checked')];
-  if(!checks.length||!confirm('Excluir '+checks.length+' cliente(s)?'))return;
-  const ids=checks.map(c=>c.previousElementSibling?.dataset.id);
-  md.tattoo=md.tattoo.filter(t=>!ids.includes(t.id));
-  syncGanhosFromTables(md);saveData();renderTattoo(md);
-}
-
-function toggleSinal(id){const md=getMonthData();const t=md.tattoo.find(x=>x.id===id);if(t)t.sinal=!t.sinal;saveData();renderTattoo(md);}
-function toggleTattoo(id){if(guardReadOnly())return;const md=getMonthData();const t=md.tattoo.find(x=>x.id===id);if(t)t.pago=!t.pago;syncGanhosFromTables(md);saveData();renderTattoo(md);}
-function removeTattoo(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.tattoo=md.tattoo.filter(x=>x.id!==id);saveData();renderTattoo(md);}
-function openAddTattoo(){openModal(`<div class="modal-handle"></div><div class="modal-title">NOVO CLIENTE</div>
-  <div class="form-group"><label class="form-label">Cliente</label><input id="mN"></div>
-  <div class="form-group"><label class="form-label">Valor (R$)</label><input id="mV" type="number" inputmode="decimal"></div>
-  <div class="form-row">
-    <div class="form-group"><label class="form-label">Sinal</label><select id="mSi"><option value="0">Sem sinal</option><option value="1">Dado</option></select></div>
-    <div class="form-group"><label class="form-label">Pagamento</label><select id="mP"><option value="0">Pendente</option><option value="1">Pago</option></select></div>
-  </div>
-  <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addTattoo()">Adicionar</button></div>`);}
-function addTattoo(){if(guardReadOnly())return;const n=document.getElementById('mN').value.trim();const v=parseFloat(document.getElementById('mV').value)||0;const s=document.getElementById('mSi').value==='1';const p=document.getElementById('mP').value==='1';if(!validateRequired('mN','Nome')) return;if(!n)return;const md=getMonthData();md.tattoo.push({id:uid(),cliente:n,valor:v,sinal:s,pago:p});saveData();closeModal();renderTattoo(md);}
-
 // ==================== CARTÃO ====================
 const CATS_CC = ['Alimentação','Transporte','Saúde','Lazer','Vestuário','Casa','Tecnologia','Outros'];
 
@@ -5025,9 +4953,26 @@ function treinoLoadState() {
     const w = localStorage.getItem('tc_treino_weekplan');
     const e = localStorage.getItem('tc_treino_edits2');
     const o = localStorage.getItem('tc_treino_open2');
-    WEEK_PLAN     = w ? JSON.parse(w) : JSON.parse(JSON.stringify(WEEK_PLAN_DEFAULT));
-    _treinoEdits  = e ? JSON.parse(e) : {};
-    _treinoOpen   = o ? JSON.parse(o) : {};
+    WEEK_PLAN    = w ? JSON.parse(w) : JSON.parse(JSON.stringify(WEEK_PLAN_DEFAULT));
+    _treinoEdits = e ? JSON.parse(e) : {};
+    _treinoOpen  = o ? JSON.parse(o) : {};
+    // Migra edições antigas (_treinoEdits) direto para WEEK_PLAN
+    if (Object.keys(_treinoEdits).length > 0) {
+      Object.entries(_treinoEdits).forEach(([key, ed]) => {
+        const [di, si, bi, ei] = key.split('|').map(Number);
+        const ex = WEEK_PLAN[di]?.sessions[si]?.blocks[bi]?.exercises[ei];
+        if (!ex) return;
+        if (ed.nome)  ex.name  = ed.nome;
+        if (ed.sets)  ex.sets  = ed.sets;
+        if (ed.reps)  ex.reps  = ed.reps;
+        if (ed.carga) ex.carga = ed.carga;
+        if (ed.hold)  ex.hold  = ed.hold;
+        if (ed.nota !== undefined) ex.note = ed.nota;
+      });
+      _treinoEdits = {};
+      localStorage.setItem('tc_treino_weekplan', JSON.stringify(WEEK_PLAN));
+      localStorage.removeItem('tc_treino_edits2');
+    }
   } catch(e) {
     WEEK_PLAN    = JSON.parse(JSON.stringify(WEEK_PLAN_DEFAULT));
     _treinoEdits = {};
@@ -5038,124 +4983,225 @@ function treinoLoadState() {
 function exKey2(di, si, bi, ei) { return `${di}|${si}|${bi}|${ei}`; }
 function sessKey(di, si) { return `${di}|${si}`; }
 
-// ── Parser JSX — suporta weekPlan e workouts ──────────────────────────────────
-function parseTreinoJSX(text) {
-  // Tenta weekPlan primeiro (novo formato)
-  let match = text.match(/(?:const|let|var)\s+weekPlan\s*=\s*(\[[\s\S]*?\n\];)/);
-  if (!match) match = text.match(/(?:const|let|var)\s+weekPlan\s*=\s*(\[[\s\S]*?\];)/);
-  if (match) {
-    try {
-      const arr = Function('"use strict"; return (' + match[1] + ')')();
-      if (Array.isArray(arr) && arr.length) return { format: 'weekPlan', data: arr };
-    } catch(e) { console.error('weekPlan parse error:', e); }
-  }
-  // Fallback: workouts/WORKOUTS (formato antigo)
-  const m2 = text.match(/(?:const|let|var)\s+(?:workouts|WORKOUTS)\s*=\s*(\[[\s\S]*?\n\];)/i)
-           || text.match(/(?:const|let|var)\s+(?:workouts|WORKOUTS)\s*=\s*(\[[\s\S]*?\];)/i);
-  if (m2) {
-    try {
-      const arr = Function('"use strict"; return (' + m2[1] + ')')();
-      if (Array.isArray(arr) && arr.length) return { format: 'workouts', data: arr };
-    } catch(e) { console.error('workouts parse error:', e); }
-  }
-  return null;
+function treinoEscape(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function treinoImportJSX(file) {
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const result = parseTreinoJSX(e.target.result);
-    if (!result) {
-      alert('Não foi possível extrair os treinos do arquivo.\nVerifique se contém um array "weekPlan" ou "workouts".');
-      return;
-    }
-    if (result.format === 'weekPlan') {
-      WEEK_PLAN = result.data;
-    } else {
-      // Converte formato workouts → weekPlan
-      const DAYS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo'];
-      WEEK_PLAN = result.data.map((w, i) => ({
-        day: DAYS[i] || w.day || `Dia ${i+1}`,
-        sessions: [{
-          period: 'Tarde', modality: 'CALI',
-          modalityLabel: w.title, color: w.color || '#185FA5',
-          summary: null, blocks: w.blocks || [],
-        }],
-      }));
-    }
-    _treinoEdits = {};
-    _treinoOpen  = {};
-    treinoSaveState();
-    renderTreino();
-  };
-  reader.readAsText(file);
+function treinoEnsureWeek() {
+  const days = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo'];
+  if (!Array.isArray(WEEK_PLAN) || WEEK_PLAN.length !== 7) {
+    WEEK_PLAN = days.map(day => ({ day, sessions: [] }));
+    return;
+  }
+  WEEK_PLAN.forEach((d, i) => {
+    d.day = d.day || days[i];
+    if (!Array.isArray(d.sessions)) d.sessions = [];
+  });
 }
 
-// ── Modal edição exercício ────────────────────────────────────────────────────
-function treinoEditEx(di, si, bi, ei) {
-  const sess = WEEK_PLAN[di].sessions[si];
-  const ex   = sess.blocks[bi].exercises[ei];
-  const key  = exKey2(di, si, bi, ei);
-  const ed   = _treinoEdits[key] || {};
+function treinoOpenCreate(dayIdx = null) {
+  treinoLoadState();
+  treinoEnsureWeek();
+  const dayOptions = WEEK_PLAN.map((d, i) => `<option value="${i}" ${dayIdx===i?'selected':''}>${d.day}</option>`).join('');
 
   openModal(`
     <div class="modal-handle"></div>
-    <div class="modal-title" style="font-size:14px;line-height:1.3;margin-bottom:16px">${ex.name}</div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div>
-        <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Nome do exercício</label>
-        <input id="te_nome" class="form-input" value="${ed.nome || ex.name}" style="margin-top:4px">
+    <div class="modal-title">NOVO TREINO</div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Dia</label>
+        <select id="trDia">${dayOptions}</select>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div>
-          <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Sets</label>
-          <input id="te_sets" class="form-input" value="${ed.sets || ex.sets}" placeholder="ex: 4" style="margin-top:4px">
-        </div>
-        <div>
-          <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Reps / Tempo</label>
-          <input id="te_reps" class="form-input" value="${ed.reps || ex.reps}" placeholder="ex: 8-12 ou 30s" style="margin-top:4px">
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div>
-          <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Carga (kg / lastro)</label>
-          <input id="te_carga" class="form-input" value="${ed.carga || ''}" placeholder="ex: 20kg" style="margin-top:4px">
-        </div>
-        <div>
-          <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Hold / Tempo</label>
-          <input id="te_hold" class="form-input" value="${ed.hold || ''}" placeholder="ex: 8s" style="margin-top:4px">
-        </div>
-      </div>
-      <div>
-        <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Nota pessoal</label>
-        <input id="te_nota" class="form-input" value="${ed.nota !== undefined ? ed.nota : (ex.note||'')}" placeholder="observações..." style="margin-top:4px">
+      <div class="form-group">
+        <label class="form-label">Período</label>
+        <select id="trPeriodo">
+          <option value="Manhã">Manhã</option>
+          <option value="Tarde">Tarde</option>
+          <option value="Dia todo">Dia todo</option>
+        </select>
       </div>
     </div>
-    <div class="form-actions" style="margin-top:16px">
-      <button class="btn btn-ghost" onclick="treinoClearEdit(${di},${si},${bi},${ei})">Limpar</button>
-      <button class="btn btn-primary" onclick="treinoSaveEdit(${di},${si},${bi},${ei})">Salvar</button>
+
+    <div class="form-group">
+      <label class="form-label">Modalidade</label>
+      <select id="trModalidade" onchange="treinoToggleExerciseFields()">
+        <option value="BJJ">Jiu-Jitsu</option>
+        <option value="CALI">Calistenia</option>
+        <option value="MUSC">Musculação</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Nome do treino</label>
+      <input id="trTitulo" placeholder="Ex: Pull + Core, Pernas, Aula técnica">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Observação</label>
+      <input id="trObs" placeholder="Ex: foco em progressão, sparring leve...">
+    </div>
+
+    <div id="trExWrap" style="display:none;margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Exercícios</div>
+        <button class="btn btn-ghost btn-sm" onclick="treinoAddExerciseRow()">+ Exercício</button>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 72px 72px 32px;gap:6px;padding:3px 0;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);margin-bottom:6px">
+        <div>Nome</div><div>Reps/Tempo</div><div>Carga</div><div></div>
+      </div>
+      <div id="trExRows"></div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="treinoSaveSession()">Salvar</button>
+    </div>
+  `);
+  treinoToggleExerciseFields();
+}
+
+function treinoToggleExerciseFields() {
+  const modality = document.getElementById('trModalidade')?.value;
+  const wrap = document.getElementById('trExWrap');
+  if (!wrap) return;
+  const needsExercises = modality === 'CALI' || modality === 'MUSC';
+  wrap.style.display = needsExercises ? '' : 'none';
+  if (needsExercises && !document.querySelector('.tr-ex-row')) {
+    treinoAddExerciseRow();
+  }
+}
+
+function treinoAddExerciseRow(nome = '', qtd = '', carga = '') {
+  const rows = document.getElementById('trExRows');
+  if (!rows) return;
+  const id = uid();
+  rows.insertAdjacentHTML('beforeend', `
+    <div class="tr-ex-row" data-row="${id}" style="display:grid;grid-template-columns:minmax(0,1fr) 72px 72px 32px;gap:6px;margin-bottom:8px;align-items:center">
+      <input class="tr-ex-name" placeholder="Nome do exercício" value="${treinoEscape(nome)}">
+      <input class="tr-ex-qtd" placeholder="Reps/Tempo" value="${treinoEscape(qtd)}">
+      <input class="tr-ex-carga" placeholder="Carga" value="${treinoEscape(carga)}">
+      <button class="btn btn-danger btn-sm" onclick="this.closest('.tr-ex-row').remove()" title="Remover">×</button>
     </div>
   `);
 }
 
-function treinoSaveEdit(di, si, bi, ei) {
-  _treinoEdits[exKey2(di,si,bi,ei)] = {
-    nome:  document.getElementById('te_nome').value.trim(),
-    sets:  document.getElementById('te_sets').value.trim(),
-    reps:  document.getElementById('te_reps').value.trim(),
-    carga: document.getElementById('te_carga').value.trim(),
-    hold:  document.getElementById('te_hold').value.trim(),
-    nota:  document.getElementById('te_nota').value.trim(),
-  };
+function treinoSaveSession() {
+  treinoLoadState();
+  treinoEnsureWeek();
+  const di = parseInt(document.getElementById('trDia')?.value || '0');
+  const period = document.getElementById('trPeriodo')?.value || 'Tarde';
+  const modality = document.getElementById('trModalidade')?.value || 'BJJ';
+  const cfg = MODALITY_CONFIG[modality] || MODALITY_CONFIG.BJJ;
+  const title = document.getElementById('trTitulo')?.value.trim();
+  const obs = document.getElementById('trObs')?.value.trim();
+  const modalityLabel = title ? `${cfg.label} — ${title}` : cfg.label;
+
+  let blocks = null;
+  if (modality === 'CALI' || modality === 'MUSC') {
+    const exercises = [...document.querySelectorAll('.tr-ex-row')]
+      .map(row => ({
+        name:  row.querySelector('.tr-ex-name')?.value.trim(),
+        reps:  row.querySelector('.tr-ex-qtd')?.value.trim(),
+        carga: row.querySelector('.tr-ex-carga')?.value.trim() || '',
+      }))
+      .filter(ex => ex.name);
+    if (!exercises.length) {
+      showFieldError('trTitulo', 'Adicione pelo menos um exercício');
+      return;
+    }
+    blocks = [{
+      name: 'Exercícios',
+      note: obs || '',
+      exercises: exercises.map(ex => ({
+        name:  ex.name,
+        sets:  '',
+        reps:  ex.reps || '',
+        carga: ex.carga,
+        rest:  '',
+        note:  '',
+      })),
+    }];
+  }
+
+  WEEK_PLAN[di].sessions.push({
+    period,
+    modality,
+    modalityLabel,
+    color: cfg.color,
+    summary: (modality === 'BJJ') ? (obs || 'Jiu-Jitsu') : null,
+    blocks,
+  });
+
+  delete WEEK_PLAN[di].isRest;
+  _treinoOpen[sessKey(di, WEEK_PLAN[di].sessions.length - 1)] = true;
   treinoSaveState();
   closeModal();
   renderTreino();
 }
 
-function treinoClearEdit(di, si, bi, ei) {
-  delete _treinoEdits[exKey2(di,si,bi,ei)];
+function treinoDeleteSession(di, si) {
+  if (!confirm('Remover este treino?')) return;
+  treinoLoadState();
+  WEEK_PLAN[di].sessions.splice(si, 1);
+  _treinoEdits = {};
+  _treinoOpen = {};
   treinoSaveState();
-  closeModal();
+  renderTreino();
+}
+
+function treinoResetWeek() {
+  if (!confirm('Limpar todos os treinos da semana?')) return;
+  WEEK_PLAN = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo']
+    .map(day => ({ day, sessions: [] }));
+  _treinoEdits = {};
+  _treinoOpen = {};
+  treinoSaveState();
+  renderTreino();
+}
+
+// ── Edição inline ─────────────────────────────────────────────────────────────
+function treinoInlineEx(di, si, bi, ei, field, val) {
+  treinoLoadState();
+  const ex = WEEK_PLAN[di]?.sessions[si]?.blocks[bi]?.exercises[ei];
+  if (!ex) return;
+  const map = { nome: 'name', sets: 'sets', reps: 'reps', carga: 'carga', nota: 'note', hold: 'hold' };
+  ex[map[field] || field] = val.trim();
+  treinoSaveState();
+}
+
+function treinoInlineSess(di, si, field, val) {
+  treinoLoadState();
+  const sess = WEEK_PLAN[di]?.sessions[si];
+  if (!sess) return;
+  sess[field] = val.trim();
+  treinoSaveState();
+}
+
+function treinoInlineBlock(di, si, bi, field, val) {
+  treinoLoadState();
+  const block = WEEK_PLAN[di]?.sessions[si]?.blocks[bi];
+  if (!block) return;
+  block[field] = val.trim();
+  treinoSaveState();
+}
+
+function treinoAddExInline(di, si, bi) {
+  treinoLoadState();
+  const block = WEEK_PLAN[di]?.sessions[si]?.blocks[bi];
+  if (!block) return;
+  block.exercises.push({ name: '', sets: '', reps: '', carga: '', rest: '', note: '' });
+  _treinoOpen[sessKey(di, si)] = true;
+  treinoSaveState();
+  renderTreino();
+}
+
+function treinoRemoveEx(di, si, bi, ei) {
+  treinoLoadState();
+  const block = WEEK_PLAN[di]?.sessions[si]?.blocks[bi];
+  if (!block) return;
+  block.exercises.splice(ei, 1);
+  treinoSaveState();
   renderTreino();
 }
 
@@ -5169,22 +5215,23 @@ function treinoToggleSess(di, si) {
 // ── Render ────────────────────────────────────────────────────────────────────
 function renderTreino() {
   treinoLoadState();
+  treinoEnsureWeek();
 
   document.getElementById('topbarActions').innerHTML = `
-    <input type="file" id="treinoFileInput" accept=".jsx,.js,.tsx,.txt" style="display:none" onchange="treinoImportJSX(this.files[0]);this.value=''">
-    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('treinoFileInput').click()" title="Importar treino via JSX">⬆ JSX</button>`;
+    <button class="btn btn-ghost btn-sm" onclick="treinoResetWeek()" title="Limpar semana">Limpar</button>
+    <button class="btn btn-primary btn-sm" onclick="treinoOpenCreate()" title="Criar treino">+ Treino</button>`;
 
   const cnt = document.getElementById('content');
 
   // Mini barra semanal
   const miniBar = WEEK_PLAN.map((d, di) => {
-    const mods = d.sessions.map(s => s.modality);
+    const mods = d.sessions.length ? d.sessions.map(s => s.modality) : ['REST'];
     const dots = mods.map(m => {
       const cfg = MODALITY_CONFIG[m] || MODALITY_CONFIG.REST;
       return `<span style="display:block;width:16px;height:3px;border-radius:2px;background:${cfg.color};opacity:${m==='REST'?'0.3':'1'};margin:0 auto"></span>`;
     }).join('');
     return `
-    <div style="text-align:center;padding:7px 2px;border-radius:8px;background:${d.isRest?'var(--surface2)':'var(--surface)'};border:1px solid var(--border)">
+    <div style="text-align:center;padding:7px 2px;border-radius:8px;background:${!d.sessions.length?'var(--surface2)':'var(--surface)'};border:1px solid var(--border)">
       <div style="font-size:9px;font-weight:600;color:var(--text3);margin-bottom:5px;letter-spacing:.5px">${d.day.slice(0,3).toUpperCase()}</div>
       <div style="display:flex;flex-direction:column;gap:3px">${dots}</div>
     </div>`;
@@ -5206,72 +5253,83 @@ function renderTreino() {
       const hasBlocks = s.blocks && s.blocks.length > 0;
       const isOpen = !!_treinoOpen[sessKey(di, si)];
 
-      const blocks = hasBlocks && isOpen ? s.blocks.map((block, bi) => {
+      const INP = `background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:5px;color:var(--text);padding:5px 6px;font-size:12px;width:100%;font-family:inherit;box-sizing:border-box`;
+
+      const blocks = hasBlocks ? s.blocks.map((block, bi) => {
         const exRows = block.exercises.map((ex, ei) => {
-          const key = exKey2(di, si, bi, ei);
-          const ed  = _treinoEdits[key] || {};
-          const hasEdit = Object.keys(ed).some(k => ed[k]);
-          const nome  = ed.nome  || ex.name;
-          const sets  = ed.sets  || ex.sets;
-          const reps  = ed.reps  || ex.reps;
-          const nota  = ed.nota  !== undefined ? ed.nota : (ex.note || '');
-          const carga = ed.carga || '';
-          const hold  = ed.hold  || '';
+          const nome  = treinoEscape(ex.name  || '');
+          const sets  = treinoEscape(ex.sets  || '');
+          const reps  = treinoEscape(ex.reps  || '');
+          const carga = treinoEscape(ex.carga || '');
+          const nota  = treinoEscape(ex.note  || '');
           return `
-          <div style="display:grid;grid-template-columns:minmax(0,1fr) 44px 68px 52px 32px;gap:6px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04);align-items:start;font-size:13px">
-            <div>
-              <div style="font-weight:500;color:var(--text);line-height:1.4">${nome}</div>
-              ${(carga||hold) ? `<div style="display:flex;gap:6px;margin-top:3px">
-                ${carga?`<span style="font-size:10px;background:rgba(232,32,10,0.12);color:var(--accent);border-radius:4px;padding:1px 6px">⚖ ${carga}</span>`:''}
-                ${hold ?`<span style="font-size:10px;background:rgba(76,175,80,0.1);color:var(--green);border-radius:4px;padding:1px 6px">⏱ ${hold}</span>`:''}
-              </div>` : ''}
-              ${nota?`<div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${nota}</div>`:''}
+          <div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 48px 72px 66px 28px;gap:5px;align-items:center;margin-bottom:5px">
+              <input style="${INP}" value="${nome}" placeholder="Exercício"
+                onblur="treinoInlineEx(${di},${si},${bi},${ei},'nome',this.value)">
+              <input style="${INP};text-align:center" value="${sets}" placeholder="Sets"
+                onblur="treinoInlineEx(${di},${si},${bi},${ei},'sets',this.value)">
+              <input style="${INP};text-align:center" value="${reps}" placeholder="Reps"
+                onblur="treinoInlineEx(${di},${si},${bi},${ei},'reps',this.value)">
+              <input style="${INP};text-align:center" value="${carga}" placeholder="Carga"
+                onblur="treinoInlineEx(${di},${si},${bi},${ei},'carga',this.value)">
+              <button onclick="treinoRemoveEx(${di},${si},${bi},${ei})"
+                style="background:transparent;border:1px solid var(--border);border-radius:5px;width:26px;height:26px;color:var(--text3);cursor:pointer;font-size:13px;line-height:1">×</button>
             </div>
-            <div style="color:var(--text2);text-align:center;font-family:'Barlow Condensed'">${sets}×</div>
-            <div style="color:var(--text2);text-align:center;font-family:'Barlow Condensed';font-size:12px">${reps}</div>
-            <div style="color:var(--text3);text-align:center;font-size:11px">${ex.rest}</div>
-            <div style="text-align:center">
-              <button onclick="treinoEditEx(${di},${si},${bi},${ei})" style="background:${hasEdit?'rgba(76,175,80,0.12)':'var(--surface2)'};border:1px solid ${hasEdit?'rgba(76,175,80,0.3)':'var(--border)'};border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:12px;color:${hasEdit?'var(--green)':'var(--text3)'};display:flex;align-items:center;justify-content:center" title="Editar">✎</button>
-            </div>
+            <input style="${INP};font-size:11px;color:var(--text3)" value="${nota}" placeholder="Nota (opcional)"
+              onblur="treinoInlineEx(${di},${si},${bi},${ei},'nota',this.value)">
           </div>`;
         }).join('');
 
         return `
         <div style="margin-bottom:${bi < s.blocks.length-1 ? '18px' : '0'}">
-          <div style="font-size:11px;font-weight:600;color:${s.color||cfg.color};margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;font-family:'Barlow Condensed'">${block.name}</div>
-          ${block.note?`<div style="font-size:11px;color:var(--text3);margin-bottom:7px;line-height:1.4">${block.note}</div>`:''}
-          <div style="display:grid;grid-template-columns:minmax(0,1fr) 44px 68px 52px 32px;gap:6px;padding:5px 0;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border)">
-            <div>Exercício</div><div style="text-align:center">Sets</div><div style="text-align:center">Reps</div><div style="text-align:center">Rest</div><div></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <input style="background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.12);color:${s.color||cfg.color};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;font-family:'Barlow Condensed';flex:1;padding:2px 0"
+              value="${treinoEscape(block.name)}" placeholder="Nome do bloco"
+              onblur="treinoInlineBlock(${di},${si},${bi},'name',this.value)">
+          </div>
+          <input style="background:transparent;border:none;color:var(--text3);font-size:11px;width:100%;padding:2px 0;margin-bottom:6px;font-family:inherit"
+            value="${treinoEscape(block.note||'')}" placeholder="Nota do bloco..."
+            onblur="treinoInlineBlock(${di},${si},${bi},'note',this.value)">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 48px 72px 66px 28px;gap:5px;padding:4px 0;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);margin-bottom:2px">
+            <div>Exercício</div><div style="text-align:center">Sets</div><div style="text-align:center">Reps</div><div style="text-align:center">Carga</div><div></div>
           </div>
           ${exRows}
+          <button onclick="treinoAddExInline(${di},${si},${bi})"
+            style="margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text2);font-size:11px;cursor:pointer;font-family:'Barlow Condensed';width:100%">+ Exercício</button>
         </div>`;
       }).join('') : '';
 
       return `
       <div style="border-radius:8px;border:1px solid var(--border);background:var(--surface);overflow:hidden;margin-bottom:8px">
-        <div onclick="${hasBlocks ? `treinoToggleSess(${di},${si})` : ''}"
-             style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:${hasBlocks?'pointer':'default'}">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px">
           <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
             <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;background:${pCfg.bg};color:${pCfg.color};text-transform:uppercase;letter-spacing:.6px">${s.period}</span>
             <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;background:${cfg.bg};color:${cfg.color};text-transform:uppercase;letter-spacing:.6px">${cfg.label}</span>
           </div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:500;color:var(--text);line-height:1.3">${s.modalityLabel}</div>
-            ${s.summary?`<div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.3">${s.summary}</div>`:''}
+            <input value="${treinoEscape(s.modalityLabel)}" placeholder="Nome do treino"
+              style="background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text);font-size:13px;font-weight:500;width:100%;padding:2px 0;font-family:inherit"
+              onblur="treinoInlineSess(${di},${si},'modalityLabel',this.value)">
+            <input value="${treinoEscape(s.summary||'')}" placeholder="Observação..."
+              style="background:transparent;border:none;color:var(--text3);font-size:11px;width:100%;padding:2px 0;margin-top:3px;font-family:inherit"
+              onblur="treinoInlineSess(${di},${si},'summary',this.value)">
           </div>
-          ${hasBlocks?`<div style="font-size:16px;color:var(--text3);transform:${isOpen?'rotate(180deg)':'rotate(0)'};transition:transform .2s">▾</div>`:''}
+          <button onclick="treinoDeleteSession(${di},${si})" style="background:transparent;border:1px solid var(--border);border-radius:6px;width:26px;height:26px;color:var(--text3);cursor:pointer;font-size:12px;flex-shrink:0" title="Remover">×</button>
+          ${hasBlocks?`<button onclick="treinoToggleSess(${di},${si})" style="background:transparent;border:none;cursor:pointer;font-size:18px;color:var(--text3);transform:${isOpen?'rotate(180deg)':'rotate(0)'};transition:transform .2s;flex-shrink:0;padding:0 2px;line-height:1">▾</button>`:''}
         </div>
         ${hasBlocks && isOpen ? `<div style="padding:4px 14px 14px">${blocks}</div>` : ''}
       </div>`;
     }).join('');
 
     return `
-    <div style="margin-bottom:14px;opacity:${d.isRest?'0.6':'1'}">
+    <div style="margin-bottom:14px;opacity:${!d.sessions.length?'0.72':'1'}">
       <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:8px">
-        ${d.day}
-        ${d.isRest?`<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Descanso</span>`:''}
+        ${treinoEscape(d.day)}
+        ${!d.sessions.length?`<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Sem treino</span>`:''}
+        <button onclick="treinoOpenCreate(${di})" style="margin-left:auto;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 9px;color:var(--text2);font-size:11px;cursor:pointer;font-family:'Barlow Condensed'">+ Treino</button>
       </div>
-      ${sessions}
+      ${sessions || `<div style="border:1px dashed var(--border);border-radius:8px;padding:14px;text-align:center;color:var(--text3);font-size:12px;background:var(--surface)">Nenhum treino cadastrado neste dia</div>`}
     </div>`;
   }).join('');
 
@@ -5286,9 +5344,6 @@ function renderTreino() {
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:20px">${miniBar}</div>
     ${days}
-    <div style="margin-top:16px;padding:14px 16px;background:var(--surface2);border-radius:10px;font-size:12px;color:var(--text2);line-height:1.7;border:1px solid var(--border)">
-      <strong style="color:var(--text)">Progressão sugerida:</strong> a cada 2 semanas, tente adicionar 1 rep nos skills isométricos (ex: 5s → 6s de planche) ou 2.5kg nos exercícios lastrados. Se não progrediu em 3 semanas seguidas, troque a variação ou adicione 1 set de volume.
-    </div>
   </div>`;
 }
 
@@ -6053,7 +6108,7 @@ const AI_TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        nome:      { type: 'string', description: 'Nome/descrição do ganho (ex: Salário, Aluno João, Tatuagem)' },
+        nome:      { type: 'string', description: 'Nome/descrição do ganho (ex: Salário, Aluno João)' },
         valor:     { type: 'number', description: 'Valor em reais' },
         recebido:  { type: 'boolean', description: 'Se já foi recebido (true) ou é previsão (false)' },
       },
@@ -6133,20 +6188,6 @@ const AI_TOOLS = [
     },
   },
   {
-    name: 'add_tatuagem',
-    description: 'Registra uma tatuagem nova.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        cliente: { type: 'string' },
-        valor:   { type: 'number' },
-        sinal:   { type: 'number', description: 'Valor do sinal/entrada, se houver' },
-        pago:    { type: 'boolean', description: 'Se já foi pago totalmente' },
-      },
-      required: ['cliente', 'valor'],
-    },
-  },
-  {
     name: 'depositar_poupanca',
     description: 'Deposita um valor na poupança (porquinho). Também registra como gasto no balanço.',
     input_schema: {
@@ -6166,7 +6207,6 @@ Entidades disponíveis:
 - "aluno_cali": campos: nome, valor, plano, status (ativo/pausado), pago (boolean)
 - "aluno_online": campos: nome, valor, plano, diaAcerto, proxAtt, pago (boolean), msgSemana (boolean)
 - "aluno_presencial": campos: nome, pago (boolean)
-- "tatuagem": campos: cliente, valor, sinal, pago (boolean)
 - "gasto": campos: nome, valor, categoria, pago (boolean)
 - "ganho": campos: nome, valor, recebido (boolean)
 Exemplos: {entidade:"parceria", nome_parcial:"priscila", campo:"divulgacoes", operacao:"incrementar", valor:1}
@@ -6175,7 +6215,7 @@ Exemplos: {entidade:"parceria", nome_parcial:"priscila", campo:"divulgacoes", op
     input_schema: {
       type: 'object',
       properties: {
-        entidade:     { type: 'string', description: 'Tipo da entidade: parceria, aluno_cali, aluno_online, aluno_presencial, tatuagem, gasto, ganho' },
+        entidade:     { type: 'string', description: 'Tipo da entidade: parceria, aluno_cali, aluno_online, aluno_presencial, gasto, ganho' },
         nome_parcial: { type: 'string', description: 'Parte do nome para localizar o registro' },
         campo:        { type: 'string', description: 'Nome do campo a alterar' },
         operacao:     { type: 'string', enum: ['setar', 'incrementar', 'decrementar', 'toggle'], description: 'setar=valor absoluto, incrementar=soma, decrementar=subtrai, toggle=inverte boolean' },
@@ -6309,13 +6349,6 @@ function aiExecuteTool(name, input) {
     return `✓ ${p.nome}: divulgações ${antes} → ${p.divulgacoes} (${delta > 0 ? '+' : ''}${delta})`;
   }
 
-  if (name === 'add_tatuagem') {
-    const item = { id: uid(), cliente: input.cliente, valor: Number(input.valor), sinal: Number(input.sinal||0), pago: !!input.pago };
-    md.tattoo.push(item);
-    saveData();
-    return `✓ Tatuagem registrada: ${input.cliente} R$${input.valor}`;
-  }
-
   if (name === 'depositar_poupanca') {
     if (!globalPoupanca) return '✗ Poupança não carregada ainda.';
     const v   = Number(input.valor);
@@ -6344,7 +6377,6 @@ function aiExecuteTool(name, input) {
     else if (ent === 'aluno_cali')  { lista = md.calistenia;         item = lista?.find(x => x.nome.toLowerCase().includes(q)); }
     else if (ent === 'aluno_online'){ lista = md.personal.online;    item = lista?.find(x => x.nome.toLowerCase().includes(q)); }
     else if (ent === 'aluno_presencial'){ lista = md.personal.presencial; item = lista?.find(x => x.nome.toLowerCase().includes(q)); }
-    else if (ent === 'tatuagem')    { lista = md.tattoo;             item = lista?.find(x => x.cliente?.toLowerCase().includes(q)); }
     else if (ent === 'gasto')       { lista = md.balanco.gastos;     item = lista?.find(x => x.nome.toLowerCase().includes(q)); }
     else if (ent === 'ganho')       { lista = md.balanco.ganhos;     item = lista?.find(x => x.nome.toLowerCase().includes(q)); }
 
@@ -6414,10 +6446,9 @@ Regras:
 - Só crie uma linha nova se o item claramente não existir ainda no contexto.
 - Para parcerias, use add_divulgacao quando o usuário mencionar divulgação, publicação ou indicação de uma parceira.
 - Se o usuário disser "errei", "corrija", "era menos", "economizei X", "subtraia X" ou "era Y na verdade" — use update_gasto/update_ganho com delta negativo ou valor_novo absoluto.
-- Para parcerias, alunos, tatuagens ou qualquer outro campo não coberto pelas ferramentas específicas — use update_campo.
+- Para parcerias, alunos ou qualquer outro campo não coberto pelas ferramentas específicas — use update_campo.
 - Exemplos de update_campo: "Priscila fez mais uma divulgação" → {entidade:"parceria", nome_parcial:"priscila", campo:"divulgacoes", operacao:"incrementar", valor:1}
   "João mudou de plano para mensal" → {entidade:"aluno_online", nome_parcial:"joao", campo:"plano", operacao:"setar", valor_texto:"mensal"}
-  "tatuagem da Maria foi paga" → {entidade:"tatuagem", nome_parcial:"maria", campo:"pago", operacao:"toggle"}
 - Use português brasileiro informal.
 - Não invente dados — só use o que o usuário informou.`;
 
@@ -6492,7 +6523,6 @@ Regras:
       const mdR = getMonthData();
       if (currentPage === 'financas') renderFinancas(mdR);
       else if (currentPage === 'alunos') renderAlunos(mdR);
-      else if (currentPage === 'tattoo') renderTattoo(mdR);
       else if (currentPage === 'dashboard') renderDashboard(mdR);
     }
 
@@ -6528,133 +6558,6 @@ Regras:
 </div>
 
 
-<script>
-// ==================== STORIES 60 DIAS ====================
-
-const STORIES_60DIAS = [{"dia":1,"data":"2026-06-01","categoria":"EDUCAÇÃO","tema":"Progressão de carga","stories":[{"num":"Story 1","visual":"Foto sua na academia segurando barra ou haltere, olhando para a carga","copy":"Você pode fazer o mesmo treino por meses e o corpo não vai mudar.\nNão porque você não se esforça — porque o treino não progrediu."},{"num":"Story 2","visual":"Texto simples no fundo escuro","copy":"Vou te explicar o conceito que a maioria das pessoas que treina nunca aprendeu.\n\nSe fizer sentido, salva esse story."},{"num":"Story 3","visual":"Vídeo ou foto fazendo um exercício composto (agachamento, terra, supino)","copy":"O corpo só cresce quando recebe um estímulo novo.\n\nSe você faz o mesmo peso, a mesma quantidade de repetições e o mesmo treino toda semana — o estímulo parou. O resultado também."},{"num":"Story 4","visual":"Foto anotando no caderno ou no celular (planilha de treino)","copy":"Progressão não precisa ser 10kg a mais toda semana.\n\nDuas repetições a mais. 2,5kg a mais. Menos tempo de descanso.\n\nQualquer coisa que faça o treino ser um pouco mais difícil do que foi na semana passada."},{"num":"Story 5","visual":"Selfie pós-treino ou foto da academia vazia","copy":"Isso é o que separa quem evolui de quem estagna.\n\nNão é o exercício. Não é o suplemento. É a progressão planejada, semana a semana.\n\nSe quiser entender como aplicar isso no seu treino, me manda mensagem."}]},{"dia":2,"data":"2026-06-02","categoria":"AUTORIDADE","tema":"Como desenvolvi o método","stories":[{"num":"Story 1","visual":"Foto sua em ambiente profissional — academia, home office ou com aluna","copy":"A metodologia que uso hoje foi construída ao longo de anos atendendo mulheres que chegavam com o mesmo problema:\n\nTreinavam com consistência. Não viam resultado."},{"num":"Story 2","visual":"Foto mais antiga sua, início da carreira ou na faculdade","copy":"Quando comecei, seguia o que a maioria dos personais segue.\nMuito volume, muita variação, treino longo.\n\nFuncionava às vezes. Na maioria das vezes, as alunas estagnavam e eu não entendia por quê."},{"num":"Story 3","visual":"Foto estudando, livro, curso ou anotação técnica","copy":"Comecei a estudar mais a fundo o que a ciência mostra sobre hipertrofia feminina.\n\nO que encontrei contradiz muita coisa que o senso comum prega na academia."},{"num":"Story 4","visual":"Foto com resultado de aluna (antes/depois, com permissão) ou só resultado no espelho","copy":"Quando mudei a abordagem — menos exercício, mais critério, progressão real — os resultados das alunas mudaram.\n\nNão de uma semana pra outra. Mas de forma consistente, que dura."},{"num":"Story 5","visual":"Foto no celular mostrando WhatsApp de aluna (nome borrado)","copy":"Hoje o que mais me motiva não é o número na balança.\n\nÉ receber a mensagem: 'Finalmente tô vendo resultado e não fico mais me culpando.'"},{"num":"Story 6","visual":"Selfie direta, tom de conversa","copy":"Nesses [X] anos atendendo, aprendi que o problema raramente é a aluna.\n\nQuase sempre é o método.\n\nSe você quer entender o que está travando o seu resultado, me manda mensagem."}]},{"dia":3,"data":"2026-06-03","categoria":"VENDA","tema":"O maior erro no treino feminino","stories":[{"num":"Story 1","visual":"Foto sua com expressão de surpresa ou curiosidade — foto casual, não posada","copy":"O maior erro que eu cometia ao montar treino pra mulher querer definir o corpo — e que a maioria dos personais ainda comete hoje.\n\n[sticker de reação 😱]"},{"num":"Story 2","visual":"Vídeo curto falando direto pra câmera ou foto sua na academia","copy":"Durante um tempo montei treino igual pra todo mundo.\nMuito volume, muito exercício, muita variação.\n\nAs alunas saíam destruídas toda sessão. O resultado não vinha."},{"num":"Story 3","visual":"Foto de planilha de treino ou anotação — pode ser a sua tela de celular","copy":"Quando fui entender o porquê, a resposta era sempre a mesma:\n\nTreino sem progressão planejada. Sem critério de seleção. Sem considerar a rotina real da pessoa.\n\nSó volume pra parecer completo."},{"num":"Story 4","visual":"Foto fazendo ajuste de treino no computador ou celular","copy":"Quando mudei isso — menos exercício, mais progressão, treino que cabe na rotina real — o resultado começou a aparecer.\n\nNão é mágica. É método."},{"num":"Story 5","visual":"Selfie direta, tom de conversa informal","copy":"Você gostaria da minha ajuda pra aplicar isso no seu caso?\n\nClica aqui que eu te explico como funciona 👇\n[sticker de reação 💪]"}]},{"dia":4,"data":"2026-06-04","categoria":"QUEBRA DE OBJEÇÃO","tema":"Ciclo de frustração","stories":[{"num":"Story 1","visual":"Foto ou citação no fundo escuro — texto simples, sem imagem pessoal","copy":"Eu sei que você não quer terminar mais um verão sem se sentir bem com o próprio corpo."},{"num":"Story 2","visual":"Foto sua com expressão empática, olhando para a câmera","copy":"Todas as vezes é igual.\n\nVocê começa determinada, treina semanas, se esforça de verdade.\nMas o resultado que espera não aparece.\n\nE o que fica é frustração e a sensação de que tem algo errado com você."},{"num":"Story 3","visual":"Fundo escuro com texto — sem foto, só copy","copy":"Você se sente culpada por parar. Por não ter mantido.\nPor achar que não tem disciplina.\n\nSendo que o problema nunca foi você.\nFoi o treino que não foi feito pra funcionar na sua rotina real."},{"num":"Story 4","visual":"Foto sua com expressão determinada, treino ou academia","copy":"Mas não dessa vez.\n\nEu quero que você faça uma promessa comigo: no próximo verão, você vai estar com um corpo que reflete o esforço que você já coloca — com método que funciona, resultado que aparece."},{"num":"Story 5","visual":"Foto bastidores — celular com WhatsApp de aluna (nome borrado)","copy":"Com acompanhamento personalizado você vai conquistar não só definição.\nVai conquistar consistência.\n\nA sensação de saber que o que você faz está funcionando, semana após semana."},{"num":"Story 6","visual":"Selfie direta sorrindo — tom de quem acredita","copy":"Eu já sei como vai ser quando eu receber sua mensagem dizendo:\n'Finalmente tô vendo resultado. Não desisti dessa vez.'\n\nEu acredito no seu potencial."},{"num":"Story 7","visual":"Enquete no fundo da identidade visual","copy":"Você também acredita?\n[Enquete: Acredito ✅ | Ainda com dúvida 🤔]"}]},{"dia":5,"data":"2026-06-05","categoria":"CONEXÃO","tema":"Lado pessoal do Thiago","stories":[{"num":"Story 1","visual":"Foto casual sua — fora da academia, vida pessoal","copy":"O lado do Thiago que você ainda não conhece."},{"num":"Story 2","visual":"Foto mais antiga — início da carreira, faculdade ou treino pessoal","copy":"Curiosidade 1: Antes de focar em consultoria online, eu imaginava que só funcionaria atender presencialmente. Demorei pra acreditar que daria pra acompanhar aluna de verdade à distância."},{"num":"Story 3","visual":"Foto pessoal — momento de dúvida ou transição de carreira","copy":"Curiosidade 2: Teve um momento em que quase desisti da consultoria online. Achava que sem ver a aluna pessoalmente eu não conseguiria entregar resultado real. Hoje sei que dá — e às vezes funciona melhor."},{"num":"Story 4","visual":"Foto com livro, estudo ou curso — momento de aprendizado","copy":"Curiosidade 3: Meu maior desafio quando comecei foi parar de treinar todo mundo igual. Aprendi na prática que treino genérico não serve pra ninguém de verdade."},{"num":"Story 5","visual":"Foto bastidores — computador, planilha, planejamento de treino","copy":"Curiosidade 4: Tomei um susto quando percebi o quanto de informação errada circula sobre treino feminino. Mulheres seguindo tudo certo, se esforçando, sem resultado — não por falta de dedicação, mas por falta de método."},{"num":"Story 6","visual":"Foto de autoridade — resultado de aluna, consultoria em ação","copy":"Curiosidade 5: Nesses [X] anos, já acompanhei [Y] mulheres. O que mais me motiva não é o número na balança. É a mensagem 'finalmente não fico mais me culpando'."},{"num":"Story 7","visual":"Selfie casual — pergunta aberta","copy":"Qual dessas curiosidades você não imaginava?\nMe conta aqui 👇"}]},{"dia":6,"data":"2026-06-06","categoria":"ROTINA","tema":"Pré-treino","stories":[{"num":"Story 1","visual":"Foto ou vídeo curto — café, banana, suplemento ou refeição antes do treino","copy":"Carregando as baterias.\nHoje fui de [café / banana / pré-treino] antes do treino.\n\n[sticker de reação 🔥]"},{"num":"Story 2","visual":"Foto a caminho da academia ou chegando — casual, sem pose","copy":"Sem isso aqui o treino não rende.\n\nO que você usa de pré-treino? 👇"},{"num":"Story 3","visual":"Screenshot de mensagem de aluna (nome borrado) ou descrição do feedback","copy":"Recebi isso essa semana e queria compartilhar.\n\n[descrever ou mostrar o feedback recebido]\n\n9 meses de esforço. Método certo. Resultado que apareceu no espelho e na disposição."}]},{"dia":7,"data":"2026-06-07","categoria":"PROVA SOCIAL","tema":"Resultado com método certo","stories":[{"num":"Story 1","visual":"Fundo escuro com texto ou foto de treino feminino","copy":"O que eu faria se quisesse ter um corpo mais definido sem passar horas na academia todos os dias..."},{"num":"Story 2","visual":"Selfie direta ou fundo com enquete","copy":"Vou começar te fazendo uma pergunta.\n\nTer um corpo mais definido — perder gordura, ganhar forma — te deixaria mais confiante com você mesma?\n[Enquete: Com certeza ✅ | Já não acredito mais 😔]"},{"num":"Story 3","visual":"Fundo escuro, texto — espera a enquete responder antes de postar","copy":"Muitas de vocês estão respondendo 'com certeza' — e eu sei os motivos:\n\n• Você treinou por meses sem ver o resultado que merecia\n• Você sente que se esforça mais do que a maioria, mas o corpo não responde igual\n• Você já cansou de recomeçar\n\nE eu sei que você não quer mais viver nesse ciclo."},{"num":"Story 4","visual":"Foto resultado de aluna (antes/depois com permissão) ou texto sobre caso real","copy":"Por isso, o que realmente muda o resultado:\n\n• Parar de trocar exercício sem critério\n• Adicionar progressão planejada semana a semana\n• Treino que cabe na sua rotina real — não na ideal"},{"num":"Story 5","visual":"Selfie direta, tom firme e motivador","copy":"Só depende de ter o método certo.\n\nQuando você começa a aplicar isso, o resultado aparece — e você para de se culpar.\n\nSe quiser entender como funciona no seu caso, me manda mensagem."}]},{"dia":8,"data":"2026-06-08","categoria":"EDUCAÇÃO","tema":"Frequência de treino","stories":[{"num":"Story 1","visual":"Foto sua na academia ou texto sobre treino no fundo escuro","copy":"Quantos dias por semana você precisa treinar pra ver resultado?\n\nA resposta que a maioria dá está errada."},{"num":"Story 2","visual":"Foto de calendário de treino ou planilha semanal","copy":"A maioria acha que mais dias = mais resultado.\n\nMas não é assim que o corpo funciona."},{"num":"Story 3","visual":"Vídeo ou foto de exercício de força — agachamento, terra, remada","copy":"O corpo cresce no descanso, não durante o treino.\n\nO treino cria o estímulo. O descanso é quando a adaptação acontece.\n\nSe você não dá tempo pro corpo recuperar, você só acumula fadiga."},{"num":"Story 4","visual":"Foto anotação ou texto didático no celular","copy":"3 a 4 dias de treino bem estruturado entrega mais resultado do que 6 dias de treino sem progressão.\n\nFrequência importa. Mas qualidade e progressão importam mais."},{"num":"Story 5","visual":"Selfie pós-treino ou foto casual na academia","copy":"Se você tá treinando 5, 6 dias e não vendo resultado — o problema provavelmente não é a frequência.\n\nÉ o que você faz nesses dias.\n\nQuer entender? Me manda mensagem."}]},{"dia":9,"data":"2026-06-09","categoria":"AUTORIDADE","tema":"Case de resultado de aluna","stories":[{"num":"Story 1","visual":"Foto de resultado de aluna — antes/depois com permissão, ou silhueta sem identificar","copy":"Ela chegou em mim depois de 8 meses treinando sem ver resultado.\n\nTreino de 5 dias, muito volume, muito esforço.\n\nEla achava que o problema era ela."},{"num":"Story 2","visual":"Foto bastidores — avaliação, planilha, ou ajuste de treino","copy":"Quando analisei o treino dela, o problema estava claro:\n\nNão tinha progressão. Não tinha critério de seleção.\nEra treino pra cansar, não pra construir."},{"num":"Story 3","visual":"Foto ou resultado — semana 4 de consultoria","copy":"Nas primeiras semanas cortei metade dos exercícios.\nAumentei a carga nos que ficaram.\nAdicionei progressão planejada.\n\nEla achou que ia ser menos eficaz. Foi o contrário."},{"num":"Story 4","visual":"Foto resultado — mês 2 ou 3","copy":"No segundo mês ela já sentia diferença na carga.\nNo terceiro, via diferença no espelho.\n\nMesmo esforço. Método diferente."},{"num":"Story 5","visual":"Screenshot de mensagem da aluna (nome borrado)","copy":"A mensagem que recebi no mês 3:\n'Nunca imaginei que ia ver resultado tão rápido depois de tanto tempo tentando.'\n\nEsforço não faltava. Faltava o método certo."},{"num":"Story 6","visual":"Selfie ou foto de autoridade","copy":"Se você se identificou com a história dela, me manda mensagem.\n\nA gente analisa o que está acontecendo no seu caso."}]},{"dia":10,"data":"2026-06-10","categoria":"VENDA","tema":"Por que não vê resultado","stories":[{"num":"Story 1","visual":"Foto sua com expressão de quem vai revelar algo importante","copy":"Por que você treina com consistência e ainda assim o corpo não muda?\n\nVou te dar a resposta real — não a que a maioria quer ouvir."},{"num":"Story 2","visual":"Foto texto no fundo escuro — simples e direto","copy":"Não é falta de disciplina.\nNão é seu metabolismo.\nNão é genética.\n\nNa maioria dos casos é uma coisa só:"},{"num":"Story 3","visual":"Foto de planilha ou treino escrito","copy":"O treino não foi feito pra você.\n\nFoi feito pra qualquer pessoa.\nSem considerar sua rotina, seu histórico, sua recuperação.\nSem progressão planejada.\n\nTreino genérico entrega resultado genérico."},{"num":"Story 4","visual":"Foto mostrando comparativo — treino genérico vs personalizado (texto)","copy":"A diferença entre um treino que funciona e um que não funciona:\n\n• Progressão planejada vs carga igual toda semana\n• Volume compatível com sua rotina vs volume pra parecer completo\n• Ajuste semanal vs mesmo treino por meses"},{"num":"Story 5","visual":"Selfie direta — CTA de conversa","copy":"Se você tá nesse ciclo e quer sair, me manda mensagem.\n\nVejo o que está travando o seu resultado.\n[sticker de reação 💪]"}]},{"dia":11,"data":"2026-06-11","categoria":"QUEBRA DE OBJEÇÃO","tema":"Não tenho tempo","stories":[{"num":"Story 1","visual":"Foto casual — você no dia a dia, fora da academia","copy":"'Não tenho tempo pra treinar todo dia.'\n\nEssa objeção chega toda semana."},{"num":"Story 2","visual":"Foto de agenda, celular ou rotina agitada","copy":"E eu entendo. Rotina de trabalho, família, compromissos — o dia some rápido.\n\nMas deixa eu te mostrar um número:"},{"num":"Story 3","visual":"Texto no fundo escuro — simples","copy":"3 dias de treino por semana.\nCerca de 50 minutos cada.\n\nIsso é menos de 3 horas semanais.\n\nÉ suficiente pra gerar resultado de verdade quando o treino é bem estruturado."},{"num":"Story 4","visual":"Foto sua treinando ou bastidores de consultoria","copy":"O problema não costuma ser falta de tempo.\nÉ falta de um treino que cabe na sua rotina real.\n\nTreino de 2 horas que você não consegue manter tem menos resultado do que 50 minutos que você faz consistentemente."},{"num":"Story 5","visual":"Enquete ou selfie direta","copy":"Você treina 3 vezes por semana consegue?\n[Enquete: Consigo ✅ | Às vezes 😅 | Raramente 😬]\n\nMe conta nos comentários — vejo como posso te ajudar."}]},{"dia":12,"data":"2026-06-12","categoria":"CONEXÃO","tema":"Transformação física pessoal","stories":[{"num":"Story 1","visual":"Foto mais antiga sua — antes de ter método, início do treino","copy":"Eu também já treinei sem método.\n\nPassava horas na academia sem saber exatamente o que estava construindo."},{"num":"Story 2","visual":"Foto do processo — treino pesado, anotações, rotina de treino","copy":"Quando comecei a aplicar progressão de carga de verdade, a diferença foi visível em poucos meses.\n\nNão mudei o tempo que treinava. Mudei como treinava."},{"num":"Story 3","visual":"Foto atual — resultado físico pessoal","copy":"A diferença entre antes e depois não foi esforço.\nEsforço eu sempre tive.\n\nFoi método. Progressão. Critério na seleção dos exercícios."},{"num":"Story 4","visual":"Selfie casual — tom pessoal","copy":"Essa experiência é o que me faz saber que funciona antes de prescrever pra qualquer aluna.\n\nEu já vivi o processo."},{"num":"Story 5","visual":"Selfie direta com pergunta","copy":"Você já teve um período que treinava bastante mas sem ver resultado?\nMe conta aqui 👇"}]},{"dia":13,"data":"2026-06-13","categoria":"ROTINA","tema":"Treino do dia","stories":[{"num":"Story 1","visual":"Foto ou vídeo curto do exercício principal do dia com a carga","copy":"Treino de hoje:\n[Exercício] — [carga] kg, [séries]x[reps]\n\nFoco total na progressão."},{"num":"Story 2","visual":"Foto ou vídeo pós-set — expressão de esforço real, não posada","copy":"[Opcional] Não é fácil. Mas é exatamente isso que o corpo precisa pra responder."},{"num":"Story 3","visual":"Foto casual fora da academia ou selfie direta","copy":"Uma coisa que aprendi nesses anos: o maior obstáculo no treino feminino não é o treino.\n\nÉ a informação errada que a maioria recebe.\n\nContinuo aqui pra corrigir isso, um story de cada vez."}]},{"dia":14,"data":"2026-06-14","categoria":"PROVA SOCIAL","tema":"Resultado em 3 meses","stories":[{"num":"Story 1","visual":"Fundo escuro com texto ou foto de treino feminino","copy":"Em 3 meses de consultoria, três coisas mudaram na rotina da minha aluna.\n\nNão foi o esforço — esse ela já tinha."},{"num":"Story 2","visual":"Foto resultado ou bastidores do acompanhamento","copy":"→ Treino com base composta — sem encher pra parecer completo\n→ Progressão de carga registrada e controlada\n→ Acompanhamento semanal via WhatsApp com ajuste real"},{"num":"Story 3","visual":"Foto resultado final ou screenshot de mensagem (nome borrado)","copy":"Resultado: corpo mais definido nas áreas que mais incomodavam.\n\nO esforço era o mesmo. O que mudou foi o método."},{"num":"Story 4","visual":"Selfie direta — CTA","copy":"Se você quer entender o que muda com acompanhamento personalizado, me manda mensagem.\n\nSem compromisso — só pra entender seu caso."}]},{"dia":15,"data":"2026-06-15","categoria":"EDUCAÇÃO","tema":"Volume de treino","stories":[{"num":"Story 1","visual":"Foto sua na academia ou texto impactante no fundo escuro","copy":"Mais exercício não significa mais resultado.\n\nChega um ponto onde você não está mais construindo — está só acumulando fadiga."},{"num":"Story 2","visual":"Foto de lista de exercícios ou planilha","copy":"Volume é o total de estímulo que você dá ao músculo.\n\nO corpo responde a uma faixa específica. Abaixo disso: pouco estímulo. Acima disso: recuperação comprometida."},{"num":"Story 3","visual":"Vídeo ou foto de exercício composto bem executado","copy":"A maioria dos treinos que vejo tem volume demais nos exercícios errados.\n\nSeis exercícios de glúteo onde dois resolveriam — com mais carga e mais progressão."},{"num":"Story 4","visual":"Foto anotação ou texto didático","copy":"Como saber se seu volume está certo:\n\n• Você consegue progredir carga semana a semana?\n• Você se recupera bem entre as sessões?\n• O treino não dura mais de 1h?\n\nSe não: provavelmente tem coisa demais."},{"num":"Story 5","visual":"Selfie ou foto casual com CTA","copy":"Volume certo + progressão real = resultado consistente.\n\nSe quiser entender como aplicar isso, me manda mensagem."}]},{"dia":16,"data":"2026-06-16","categoria":"AUTORIDADE","tema":"Bastidores da consultoria","stories":[{"num":"Story 1","visual":"Foto do computador com planilha de treino aberta ou WhatsApp com aluna","copy":"Bastidores de uma semana de consultoria.\n\nÉ assim que funciona na prática."},{"num":"Story 2","visual":"Foto avaliação — fotos de aluna na tela (sem mostrar rosto/identificação)","copy":"Segunda: recebo as fotos de avaliação da aluna nova.\nAnaliso postura, composição, histórico.\nMonto o treino baseado no que vejo — não em protocolo genérico."},{"num":"Story 3","visual":"Foto de ajuste de treino — célula editada na planilha","copy":"Quarta: ajuste semanal.\n\nUma aluna mandou mensagem: 'Estagnei no agachamento há 2 semanas.'\nRevisei o volume, ajustei a progressão. Na semana seguinte ela bateu recorde."},{"num":"Story 4","visual":"Screenshot de mensagem de aluna com bom resultado (nome borrado)","copy":"Sexta: mensagem que chegou essa semana.\n\n[mensagem de aluna — adaptar com algo real quando tiver]"},{"num":"Story 5","visual":"Selfie ou foto de autoridade","copy":"Isso é consultoria. Não é PDF genérico mandado uma vez.\nÉ acompanhamento de verdade, semana a semana.\n\nSe quiser saber como funciona, me manda mensagem."}]},{"dia":17,"data":"2026-06-17","categoria":"VENDA","tema":"Diferencial do personalizado","stories":[{"num":"Story 1","visual":"Foto comparativo visual — texto lado a lado: genérico vs personalizado","copy":"Treino genérico vs treino personalizado.\n\nA diferença é maior do que parece."},{"num":"Story 2","visual":"Fundo escuro com texto — coluna genérico","copy":"Treino genérico:\n\n• Mesmo para todo mundo\n• Volume fixo sem considerar sua recuperação\n• Não muda conforme você evolui\n• Não considera sua rotina real"},{"num":"Story 3","visual":"Fundo escuro com texto — coluna personalizado","copy":"Treino personalizado:\n\n• Feito pra você especificamente\n• Progressão planejada semana a semana\n• Ajusta quando sua vida muda\n• Acompanhamento contínuo via WhatsApp"},{"num":"Story 4","visual":"Foto bastidores de consultoria ou resultado de aluna","copy":"A diferença no resultado não é pequena.\n\nQuem tem acompanhamento progride mais rápido, erra menos e não para no primeiro obstáculo — porque tem alguém ajustando junto."},{"num":"Story 5","visual":"Selfie direta — CTA","copy":"Se quiser entender como funciona pra você especificamente, me manda mensagem.\n[sticker de reação 💪]"}]},{"dia":18,"data":"2026-06-18","categoria":"QUEBRA DE OBJEÇÃO","tema":"Treino online não funciona","stories":[{"num":"Story 1","visual":"Selfie direta — tom seguro, não defensivo","copy":"'Treino online não funciona.'\n\nJá ouvi isso muitas vezes. Entendo o porquê.\nMas vou te mostrar o que a experiência me ensinou."},{"num":"Story 2","visual":"Foto bastidores — análise de fotos, planilha, WhatsApp","copy":"A preocupação faz sentido: sem estar presencialmente, como você vai me ver treinar?\n\nMas aqui está o que percebi: o resultado não vem da minha presença física. Vem do método, da progressão e do acompanhamento constante."},{"num":"Story 3","visual":"Foto comparativo — personal presencial vs online (texto)","copy":"O que realmente importa pra resultado:\n\n• Treino feito pra você ✅\n• Progressão planejada ✅\n• Ajuste quando precisa ✅\n• Acompanhamento semanal ✅\n\nTudo isso acontece 100% online."},{"num":"Story 4","visual":"Screenshot de resultado ou mensagem de aluna (sem identificar)","copy":"Tenho alunas que treinaram anos presencialmente sem resultado.\nComeçaram online e evoluíram em meses.\n\nO diferencial não é o formato. É o método."},{"num":"Story 5","visual":"Enquete ou CTA direta","copy":"Você teria curiosidade de entender como funciona?\n[Enquete: Sim, tenho curiosidade ✅ | Ainda com dúvida 🤔]"}]},{"dia":19,"data":"2026-06-19","categoria":"CONEXÃO","tema":"Por que trabalho com mulheres","stories":[{"num":"Story 1","visual":"Foto casual sua — fora da academia, tom pessoal","copy":"Por que um personal trainer homem escolheu trabalhar com público feminino?\n\nEu nem tinha planejado assim."},{"num":"Story 2","visual":"Foto do início da carreira ou com alunas iniciais","copy":"Quando comecei a atender, a maioria das pessoas que me procurava eram mulheres.\n\nE logo percebi: elas chegavam com muito mais frustração acumulada."},{"num":"Story 3","visual":"Foto de estudo, pesquisa ou material técnico","copy":"Fui pesquisar mais sobre treino feminino — ciclo menstrual, composição corporal, diferenças fisiológicas.\n\nEncontrei muita informação ignorada no mercado. E isso me fisgou."},{"num":"Story 4","visual":"Foto ou vídeo de resultado de aluna (autorizado)","copy":"Ver uma mulher que treinou anos sem resultado finalmente evoluir — por causa de um método que respeita como o corpo dela funciona — é o que me mantém motivado."},{"num":"Story 5","visual":"Selfie com pergunta aberta","copy":"O que te fez buscar um personal para te acompanhar?\nMe conta aqui 👇"}]},{"dia":20,"data":"2026-06-20","categoria":"ROTINA","tema":"Refeição pós-treino","stories":[{"num":"Story 1","visual":"Foto ou vídeo da refeição pós-treino — prato, marmita ou lanche","copy":"Pós-treino de hoje.\n\n[Descreva o que comeu de forma simples: proteína + carboidrato]\n\nNão precisa ser perfeito. Precisa ser consistente."},{"num":"Story 2","visual":"Foto casual — mesa, cozinha, restaurante","copy":"A refeição mais importante do dia pra quem treina é a que você consegue fazer.\n\nConsistência ganha de perfeição toda vez."},{"num":"Story 3","visual":"Screenshot de WhatsApp com aluna (nome borrado) sobre ajuste de treino","copy":"Semana passada ajustei o treino de uma aluna que estava travada.\n\nEla achava que precisava treinar mais.\nO que ela precisava era treinar de forma diferente.\n\nEssa é a diferença entre esforço e método."}]},{"dia":21,"data":"2026-06-21","categoria":"PROVA SOCIAL","tema":"Aluna com ciclo irregular","stories":[{"num":"Story 1","visual":"Fundo escuro com texto ou foto de treino feminino","copy":"Ela treinava há um ano e ficava desmotivada toda vez que chegava a semana pré-menstrual.\n\nAchava que era fraqueza."},{"num":"Story 2","visual":"Foto ou texto bastidores de consultoria","copy":"Quando analisamos o padrão, ficou claro:\n\nO treino dela ignorava completamente o ciclo menstrual.\nMesma intensidade, mesma exigência, todo mês inteiro.\n\nO corpo não funciona assim."},{"num":"Story 3","visual":"Foto de planejamento de treino com ciclo — planilha adaptada","copy":"Adaptamos o treino por fase:\n\n• Fase folicular e ovulação: maior intensidade e carga\n• Fase lútea e menstruação: volume menor, recuperação respeitada"},{"num":"Story 4","visual":"Foto resultado ou mensagem da aluna (sem identificar)","copy":"Em 6 semanas ela parou de se culpar nos dias difíceis.\nNo mês seguinte, os resultados físicos começaram a aparecer.\n\nO corpo responde quando você para de lutar contra ele."},{"num":"Story 5","visual":"Selfie ou foto de autoridade com CTA","copy":"Se você também sente que o ciclo interfere no seu treino e resultado, me manda mensagem.\n\nA gente olha isso juntos."}]},{"dia":22,"data":"2026-06-22","categoria":"EDUCAÇÃO","tema":"Ciclo menstrual e treino","stories":[{"num":"Story 1","visual":"Foto ou texto direto no fundo escuro","copy":"O corpo da mulher não funciona do mesmo jeito o mês inteiro.\n\nIgnorar isso no treino é uma das maiores fontes de frustração e estagnação."},{"num":"Story 2","visual":"Texto didático ou infográfico simples","copy":"O ciclo menstrual tem 4 fases.\n\nCada fase tem um nível diferente de hormônio — e isso afeta diretamente disposição, força, recuperação e resposta ao treino."},{"num":"Story 3","visual":"Foto de treino de força ou texto com fases","copy":"Fase 1 e 2 (folicular + ovulação):\n\nEstrogênio alto. Energia boa. Força maior. Recuperação mais rápida.\n\n→ Momento ideal pra treino mais pesado e intenso."},{"num":"Story 4","visual":"Foto de descanso, mobilidade ou texto","copy":"Fase 3 e 4 (lútea + menstrual):\n\nProgesterona alta. Fadiga maior. Recuperação mais lenta.\n\n→ Reduzir intensidade, respeitar o corpo. Não é fraqueza — é fisiologia."},{"num":"Story 5","visual":"Selfie ou foto com CTA educativo","copy":"Quando você treina respeitando o ciclo, para de se cobrar nos dias ruins e começa a ouvir mais o seu corpo.\n\nSalva esse story pra consultar depois."}]},{"dia":23,"data":"2026-06-23","categoria":"AUTORIDADE","tema":"Minha rotina de treino","stories":[{"num":"Story 1","visual":"Foto chegando na academia ou no início do treino","copy":"Bastidores do meu próprio treino hoje.\n\nPratico o que prescrevo."},{"num":"Story 2","visual":"Vídeo ou foto do exercício principal com a carga","copy":"[Exercício do dia] — [carga] kg\n\nFoco na execução e na progressão. Não em volume."},{"num":"Story 3","visual":"Foto ou vídeo de série intensa","copy":"Não precisa ser o treino mais longo.\nPrecisa ser o treino mais eficiente.\n\n45-60 minutos com progressão real entrega mais do que 2 horas de volume sem critério."},{"num":"Story 4","visual":"Foto pós-treino ou no vestiário","copy":"Treino encerrado.\n\nIsso aqui é o que eu aplico com as alunas — o mesmo princípio que funciona comigo funciona com elas."},{"num":"Story 5","visual":"Selfie casual — tom pessoal","copy":"Você treina dessa forma? Ou ainda fica buscando o treino perfeito?\nMe conta aqui 👇"}]},{"dia":24,"data":"2026-06-24","categoria":"VENDA","tema":"Primeiras semanas de consultoria","stories":[{"num":"Story 1","visual":"Foto bastidores — computador, WhatsApp, planejamento","copy":"O que acontece nas primeiras semanas de consultoria?\n\nVou te mostrar o processo real — sem filtro."},{"num":"Story 2","visual":"Foto de avaliação — análise de fotos (sem mostrar rosto/identificar)","copy":"Semana 1:\n\nRecebo suas fotos de avaliação e suas respostas sobre rotina, histórico e objetivo.\n\nNão começo a montar treino antes de entender seu contexto real."},{"num":"Story 3","visual":"Foto de planilha de treino sendo criada","copy":"Semana 1-2:\n\nMonto o treino pra você — não pra um perfil genérico.\n\nExercícios compostos como base. Volume compatível com o que você consegue manter. Progressão já planejada."},{"num":"Story 4","visual":"Foto de WhatsApp ou acompanhamento semanal","copy":"Semana 2 em diante:\n\nAjuste semanal via WhatsApp.\n\nAlgo machucou? Troco o exercício.\nSemana corrida? Adapto o treino.\nEstagnou? Revejo a progressão."},{"num":"Story 5","visual":"Selfie ou foto de autoridade com CTA","copy":"Esse é o processo.\nSimples. Personalizado. Com resultado real.\n\nSe quiser entender como funciona no seu caso, me manda mensagem."}]},{"dia":25,"data":"2026-06-25","categoria":"QUEBRA DE OBJEÇÃO","tema":"Medo de ficar grande","stories":[{"num":"Story 1","visual":"Selfie direta ou foto de treino feminino","copy":"'Tenho medo de ficar grande ou masculinizada.'\n\nEssa é uma das objeções que mais escuto.\n\nVou te explicar por que isso não acontece."},{"num":"Story 2","visual":"Texto didático no fundo escuro","copy":"A mulher tem, em média, 15 a 20 vezes menos testosterona do que o homem.\n\nÉ esse hormônio que determina o ganho de massa muscular expressivo.\n\nFisiologicamente, ficar 'grande demais' treinando naturalmente é muito difícil pra mulher."},{"num":"Story 3","visual":"Foto de resultado feminino — corpo definido, não volumoso","copy":"O que o treino de força faz pela mulher:\n\n• Reduz gordura corporal\n• Define as áreas que você quer definir\n• Melhora postura e forma\n• Acelera metabolismo\n\nNão: ombros largos, braços volumosos, aparência masculina."},{"num":"Story 4","visual":"Foto comparativo — treino de força vs cardio excessivo (resultado feminino)","copy":"As mulheres com o corpo mais definido que você admira?\n\nA maioria faz treino de força. Não só cardio."},{"num":"Story 5","visual":"Enquete ou CTA","copy":"Isso fez sentido pra você?\n[Enquete: Fez sentido ✅ | Ainda tenho dúvida 🤔]\n\nMe manda mensagem se quiser aprofundar."}]},{"dia":26,"data":"2026-06-26","categoria":"CONEXÃO","tema":"Maior erro que cometi como personal","stories":[{"num":"Story 1","visual":"Foto casual ou de início de carreira — tom honesto","copy":"Vou te contar o maior erro que cometi nos primeiros anos como personal.\n\nNão me orgulho, mas aprendi muito com ele."},{"num":"Story 2","visual":"Foto de planilha de treino antiga ou texto","copy":"Eu montava treinos longos, com muito exercício, pra parecer completo.\n\nAchava que mais exercício = mais resultado. Que quanto mais diversificado, melhor.\n\nErrado."},{"num":"Story 3","visual":"Foto de estudo ou material técnico","copy":"As alunas saíam destruídas, mas não evoluíam.\n\nQuando fui entender o porquê, percebi: eu estava treinando elas pra cansar, não pra construir."},{"num":"Story 4","visual":"Foto bastidores de consultoria atual — método diferente","copy":"Quando mudei a abordagem — menos exercício, mais progressão, treino que cabe na rotina real — os resultados mudaram.\n\nO erro me custou tempo. Mas transformou como trabalho."},{"num":"Story 5","visual":"Selfie com pergunta aberta","copy":"Você já treinou muito sem ver resultado?\nO que você achava que estava errado?\nMe conta aqui 👇"}]},{"dia":27,"data":"2026-06-27","categoria":"ROTINA","tema":"Preparando os treinos da semana","stories":[{"num":"Story 1","visual":"Foto ou vídeo do computador com planilhas de treino abertas","copy":"Domingo à noite por aqui:\n\nPreparando os ajustes de treino das alunas para a semana."},{"num":"Story 2","visual":"Foto de coffee/chá + computador ou caderno — ambiente de trabalho","copy":"Cada aluna tem seu momento de ajuste.\n\nAlguma estagnou na carga → revejo o volume.\nAlguma mudou de rotina → adapto o treino.\n\nIsso é consultoria de verdade."},{"num":"Story 3","visual":"Fundo escuro com texto ou selfie direta","copy":"Se você já tentou começar mais de uma vez e travou — não é fraqueza.\n\nÉ o ciclo que o treino genérico cria.\n\nComeçar com o método certo muda isso."}]},{"dia":28,"data":"2026-06-28","categoria":"PROVA SOCIAL","tema":"Ela treinava há anos sem resultado","stories":[{"num":"Story 1","visual":"Fundo escuro com texto","copy":"Ela treinava há dois anos.\n\nTodo dia. Sem falta. Dieta em dia.\n\nO corpo não mudava."},{"num":"Story 2","visual":"Foto ou texto de bastidores — análise inicial","copy":"Quando analisamos o treino dela:\n\nNão tinha progressão. Volume excessivo em exercícios errados.\nTreino montado pra cansar, não pra construir.\n\nDois anos de esforço real. Método errado."},{"num":"Story 3","visual":"Foto evolução ou texto do processo","copy":"Nos primeiros 30 dias com método:\n\nCortamos metade dos exercícios.\nAdicionamos progressão de carga controlada.\n\nEla achou que ia ser fácil demais. Foi diferente — foi eficiente."},{"num":"Story 4","visual":"Foto resultado ou mensagem da aluna","copy":"Mês 2: primeira vez que ela via diferença real no espelho.\n\nNão foi motivação diferente. Não foi esforço maior.\n\nFoi método."},{"num":"Story 5","visual":"Selfie ou foto de autoridade com CTA","copy":"Se você está nesse ciclo — se esforçando sem ver resultado — me manda mensagem.\n\nA gente analisa o que está acontecendo."}]},{"dia":29,"data":"2026-06-29","categoria":"EDUCAÇÃO","tema":"Sono e recuperação","stories":[{"num":"Story 1","visual":"Foto casual de descanso — sofá, cama, momento de relaxar","copy":"O que destrói resultado mais rápido do que treino ruim?\n\nSono insuficiente."},{"num":"Story 2","visual":"Texto didático no fundo escuro","copy":"Durante o sono o corpo libera GH — o principal hormônio de recuperação muscular.\n\nSem sono adequado: recuperação lenta, mais fadiga, menos força, menos progresso."},{"num":"Story 3","visual":"Foto de descanso ou texto com dados","copy":"7 a 9 horas de sono fazem diferença real no resultado do treino.\n\nMenos do que isso por tempo prolongado:\n\n• Carga não progride\n• Corpo retém mais gordura\n• Motivação cai\n• Lesão fica mais provável"},{"num":"Story 4","visual":"Foto ou vídeo de rotina noturna — sem telefone, ambiente calmo","copy":"Dica prática: qualidade importa tanto quanto quantidade.\n\nTela de celular 1h antes de dormir atrapalha o sono.\nAmbiente escuro e fresco ajuda.\n\nSimples. Mas faz diferença."},{"num":"Story 5","visual":"Selfie ou foto casual com CTA","copy":"Você dorme bem? Ou sente que treina muito mas não recupera?\n\nMe conta aqui — e salva esse story."}]},{"dia":30,"data":"2026-06-30","categoria":"AUTORIDADE","tema":"Personal online vs presencial","stories":[{"num":"Story 1","visual":"Selfie direta — tom seguro e honesto","copy":"Personal online funciona?\n\nVou te dar uma resposta honesta — não a que você quer ouvir, mas a que você precisa."},{"num":"Story 2","visual":"Foto de bastidores online — computador, WhatsApp, análise","copy":"Depende.\n\nDepende de como é feito.\n\nOnline mal feito: PDF genérico enviado uma vez e nunca mais.\nOnline bem feito: avaliação real, treino personalizado, acompanhamento semanal de verdade."},{"num":"Story 3","visual":"Texto comparativo — o que importa no resultado","copy":"O que determina resultado não é presença física.\n\nÉ método, progressão e acompanhamento constante.\n\nTudo isso é possível — e às vezes mais eficiente — à distância."},{"num":"Story 4","visual":"Screenshot ou foto de acompanhamento via WhatsApp (nome borrado)","copy":"Tenho alunas que vivem em outras cidades.\nAcompanhamento semanal pelo WhatsApp.\nAjuste de treino quando precisam.\n\nResultado real. Sem nunca nos encontrarmos pessoalmente."},{"num":"Story 5","visual":"Selfie com CTA","copy":"Se você tem dúvida se funciona pra você, me manda mensagem.\n\nExplico como é o processo na prática."}]},{"dia":31,"data":"2026-07-01","categoria":"VENDA","tema":"O que acontece sem progressão","stories":[{"num":"Story 1","visual":"Foto de treino ou texto no fundo escuro","copy":"Você já reparou que tem amigas que treinam há anos e o corpo continua igual?\n\nNão é falta de esforço."},{"num":"Story 2","visual":"Texto simples e direto","copy":"O corpo se adapta.\n\nQuando o treino não muda — mesma carga, mesmo exercício, mesmo volume — o estímulo para de existir.\n\nO corpo interpretou aquilo como rotina. Para de crescer. Para de definir."},{"num":"Story 3","visual":"Foto de planilha de progressão ou texto com exemplo prático","copy":"Progressão é o que mantém o corpo respondendo.\n\nNão precisa ser muito:\n• 2 repetições a mais\n• 2,5kg a mais\n• 10 segundos a menos de descanso\n\nQualquer coisa que faça o treino ser um pouco mais difícil do que foi na semana passada."},{"num":"Story 4","visual":"Foto ou vídeo de exercício com boa execução","copy":"Quando você tem progressão planejada, o treino nunca fica estagnado.\nO corpo sempre tem um novo estímulo pra responder.\n\nÉ isso que separa quem continua evoluindo de quem treina ano após ano sem ver diferença."},{"num":"Story 5","visual":"Selfie com CTA","copy":"Se você quer um treino que progride de verdade — me manda mensagem.\n[sticker de reação 💪]"}]},{"dia":32,"data":"2026-07-02","categoria":"QUEBRA DE OBJEÇÃO","tema":"Já tentei antes e não funcionou","stories":[{"num":"Story 1","visual":"Selfie direta — tom empático","copy":"'Já tentei antes e não funcionou.'\n\nEssa frase chega com frequência.\n\nE eu entendo completamente."},{"num":"Story 2","visual":"Fundo escuro com texto — tom de validação","copy":"Você não falhou.\n\nVocê seguiu um método que não foi feito pra você.\n\nNão o mesmo resultado. Resultado menor ou nenhum."},{"num":"Story 3","visual":"Foto de bastidores — avaliação, planilha personalizada","copy":"A diferença entre tentar de novo sem resultado e tentar com o método certo:\n\n• Treino feito pra sua rotina real\n• Progressão que considera onde você está hoje\n• Acompanhamento que ajusta quando sua vida muda"},{"num":"Story 4","visual":"Screenshot de mensagem de aluna que tentou antes (sem identificar)","copy":"Uma aluna me mandou mensagem no início:\n'Já tentei tanta coisa que não acredito mais que funciona pra mim.'\n\nEm 8 semanas ela me mandou: 'Nunca imaginei que fosse funcionar tão rápido.'"},{"num":"Story 5","visual":"Selfie ou foto com CTA","copy":"Dessa vez pode ser diferente. Mas só se o método for diferente.\n\nSe quiser entender o que mudaria no seu caso, me manda mensagem."}]},{"dia":33,"data":"2026-07-03","categoria":"CONEXÃO","tema":"Momento que mudou minha visão","stories":[{"num":"Story 1","visual":"Foto casual — fora da academia, tom de narrativa pessoal","copy":"Tem um momento específico que mudou como eu vejo treino.\n\nNão foi numa aula. Foi com uma aluna."},{"num":"Story 2","visual":"Foto ou texto do momento narrado","copy":"Ela chegou em mim depois de 18 meses treinando todos os dias sem resultado.\nNão faltava motivação. Não faltava esforço. Faltava método.\n\nQuando troquei o treino dela, em 6 semanas ela viu diferença."},{"num":"Story 3","visual":"Foto de estudo ou reflexão","copy":"Aquilo me fez entender que o problema no fitness não é falta de dedicação das pessoas.\n\nÉ excesso de informação ruim e treino genérico que não respeita o contexto de cada um."},{"num":"Story 4","visual":"Selfie ou foto pessoal — tom de propósito","copy":"Desde então, cada treino que monto passa por uma pergunta:\n'Isso funciona pra essa pessoa, na rotina dela, com o histórico que ela tem?'\n\nSe a resposta for não, o treino muda."},{"num":"Story 5","visual":"Pergunta aberta para a audiência","copy":"Você já teve um momento que mudou sua visão sobre treino?\nMe conta aqui 👇"}]},{"dia":34,"data":"2026-07-04","categoria":"ROTINA","tema":"Hidratação","stories":[{"num":"Story 1","visual":"Foto ou vídeo de garrafa de água durante o treino","copy":"Lembrete que salva treino:\n\nHidratação não é detalhe.\n\nDesempenho cai, disposição cai, recuperação piora — tudo com desidratação leve."},{"num":"Story 2","visual":"Foto casual tomando água fora da academia — home, trabalho","copy":"Fora do treino também conta.\n\nMeta básica: [seu peso corporal / 30 a 35ml = X litros por dia]\n\nNos dias de treino: um pouco mais."},{"num":"Story 3","visual":"Screenshot ou foto de resultado de aluna (com permissão)","copy":"Resultado da semana:\n\n[descrever resultado real de aluna — peso, medida, feedback]\n\nEsforço dela. Método nosso. Resultado de quem se comprometeu com o processo."}]},{"dia":35,"data":"2026-07-05","categoria":"PROVA SOCIAL","tema":"Mudou só a progressão","stories":[{"num":"Story 1","visual":"Fundo escuro ou foto de treino","copy":"Ela veio até mim com o mesmo treino há 4 meses.\nNão queria mudar os exercícios que gostava.\n\nFiz uma proposta: mantemos os exercícios. Mas adicionamos progressão de verdade."},{"num":"Story 2","visual":"Foto de planilha com progressão ou texto","copy":"Mesmos exercícios. Mas agora com:\n\n• Carga registrada toda semana\n• Meta de progressão definida\n• Ajuste quando necessário"},{"num":"Story 3","visual":"Foto resultado ou mensagem da aluna","copy":"Em 8 semanas:\n\nAs cargas aumentaram em todos os exercícios.\nO corpo começou a responder.\n\nNão mudou o que ela fazia. Mudou como ela progredia."},{"num":"Story 4","visual":"Selfie com CTA","copy":"Progressão é o ingrediente que mais falta nos treinos que vejo.\n\nSe você acha que pode ser esse o caso no seu, me manda mensagem."}]},{"dia":36,"data":"2026-07-06","categoria":"EDUCAÇÃO","tema":"Proteína na prática","stories":[{"num":"Story 1","visual":"Foto de refeição com proteína ou texto direto","copy":"Proteína é o assunto mais falado no fitness.\nE também um dos mais distorcidos.\n\nVou te dar o que realmente importa."},{"num":"Story 2","visual":"Texto didático no fundo escuro","copy":"Por que proteína importa pra quem treina:\n\nÉ o material de construção do músculo.\n\nSem proteína suficiente, o estímulo do treino não vira resultado — o corpo não tem matéria-prima pra reparar e crescer."},{"num":"Story 3","visual":"Foto de alimento proteico + texto com referência","copy":"Quanto precisa:\n\nEntre 1,6g e 2,2g por kg de peso corporal por dia é o que a ciência aponta pra quem treina com objetivo de hipertrofia.\n\n60kg → cerca de 96g a 132g de proteína por dia."},{"num":"Story 4","visual":"Foto de refeição equilibrada — não de dieta restritiva","copy":"Não precisa ser perfeito todo dia.\n\nConsistência ao longo da semana importa mais do que acertar cada refeição.\n\nDia ruim não desfaz dias bons."},{"num":"Story 5","visual":"Selfie com CTA","copy":"Salva esse story e me conta:\nvocê já calcula a proteína que consome?\n[enquete: Sim / Não / Às vezes]"}]},{"dia":37,"data":"2026-07-07","categoria":"AUTORIDADE","tema":"Processo de avaliação inicial","stories":[{"num":"Story 1","visual":"Foto de computador com formulário de avaliação ou fotos de aluna na tela (sem mostrar)","copy":"Antes de montar qualquer treino, faço isso com cada aluna.\n\nÉ o que diferencia um treino que funciona de um genérico."},{"num":"Story 2","visual":"Foto do processo — análise de fotos de avaliação (sem mostrar rosto/identificar)","copy":"Análise das fotos de avaliação:\n\nPostura, composição, pontos de atenção.\n\nNão o que ela acha que consegue — o que ela realmente consegue com a rotina dela."},{"num":"Story 3","visual":"Foto de formulário de histórico ou conversa inicial","copy":"Histórico de treino:\n\nO que já tentou. O que funcionou. O que não funcionou.\nLesões. Limitações. Rotina real de trabalho e família.\n\nTudo isso entra no treino."},{"num":"Story 4","visual":"Foto de planilha de treino sendo montada","copy":"Com tudo isso na mão, começo a montar.\n\nNão antes.\n\nTreino feito sem esse contexto é treino genérico com nome personalizado."},{"num":"Story 5","visual":"Selfie ou foto de autoridade com CTA","copy":"Esse processo é o que toda aluna passa antes de começar.\n\nSe quiser entender como funciona no seu caso, me manda mensagem."}]},{"dia":38,"data":"2026-07-08","categoria":"VENDA","tema":"Com vs sem acompanhamento","stories":[{"num":"Story 1","visual":"Foto de treino feminino ou texto no fundo escuro","copy":"O que muda quando você treina com acompanhamento vs. treina sozinha?\n\nVou ser direto."},{"num":"Story 2","visual":"Texto — coluna 'sem acompanhamento'","copy":"Sem acompanhamento:\n\n• Treino genérico da internet\n• Carga igual por meses\n• Para quando a vida complica\n• Ninguém pra ajustar quando estagna\n• Culpa quando não vê resultado"},{"num":"Story 3","visual":"Texto — coluna 'com acompanhamento'","copy":"Com acompanhamento:\n\n• Treino feito pra você\n• Progressão planejada e controlada\n• Adapta quando sua rotina muda\n• Ajuste imediato quando estagna\n• Clareza de que o que você faz funciona"},{"num":"Story 4","visual":"Foto de resultado de aluna ou bastidores de consultoria","copy":"A diferença não é só no resultado físico.\n\nÉ não ficar se perguntando se está fazendo certo.\nÉ não parar no primeiro obstáculo.\nÉ ter alguém responsável pelo seu progresso junto com você."},{"num":"Story 5","visual":"Selfie com CTA","copy":"Se quiser entender como funciona, me manda mensagem.\nSem compromisso — só pra ver se faz sentido pro seu caso."}]},{"dia":39,"data":"2026-07-09","categoria":"QUEBRA DE OBJEÇÃO","tema":"Custo-benefício","stories":[{"num":"Story 1","visual":"Selfie direta — tom honesto e sem defensividade","copy":"Vamos falar sobre o elefante na sala:\n\n'É caro.'\n\nVou te dar uma perspectiva diferente."},{"num":"Story 2","visual":"Fundo escuro com texto — tom reflexivo","copy":"Quanto tempo você já gastou treinando sem resultado?\n\n6 meses? 1 ano? Mais?\n\nTempo é o recurso mais caro que existe. Não tem reembolso."},{"num":"Story 3","visual":"Foto de gym ou suplemento — contexto de custo","copy":"Academia: R$ [X]/mês\nSuplemento: R$ [Y]/mês\nRoupa de treino: R$ [Z] no semestre\n\nVocê já investe em treino.\n\nA questão não é se vai gastar. É se o que você gasta está gerando resultado."},{"num":"Story 4","visual":"Foto de resultado de aluna ou bastidores","copy":"Acompanhamento personalizado não é um custo a mais.\n\nÉ a diferença entre investir em algo que gera resultado e continuar gastando em algo que não gera."},{"num":"Story 5","visual":"Selfie com CTA — tom leve, sem pressão","copy":"Se quiser entender o que é a consultoria e como funciona, me manda mensagem.\n\nExplico tudo sem compromisso."}]},{"dia":40,"data":"2026-07-10","categoria":"CONEXÃO","tema":"Equilíbrio vida e treino","stories":[{"num":"Story 1","visual":"Foto fora da academia — jantar, passeio, momento pessoal","copy":"Vida não é só treino.\n\nE isso levou um tempo pra eu aprender."},{"num":"Story 2","visual":"Foto casual — lazer, família, algo fora do fitness","copy":"Tem dias que o treino não vai ser perfeito.\nTem semanas que a dieta desanda.\nTem períodos que a vida pesa mais do que o peso.\n\nIsso é normal. Isso é humano."},{"num":"Story 3","visual":"Selfie ou foto casual com reflexão","copy":"O que separa quem mantém resultado de quem não mantém não é perfeição.\n\nÉ conseguir voltar depois de parar.\n\nConsistência a longo prazo ganha de intensidade a curto prazo toda vez."},{"num":"Story 4","visual":"Foto de treino — tom de quem escolhe estar ali","copy":"Eu treino porque gosto do que o treino me dá.\nNão por obrigação. Não por culpa.\n\nQuando o motivo está certo, a consistência vem naturalmente."},{"num":"Story 5","visual":"Pergunta aberta para engajamento","copy":"Você consegue equilibrar bem treino e vida?\nOu ainda sente culpa quando não treina?\nMe conta 👇"}]},{"dia":41,"data":"2026-07-11","categoria":"ROTINA","tema":"Ajustando o treino de aluna","stories":[{"num":"Story 1","visual":"Foto de computador com planilha de treino sendo editada","copy":"Bastidores de hoje:\n\nAjustando o treino de uma aluna que estagnou na carga essa semana."},{"num":"Story 2","visual":"Foto de WhatsApp ou planilha com mudança visível","copy":"Quando a carga para de progredir, tem algumas razões possíveis:\n\n• Volume alto demais → reduzo\n• Frequência inadequada → revejo\n• Exercício errado pro momento → troco\n\nNão é só 'tenta mais forte'."},{"num":"Story 3","visual":"Selfie direta — tom de convite informal","copy":"Estou com [X] vagas abertas essa semana pra quem quer começar com acompanhamento real.\n\nSe você está pensando há um tempo — me manda mensagem. Vamos conversar."}]},{"dia":42,"data":"2026-07-12","categoria":"PROVA SOCIAL","tema":"Aluna que parou e voltou","stories":[{"num":"Story 1","visual":"Fundo escuro com texto — narrativa real","copy":"Ela ficou 4 meses sem treinar.\n\nVoltou achando que ia recomeçar do zero e que tinha perdido tudo."},{"num":"Story 2","visual":"Foto de bastidores de avaliação ou texto","copy":"Quando retomou a consultoria:\n\nAvaliamos onde ela estava. Ajustamos o treino pro momento atual.\n\nNão a tratei como se fosse a primeira vez — tratei como alguém que só precisava retomar."},{"num":"Story 3","visual":"Foto evolução ou mensagem da aluna","copy":"Em 3 semanas ela já estava mais forte do que antes da pausa.\n\nMúsculo tem memória. O método funcionou mais rápido na volta."},{"num":"Story 4","visual":"Selfie com reflexão e CTA","copy":"Parar não é fracasso. Fracasso é não voltar.\n\nSe você ficou um tempo longe do treino e quer retomar com método, me manda mensagem."}]},{"dia":43,"data":"2026-07-13","categoria":"EDUCAÇÃO","tema":"Cardio vs força para definição","stories":[{"num":"Story 1","visual":"Foto de treino de força feminino ou texto direto","copy":"Cardio vai te dar o corpo que você quer?\n\nDepende do que você quer. E de quanto cardio."},{"num":"Story 2","visual":"Texto explicativo no fundo escuro","copy":"Cardio gasta caloria enquanto você faz.\n\nQuando para, o gasto volta ao normal.\n\nTreino de força constrói músculo — e músculo gasta caloria 24 horas por dia, mesmo em repouso."},{"num":"Story 3","visual":"Foto de exercício de força — leg press, agachamento, stiff","copy":"Mais músculo = metabolismo mais ativo = mais definição ao longo do tempo.\n\nNão é magia. É fisiologia."},{"num":"Story 4","visual":"Foto de treino de força com resultado ou texto","copy":"Isso não significa que cardio é inútil.\n\nMas se a meta é definição e composição corporal, treino de força é tão importante quanto o cardio — e frequentemente mais."},{"num":"Story 5","visual":"Selfie ou foto casual com CTA","copy":"Salva esse story.\n\nE me conta: você faz mais cardio ou mais força atualmente?\n[Enquete: Mais cardio / Mais força / Equilibrado]"}]},{"dia":44,"data":"2026-07-14","categoria":"AUTORIDADE","tema":"Evolução do método ao longo dos anos","stories":[{"num":"Story 1","visual":"Foto de início de carreira lado a lado com foto atual (se tiver)","copy":"O método que uso hoje é diferente do que usava quando comecei.\n\nNão porque eu estava errado antes. Porque aprendi mais."},{"num":"Story 2","visual":"Foto de estudo, curso ou material técnico","copy":"Nos primeiros anos: volume alto, muita variação, treino longo.\nFuncionava. Mas podia ser mais eficiente.\n\nCom mais estudo e prática: entendi o que realmente gera resultado — e o que é só ruído."},{"num":"Story 3","visual":"Foto de resultado de aluna ou bastidores de consultoria atual","copy":"Hoje o método é mais simples na aparência — e mais preciso na execução.\n\nMenos exercício. Mais progressão. Mais acompanhamento.\n\nOs resultados das alunas melhoraram quando simplifiquei."},{"num":"Story 4","visual":"Selfie ou foto de autoridade","copy":"A complexidade não é sinal de qualidade.\n\nO treino mais eficiente que já vi foi o mais simples — com a progressão mais consistente."},{"num":"Story 5","visual":"Pergunta para a audiência","copy":"Você acha que treino precisa ser complicado pra funcionar?\nMe conta 👇"}]},{"dia":45,"data":"2026-07-15","categoria":"VENDA","tema":"Por que agora é o momento","stories":[{"num":"Story 1","visual":"Foto de calendário ou texto com senso de tempo","copy":"Tem um momento em que a gente para e percebe: já faz muito tempo que eu quero mudar isso.\n\nE o corpo ainda está igual."},{"num":"Story 2","visual":"Fundo escuro com texto reflexivo","copy":"Cada mês que passa sem método:\n\n• É mais um mês de esforço sem resultado\n• É mais um verão que você não se sentiu bem\n• É mais uma vez dizendo 'começo semana que vem'"},{"num":"Story 3","visual":"Foto de resultado de aluna ou bastidores de consultoria","copy":"Não estou dizendo que precisa ser urgente.\n\nEstou dizendo que o melhor momento pra ter o acompanhamento certo é o quanto antes — porque resultado leva tempo, e quanto antes você começa com o método certo, antes você chega."},{"num":"Story 4","visual":"Selfie com tom direto e acolhedor","copy":"Se você está nessa situação — se esforçando há tempo sem ver resultado — eu quero te ajudar.\n\nNão precisa continuar nesse ciclo."},{"num":"Story 5","visual":"CTA direto","copy":"Me manda mensagem quando quiser.\n\nVamos entender juntos o que está travando e o que pode mudar.\n[sticker de reação 💪]"}]},{"dia":46,"data":"2026-07-16","categoria":"QUEBRA DE OBJEÇÃO","tema":"Preciso emagrecer antes de começar","stories":[{"num":"Story 1","visual":"Selfie ou foto direta — tom acolhedor e direto","copy":"'Vou começar a treinar quando perder um pouco de peso primeiro.'\n\nJá ouvi isso muitas vezes.\n\nVou te dizer por que essa lógica está invertida."},{"num":"Story 2","visual":"Texto didático no fundo escuro","copy":"Treino de força é uma das ferramentas mais eficientes pra perder gordura.\n\nPor quê? Porque aumenta o metabolismo basal — o quanto seu corpo gasta em repouso.\n\nEsperar emagrecer pra treinar é esperar a ferramenta pra começar o trabalho."},{"num":"Story 3","visual":"Foto de treino feminino ou texto com dado prático","copy":"Você não precisa de um corpo ideal pra começar a treinar.\n\nVocê precisa treinar pra chegar no corpo que quer.\n\nNão existe nível mínimo de condicionamento para começar. Você começa de onde está."},{"num":"Story 4","visual":"Foto de aluna que começou no início da jornada (se tiver, com permissão)","copy":"As alunas que chegam em mim sem histórico de treino evoluem muito rápido.\n\nO corpo responde bem ao estímulo novo — especialmente no começo."},{"num":"Story 5","visual":"Selfie com CTA","copy":"Se você está esperando o momento certo pra começar — esse momento é agora.\n\nMe manda mensagem. A gente começa de onde você está."}]},{"dia":47,"data":"2026-07-17","categoria":"CONEXÃO","tema":"O que as alunas me ensinaram","stories":[{"num":"Story 1","visual":"Foto casual — tom pessoal e reflexivo","copy":"Depois de anos atendendo, as alunas me ensinaram mais do que eu ensinei a elas.\n\nSério."},{"num":"Story 2","visual":"Foto de bastidores de consultoria ou WhatsApp","copy":"Me ensinaram que o problema nunca é falta de dedicação.\n\nQuase sempre é falta de um treino que respeita a rotina real da pessoa — não a rotina ideal."},{"num":"Story 3","visual":"Foto de resultado de aluna ou momento de consultoria","copy":"Me ensinaram que resultado não é só físico.\n\nÉ a aluna parar de se culpar nos dias ruins.\nÉ ela entender que o corpo dela funciona e responde — quando o método está certo."},{"num":"Story 4","visual":"Selfie com reflexão pessoal","copy":"Me ensinaram que o trabalho que faço importa mais do que eu achava.\n\nNão é só treino. É a relação que alguém tem com o próprio corpo."},{"num":"Story 5","visual":"Pergunta aberta para engajamento","copy":"Se você treina ou já treinou com alguém: o que você aprendeu que ninguém te ensinou?\nMe conta aqui 👇"}]},{"dia":48,"data":"2026-07-18","categoria":"ROTINA","tema":"Mobilidade e alongamento","stories":[{"num":"Story 1","visual":"Foto ou vídeo curto de mobilidade — agachamento livre, rotação de quadril, mobilidade de ombro","copy":"Dia de mobilidade hoje.\n\nSob-avaliada. Essencial."},{"num":"Story 2","visual":"Foto ou vídeo de alongamento pós-treino","copy":"Mobilidade não é pra quem não consegue treinar pesado.\nÉ o que permite você continuar treinando pesado por anos — sem lesão."},{"num":"Story 3","visual":"Screenshot de mensagem de aluna que voltou ou superou obstáculo (nome borrado)","copy":"Essa mensagem chegou hoje cedo.\n\n[feedback de aluna]\n\nNão tem motivação maior do que isso."}]},{"dia":49,"data":"2026-07-19","categoria":"PROVA SOCIAL","tema":"Resultado de longo prazo","stories":[{"num":"Story 1","visual":"Fundo escuro com texto ou foto de treino feminino","copy":"6 meses de consultoria.\n\nVou te mostrar o que acontece quando o método é certo e a consistência está lá."},{"num":"Story 2","visual":"Foto evolução de 6 meses (com permissão) ou texto descritivo","copy":"Mês 1-2: corpo começou a responder. Cargas subindo. Energia melhorando.\nMês 3-4: diferença visível no espelho. Roupas mudando.\nMês 5-6: resultado consolidado. Consistência virou hábito."},{"num":"Story 3","visual":"Screenshot de mensagem de aluna — 6 meses depois","copy":"'Eu não acreditava que ia durar tanto. Mas faz sentido. Eu entendo o que faço agora.'\n\nEsse é o resultado mais valioso: entender o método, não depender de motivação."},{"num":"Story 4","visual":"Selfie com reflexão e CTA","copy":"Resultado real leva tempo. Mas o tempo passa de qualquer jeito.\n\nA questão é: daqui a 6 meses você quer estar no mesmo lugar ou diferente?\n\nMe manda mensagem quando quiser começar."}]},{"dia":50,"data":"2026-07-20","categoria":"EDUCAÇÃO","tema":"Execução e técnica","stories":[{"num":"Story 1","visual":"Vídeo ou foto de execução correta de exercício composto","copy":"Carga errada mata o exercício.\nTécnica ruim mata o resultado.\n\nMas não pelo motivo que você pensa."},{"num":"Story 2","visual":"Texto explicativo no fundo escuro","copy":"Técnica não é purismo de personal.\n\nÉ o que garante que o músculo que você quer trabalhar realmente recebe o estímulo.\n\nSem técnica adequada, você sobrecarrega outras estruturas e perde o foco do exercício."},{"num":"Story 3","visual":"Vídeo ou foto mostrando erro comum + correção","copy":"Erro mais comum que vejo:\n\nAgachamento com o tronco caindo pra frente — tirando o trabalho do glúteo e colocando na lombar.\n\nSimples ajuste de postura muda o exercício completamente."},{"num":"Story 4","visual":"Foto ou texto com dica prática de execução","copy":"Dica prática:\n\nAntes de aumentar a carga, confirme que o movimento está correto.\n\nCarga errada em técnica ruim = esforço real, resultado zero."},{"num":"Story 5","visual":"Selfie com CTA","copy":"Salva esse story.\n\nTem algum exercício que você sente que não está acertando a técnica?\nMe conta aqui — posso te ajudar."}]},{"dia":51,"data":"2026-07-21","categoria":"AUTORIDADE","tema":"Minha visão sobre modismos","stories":[{"num":"Story 1","visual":"Selfie direta — tom de opinião firme","copy":"Vou te dar a minha opinião sobre os modismos do fitness.\n\nNão é o que a maioria fala. Mas é o que a ciência e a prática me mostraram."},{"num":"Story 2","visual":"Texto com exemplos de modismos — HIIT, jejum, low carb","copy":"HIIT todos os dias. Jejum intermitente obrigatório. Low carb como único caminho. Treino funcional pra todo mundo.\n\nTodos funcionam pra alguém. Nenhum funciona pra todo mundo."},{"num":"Story 3","visual":"Foto de treino consistente ou texto reflexivo","copy":"O que funciona consistentemente:\n\n• Treino progressivo feito pra você\n• Alimentação que você consegue manter\n• Sono adequado\n• Consistência ao longo do tempo\n\nSimples. Mas não tem glamour pra vender curso."},{"num":"Story 4","visual":"Selfie com tom direto","copy":"A próxima moda vai aparecer. E depois outra.\n\nO básico bem feito vai continuar funcionando."},{"num":"Story 5","visual":"Pergunta para engajamento","copy":"Tem algum modismo fitness que você tentou e não funcionou?\nMe conta aqui 👇"}]},{"dia":52,"data":"2026-07-22","categoria":"VENDA","tema":"O processo completo da consultoria","stories":[{"num":"Story 1","visual":"Foto de bastidores — computador, planilha, WhatsApp","copy":"Muita gente tem curiosidade sobre como funciona a consultoria na prática.\n\nVou mostrar o processo completo."},{"num":"Story 2","visual":"Foto de avaliação inicial","copy":"Passo 1 — Avaliação:\n\nVocê manda fotos e preenche um questionário sobre histórico, rotina e objetivo.\n\nAnaliso tudo antes de montar qualquer treino."},{"num":"Story 3","visual":"Foto de planilha de treino sendo criada","copy":"Passo 2 — Treino personalizado:\n\nMonto o treino baseado em você — exercícios, volume, progressão planejada.\n\nNão antes de entender seu contexto. Nunca."},{"num":"Story 4","visual":"Foto de WhatsApp de acompanhamento semanal","copy":"Passo 3 — Acompanhamento:\n\nContato semanal via WhatsApp.\nAjuste quando precisa.\nNão some depois que manda o treino."},{"num":"Story 5","visual":"Selfie com CTA final","copy":"Esse é o processo.\n\nSimples. Personalizado. Com resultado real.\n\nSe quiser começar ou entender mais, me manda mensagem."}]},{"dia":53,"data":"2026-07-23","categoria":"QUEBRA DE OBJEÇÃO","tema":"Falta de disciplina","stories":[{"num":"Story 1","visual":"Selfie direta — tom empático e sem julgamento","copy":"'Sei que preciso treinar mas não tenho disciplina.'\n\nEssa frase chega muito.\n\nE eu discordo que o problema seja disciplina."},{"num":"Story 2","visual":"Texto no fundo escuro — virada de perspectiva","copy":"Disciplina não vem do nada.\n\nEla aparece quando você tem clareza de que o que você faz está funcionando.\n\nQuando o treino não gera resultado, é natural não querer manter."},{"num":"Story 3","visual":"Foto de aluna treinando ou texto com exemplo","copy":"As alunas que mais mantêm consistência não são as mais disciplinadas.\n\nSão as que entendem o processo — que sabem que o que fazem está caminhando pra algum lugar."},{"num":"Story 4","visual":"Foto bastidores de consultoria ou resultado de aluna","copy":"Com método certo e progressão visível, a disciplina vem como consequência.\n\nNão precisa forçar. Você quer continuar porque funciona."},{"num":"Story 5","visual":"Selfie com CTA","copy":"Se você sente que falta disciplina — talvez o que falte seja um método que te mostre que está funcionando.\n\nMe manda mensagem. Vamos entender juntos."}]},{"dia":54,"data":"2026-07-24","categoria":"CONEXÃO","tema":"Por que continuo estudando","stories":[{"num":"Story 1","visual":"Foto de livro, curso, artigo científico ou material de estudo","copy":"Essa semana terminei de ler [livro/artigo/curso].\n\nSempre tem algo novo — e isso é o que mais gosto nessa área."},{"num":"Story 2","visual":"Foto de anotação ou resumo de aprendizado","copy":"O que aprendi dessa vez:\n\n[compartilhe um insight genuíno do que estudou recentemente]"},{"num":"Story 3","visual":"Selfie ou foto casual — tom de curiosidade genuína","copy":"Ciência do esporte não para.\n\nO que era consenso há 5 anos às vezes foi refinado. Às vezes derrubado.\n\nQuem para de estudar para de evoluir — e para de ajudar as alunas a evoluir."},{"num":"Story 4","visual":"Pergunta para engajamento","copy":"Você tem curiosidade sobre como o corpo funciona?\nOu prefere só saber o que fazer?\nMe conta aqui 👇"}]},{"dia":55,"data":"2026-07-25","categoria":"ROTINA","tema":"Planejando a semana","stories":[{"num":"Story 1","visual":"Foto de domingo — computador, caderno ou xícara de café planejando","copy":"Domingo por aqui:\n\nRevisando o que vai acontecer na semana — treinos das alunas, ajustes, minha própria rotina."},{"num":"Story 2","visual":"Foto de agenda ou planejamento semanal — pode ser digital ou físico","copy":"Planejar a semana de treino é o que garante consistência.\n\nQuando a semana está na cabeça, você não improvisa — você executa."},{"num":"Story 3","visual":"Selfie ou foto de fim de semana — tom pessoal","copy":"Domingo de organização.\n\nPreparando a semana das alunas, ajustando treinos, planejando progressões.\n\nNão é só mandar planilha. É acompanhar de verdade."}]},{"dia":56,"data":"2026-07-26","categoria":"PROVA SOCIAL","tema":"Resultado rápido com método certo","stories":[{"num":"Story 1","visual":"Fundo escuro com texto ou foto de treino","copy":"Ela achou que levaria pelo menos 6 meses pra ver diferença.\n\nViu em 6 semanas."},{"num":"Story 2","visual":"Texto com o contexto do caso","copy":"Não porque fez algo extraordinário.\n\nPorque parou de fazer treino genérico e começou a fazer treino com progressão real.\n\nO corpo responde rápido quando o estímulo está certo."},{"num":"Story 3","visual":"Foto resultado ou mensagem da aluna","copy":"'Nunca imaginei que fosse ver resultado tão rápido depois de tanto tempo tentando.'\n\nEsforço sempre teve. O que faltava era método."},{"num":"Story 4","visual":"Selfie com CTA","copy":"Se você quer entender o que pode mudar no seu caso, me manda mensagem.\n\nSem enrolação — só análise real."}]},{"dia":57,"data":"2026-07-27","categoria":"EDUCAÇÃO","tema":"Descanso como parte do treino","stories":[{"num":"Story 1","visual":"Foto de descanso ou dia fora da academia — sem culpa","copy":"Dia de descanso é treino.\n\nNão é preguiça. É parte do processo."},{"num":"Story 2","visual":"Texto didático no fundo escuro","copy":"O músculo não cresce durante o treino.\n\nCresce depois — durante a recuperação.\n\nSem descanso suficiente: mais fadiga, menos força, resultado menor."},{"num":"Story 3","visual":"Foto casual de dia de descanso — passeio, sofá, atividade leve","copy":"Descanso ativo funciona bem:\n\nCaminhada leve, mobilidade, alongamento.\n\nNão precisa ficar parado — só não precisa treinar pesado todo dia."},{"num":"Story 4","visual":"Selfie ou foto casual com reflexão","copy":"Se você sente culpa no dia que não treina, provavelmente foi ensinada que mais é sempre melhor.\n\nNão é. Recuperação é onde o resultado acontece."},{"num":"Story 5","visual":"CTA educativo","copy":"Salva esse story e para de se cobrar no dia de descanso."}]},{"dia":58,"data":"2026-07-28","categoria":"AUTORIDADE","tema":"Resultados e números","stories":[{"num":"Story 1","visual":"Foto de autoridade — resultado de aluna ou bastidores de consultoria","copy":"Depois de [X] anos atendendo, os números que mais me dizem sobre o trabalho que faço:"},{"num":"Story 2","visual":"Foto ou texto com dado real — alunas atendidas, média de resultado, tempo de resultado","copy":"[Y] mulheres acompanhadas.\n\nMédia de [X] meses pra ver resultado consistente.\n\nNão sou o mais rápido. Sou o mais preciso."},{"num":"Story 3","visual":"Foto de resultado de aluna ou mensagem recente","copy":"O número que mais importa:\n\nQuantas alunas voltam depois de pausar.\n\nQuando o método faz sentido, as pessoas voltam. Não vão embora pra nunca mais."},{"num":"Story 4","visual":"Selfie com tom de gratidão e autoridade","copy":"Esses números me motivam a continuar estudando e melhorando.\n\nCada resultado de aluna é um teste real do método."},{"num":"Story 5","visual":"CTA suave","copy":"Se quiser fazer parte disso, me manda mensagem."}]},{"dia":59,"data":"2026-07-29","categoria":"VENDA","tema":"Convite final","stories":[{"num":"Story 1","visual":"Selfie direta — tom de quem está disponível e quer ajudar","copy":"Você chegou até aqui.\n\nIsso me diz que você está pensando em mudar algo no seu treino ou resultado.\n\nVou ser direto."},{"num":"Story 2","visual":"Fundo escuro com texto reflexivo","copy":"Se você:\n\n• Treina mas não vê o resultado que quer\n• Sente que faz tudo certo mas algo está errado\n• Quer ter clareza sobre o que fazer\n\nEu posso te ajudar."},{"num":"Story 3","visual":"Foto bastidores de consultoria — computador, planilha, WhatsApp","copy":"O processo é simples:\n\nAvaliação → Treino personalizado → Acompanhamento semanal → Resultado consistente.\n\nSem promessa milagrosa. Com método real."},{"num":"Story 4","visual":"Selfie com CTA direto e acolhedor","copy":"Me manda mensagem quando quiser.\n\nVamos entender juntos o que está travando e o que pode mudar.\n\nEstou aqui. 👇"},{"num":"Story 5","visual":"Reação ou enquete final","copy":"Você está pronta pra começar?\n[Enquete: Sim, vou mandar mensagem ✅ | Ainda pensando 🤔]"}]},{"dia":60,"data":"2026-07-30","categoria":"QUEBRA DE OBJEÇÃO","tema":"E se não der resultado","stories":[{"num":"Story 1","visual":"Selfie direta — tom seguro e transparente","copy":"'E se eu começar a consultoria e não der resultado?'\n\nÉ uma pergunta justa. Vou responder com honestidade."},{"num":"Story 2","visual":"Fundo escuro com texto — tom transparente","copy":"Não tenho como garantir resultado sem antes entender seu caso.\n\nMas posso te dizer o que determina resultado:\n\n• Treino feito pro seu contexto real\n• Progressão planejada e ajustada\n• Consistência da sua parte\n• Ajuste meu quando necessário"},{"num":"Story 3","visual":"Foto de bastidores ou resultado de aluna","copy":"O que faço da minha parte:\n\nAvaliação real antes de montar qualquer treino.\nAcompanhamento semanal de verdade.\nAjuste imediato quando estagna.\n\nNão mando treino e some."},{"num":"Story 4","visual":"Screenshot de resultado ou mensagem de aluna — prova de entrega","copy":"O que as alunas falam depois de começar:\n\n[mensagem real de aluna com resultado — adaptar quando tiver]"},{"num":"Story 5","visual":"Selfie com CTA final acolhedor","copy":"Se você fizer a sua parte, eu faço a minha.\n\nMe manda mensagem. Vamos conversar sobre o seu caso antes de qualquer compromisso."}]}];
-
-function renderStories() {
-  const todayS = new Date().toISOString().split('T')[0];
-  const CAT_COLOR = {
-    'EDUCAÇÃO':          '#35c8f1',
-    'AUTORIDADE':        '#f1c135',
-    'VENDA':             '#E8200A',
-    'QUEBRA DE OBJEÇÃO': '#f17c35',
-    'CONEXÃO':           '#4CAF50',
-    'ROTINA':            '#a78bfa',
-    'PROVA SOCIAL':      '#2dd4bf',
-  };
-  const todayDia = STORIES_60DIAS.find(d => d.data === todayS);
-  const done  = STORIES_60DIAS.filter(d => d.data < todayS).length;
-  const total = STORIES_60DIAS.length;
-  const pct   = Math.round((done / total) * 100);
-  document.getElementById('topbarActions').innerHTML =
-    `<span style="font-size:11px;color:var(--text3)">${done}/${total} dias · ${pct}%</span>`;
-
-  const months = {};
-  STORIES_60DIAS.forEach(d => {
-    const [y, m] = d.data.split('-');
-    const mk = `${y}-${m}`;
-    if (!months[mk]) months[mk] = [];
-    months[mk].push(d);
-  });
-  const MONTH_NAMES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-
-  let html = '<div style="padding:16px;max-width:700px;margin:0 auto">';
-
-  // today highlight card
-  if (todayDia) {
-    const col = CAT_COLOR[todayDia.categoria] || 'var(--text2)';
-    html += `
-      <div style="margin-bottom:20px;background:rgba(232,32,10,0.06);border:1px solid rgba(232,32,10,0.25);border-radius:12px;overflow:hidden">
-        <div style="padding:10px 14px;background:rgba(232,32,10,0.1);display:flex;align-items:center;justify-content:space-between;gap:8px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-family:'Bebas Neue';font-size:20px;color:var(--accent)">HOJE — DIA ${todayDia.dia}</span>
-            <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${col}22;color:${col};border:1px solid ${col}44;letter-spacing:.5px">${todayDia.categoria}</span>
-          </div>
-          <span style="font-size:12px;color:var(--text2)">${fmtStoryDate(todayDia.data)}</span>
-        </div>
-        <div style="padding:10px 14px 4px">
-          <div style="font-size:15px;color:var(--text);font-weight:600;margin-bottom:10px">${todayDia.tema}</div>
-          ${todayDia.stories.map(s => storyCard(s)).join('')}
-        </div>
-      </div>`;
-  }
-
-  // all months
-  Object.entries(months).forEach(([mk, dias]) => {
-    const [y, m] = mk.split('-');
-    const mName = MONTH_NAMES[parseInt(m)];
-    html += `<div style="margin-bottom:24px">`;
-    html += `<div style="font-family:'Bebas Neue';font-size:18px;letter-spacing:2px;color:var(--text2);margin-bottom:10px;padding:0 2px">${mName} ${y}</div>`;
-    dias.forEach(d => {
-      if (d.data === todayS) return;
-      const isPast = d.data < todayS;
-      const col    = CAT_COLOR[d.categoria] || 'var(--text2)';
-      html += `
-        <div style="margin-bottom:8px;background:var(--surface);border:1px solid ${isPast?'rgba(42,42,42,0.4)':'var(--border)'};border-radius:10px;overflow:hidden;opacity:${isPast?'0.55':'1'}">
-          <div style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px" onclick="storiesToggle(this)">
-            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
-              <span style="font-family:'Bebas Neue';font-size:16px;color:${isPast?'var(--text3)':'var(--text)'};flex-shrink:0">DIA ${String(d.dia).padStart(2,'0')}</span>
-              <span style="font-size:10px;padding:1px 7px;border-radius:20px;background:${col}22;color:${col};border:1px solid ${col}44;letter-spacing:.5px;flex-shrink:0">${d.categoria}</span>
-              <span style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.tema}</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-              <span style="font-size:11px;color:var(--text3)">${fmtStoryDate(d.data)}</span>
-              <span class="stories-chevron" style="color:var(--text3);font-size:12px;transition:transform .2s">▼</span>
-            </div>
-          </div>
-          <div class="stories-body" style="display:none;padding:0 14px 10px">
-            ${d.stories.map(s => storyCard(s)).join('')}
-          </div>
-        </div>`;
-    });
-    html += '</div>';
-  });
-
-  html += '</div>';
-  document.getElementById('content').innerHTML = html;
-}
-
-function fmtStoryDate(iso) {
-  const [y, m, d] = iso.split('-');
-  const names = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  return `${parseInt(d)} ${names[parseInt(m)]}`;
-}
-
-function storyCard(s) {
-  const id = 'sc_' + Math.random().toString(36).slice(2);
-  return `
-    <div style="margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
-      <div style="padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
-        <span style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.5px">${s.num.toUpperCase()}</span>
-        <button onclick="storiesCopy(this,'${id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;color:var(--text3);cursor:pointer;font-family:'Barlow Condensed'">Copiar</button>
-      </div>
-      ${s.visual ? `<div style="padding:6px 12px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border);font-style:italic">📷 ${s.visual}</div>` : ''}
-      <div id="${id}" style="padding:10px 12px;font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">${s.copy}</div>
-    </div>`;
-}
-
-function storiesToggle(header) {
-  const body    = header.parentElement.querySelector('.stories-body');
-  const chevron = header.querySelector('.stories-chevron');
-  const open    = body.style.display === 'none';
-  body.style.display    = open ? 'block' : 'none';
-  chevron.style.transform = open ? 'rotate(180deg)' : '';
-}
-
-function storiesCopy(btn, id) {
-  const el   = document.getElementById(id);
-  const text = el.innerText;
-  navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = '✓ Copiado';
-    btn.style.color = 'var(--green)';
-    btn.style.borderColor = 'var(--green)';
-    setTimeout(() => { btn.textContent = 'Copiar'; btn.style.color = ''; btn.style.borderColor = ''; }, 2000);
-  });
-}
-
-</script>
 
 </body>
 </html>
