@@ -8,7 +8,6 @@
  */
 
 import { fetchData, monthKey } from './_tools.js';
-import { STORIES_60DIAS } from './_stories.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -37,17 +36,16 @@ async function sendTelegram(text) {
 
 // ── Lógica principal ──────────────────────────────────────────────────────────
 
-// Retorna quantos dias faltam até o diaAcerto no mês atual (negativo = já passou)
 function daysUntilAcerto(diaAcertoStr, todayNum) {
   const m = (diaAcertoStr || '').match(/\d+/);
   if (!m) return null;
   return parseInt(m[0]) - todayNum;
 }
 
-function buildDigest(md) {
-  const today  = new Date();
-  const todayS = today.toISOString().split('T')[0];
-  const in3S   = new Date(today.getTime() + 3 * 86400000).toISOString().split('T')[0];
+function buildDigest(md, lembretes = []) {
+  const today    = new Date();
+  const todayS   = today.toISOString().split('T')[0];
+  const in3S     = new Date(today.getTime() + 3 * 86400000).toISOString().split('T')[0];
   const todayNum = today.getDate();
 
   const DAYS   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -89,7 +87,7 @@ function buildDigest(md) {
     lines.push('');
   }
 
-  // ── 2. Treino vencendo (proxAtt ≤ hoje+3 dias, ou já vencido) ───────────────
+  // ── 2. Treino vencendo (proxAtt ≤ hoje+3 dias, ou já vencido)
   const allPersonal = [
     ...(md.personal?.online || []).map(a => ({ ...a, _tipo: 'Online' })),
     ...(md.personal?.presencial || []).map(a => ({ ...a, _tipo: 'Pres' })),
@@ -110,18 +108,13 @@ function buildDigest(md) {
     lines.push('');
   }
 
-  // ── 3. Stories do dia ────────────────────────────────────────────────────────
-  const storyDia = STORIES_60DIAS.find(d => d.data === todayS);
-  if (storyDia) {
-    lines.push(`📱 *Story do dia — Dia ${storyDia.dia}*`);
-    lines.push(`_${storyDia.categoria} · ${storyDia.tema}_`);
-    lines.push(`  ${storyDia.stories.length} stories para postar hoje`);
-    storyDia.stories.forEach(s => {
-      tasks.push({
-        title: `${s.num} — ${storyDia.tema}`,
-        notes: s.copy,
-        category: 'story',
-      });
+  // ── 3. Lembretes customizados (apenas não concluídos)
+  const pendLembretes = lembretes.filter(l => !l.concluido);
+  if (pendLembretes.length > 0) {
+    lines.push(`🔔 *Lembretes (${pendLembretes.length})*`);
+    pendLembretes.forEach(l => {
+      lines.push(`  • ${l.texto}`);
+      tasks.push({ title: l.texto, notes: '', category: 'lembrete' });
     });
     lines.push('');
   }
@@ -138,17 +131,21 @@ function buildDigest(md) {
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).end();
 
-  // CORS para iOS Shortcuts conseguir chamar diretamente
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
     const key = monthKey();
-    const md  = await fetchData(key, SUPABASE_URL, SUPABASE_KEY);
+    const [md, lembretes] = await Promise.all([
+      fetchData(key, SUPABASE_URL, SUPABASE_KEY),
+      fetchData('__lembretes__', SUPABASE_URL, SUPABASE_KEY),
+    ]);
+
+    const lembs = Array.isArray(lembretes) ? lembretes : [];
 
     // Modo JSON: retorna tarefas estruturadas para iOS Shortcuts
     if (req.query?.format === 'json') {
       if (!md) return res.status(200).json({ tasks: [], hasItems: false });
-      const { tasks, hasItems, dayLabel } = buildDigest(md);
+      const { tasks, hasItems, dayLabel } = buildDigest(md, lembs);
       return res.status(200).json({
         tasks,
         hasItems,
@@ -163,7 +160,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    const { message } = buildDigest(md);
+    const { message } = buildDigest(md, lembs);
     await sendTelegram(message);
 
     return res.status(200).json({ ok: true });
