@@ -541,6 +541,7 @@
 
       <div class="nav-section">Trabalho</div>
       <div class="nav-item" data-page="alunos" onclick="navigate('alunos');closeSidebar()"><span class="icon">◯</span> Alunos</div>
+      <div class="nav-item" data-page="mensagens" onclick="navigate('mensagens');closeSidebar()"><span class="icon">◎</span> Mensagens</div>
       <div class="nav-section">Social Media</div>
       <div class="nav-item" data-page="brand" onclick="navigate('brand');closeSidebar()"><span class="icon">◉</span> Identidade Visual</div>
       <div class="nav-section">Análise</div>
@@ -1302,9 +1303,9 @@ async function navigate(page) {
 
   const titles = {
     dashboard:'DASHBOARD', balanco:'BALANÇO', cartao:'CARTÃO',
-    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO'
+    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO', mensagens:'MENSAGENS'
   };
-  document.getElementById('topbarMonthNav').style.display = page === 'historico' ? 'none' : 'flex';
+  document.getElementById('topbarMonthNav').style.display = (page === 'historico' || page === 'mensagens') ? 'none' : 'flex';
   document.getElementById('pageTitle').textContent = titles[page]||page.toUpperCase();
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="confirmarResetMes()" title="Resetar mês" style="color:var(--text3);font-size:11px">↺ Reset</button>`;
   document.getElementById('content').innerHTML = '';
@@ -1330,6 +1331,7 @@ async function navigate(page) {
     case 'treino':       renderTreino(); break;
     case 'brand':        renderBrand(); break;
     case 'historico':    await renderHistorico(); break;
+    case 'mensagens':    renderMensagens(md); break;
   }
 }
 
@@ -6060,6 +6062,226 @@ function validateMonthYear(prefix) {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushSave();
 });
+
+// ==================== MENSAGENS EM MASSA ====================
+
+let _msgFiltro   = 'todos';
+let _msgSelected = new Set();
+
+function _msgGetAlunos(md) {
+  const todos = [
+    ...(md.calistenia || []).map(a => ({
+      id: a.id || a.nome, nome: a.nome || '', telefone: a.telefone || '',
+      valor: a.valorFinal || a.valor || 0, vencimento: 'fim do mês', tipo: 'calistenia'
+    })),
+    ...(md.personal?.online || []).map(a => ({
+      id: a.id || a.nome, nome: a.nome || '', telefone: a.telefone || '',
+      valor: a.valor || 0,
+      vencimento: a.diaAcerto ? `dia ${(a.diaAcerto.match(/\d+/) || ['?'])[0]}` : '—',
+      tipo: 'online'
+    })),
+    ...(md.personal?.presencial || []).map(a => ({
+      id: a.id || a.nome, nome: a.nome || '', telefone: a.telefone || '',
+      valor: a.valor || 0,
+      vencimento: a.diaAcerto ? `dia ${(a.diaAcerto.match(/\d+/) || ['?'])[0]}` : '—',
+      tipo: 'presencial'
+    })),
+  ];
+  return _msgFiltro === 'todos' ? todos : todos.filter(a => a.tipo === _msgFiltro);
+}
+
+function _msgFormatTel(raw) {
+  const digits = raw.replace(/\D/g, '');
+  return digits.startsWith('55') ? digits : '55' + digits;
+}
+
+function _msgBuildText(template, a) {
+  return template
+    .replace(/\{\{nome\}\}/g, a.nome.split(' ')[0])
+    .replace(/\{\{valor\}\}/g, fmt(a.valor))
+    .replace(/\{\{vencimento\}\}/g, a.vencimento);
+}
+
+const MSG_DEFAULT = 'Olá {{nome}}! 👋\n\nPassando pra lembrar que sua mensalidade de *R$ {{valor}}* vence no *{{vencimento}}*.\n\nQualquer dúvida, estou por aqui! 💪';
+
+function renderMensagens(md) {
+  const alunos   = _msgGetAlunos(md);
+  const comTel   = alunos.filter(a => a.telefone);
+  const semTel   = alunos.filter(a => !a.telefone);
+
+  if (_msgSelected.size === 0) _msgSelected = new Set(comTel.map(a => a.id));
+
+  const selCount = comTel.filter(a => _msgSelected.has(a.id)).length;
+  const allSel   = selCount === comTel.length && comTel.length > 0;
+
+  const savedTpl = localStorage.getItem('gestor_msg_template') || MSG_DEFAULT;
+
+  document.getElementById('topbarActions').innerHTML = '';
+  document.getElementById('content').innerHTML = `
+  <div class="page">
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:10px">Mensagem</div>
+      <textarea id="msgTpl" rows="5" oninput="_msgPreview()" onblur="localStorage.setItem('gestor_msg_template',this.value)"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box">${savedTpl}</textarea>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        ${['{{nome}}','{{valor}}','{{vencimento}}'].map(v =>
+          `<button onclick="_msgInsert('${v}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:3px 9px;color:var(--accent);font-size:11px;cursor:pointer;font-family:'Barlow Condensed'">${v}</button>`
+        ).join('')}
+      </div>
+      <div style="margin-top:10px;padding:10px 12px;background:rgba(200,241,53,0.05);border:1px solid rgba(200,241,53,0.15);border-radius:8px">
+        <div style="font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">Preview</div>
+        <div id="msgPreview" style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.5"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      ${['todos','calistenia','online','presencial'].map(f => `
+        <button onclick="_msgFilt('${f}')" style="padding:5px 13px;border-radius:20px;font-size:11px;cursor:pointer;font-family:'Barlow Condensed';text-transform:uppercase;letter-spacing:.5px;border:1px solid ${_msgFiltro===f?'var(--accent)':'var(--border)'};background:${_msgFiltro===f?'var(--accent)':'var(--surface2)'};color:${_msgFiltro===f?'#000':'var(--text2)'}">${f}</button>
+      `).join('')}
+      <span style="margin-left:auto;font-size:11px;color:var(--text3)">${selCount}/${comTel.length} sel.</span>
+      <button onclick="_msgToggleAll()" style="font-size:11px;color:var(--text3);background:transparent;border:none;cursor:pointer;text-decoration:underline">${allSel?'Desmarcar todos':'Selecionar todos'}</button>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden">
+      ${comTel.length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Nenhum aluno com telefone cadastrado neste mês</div>` : ''}
+      ${comTel.map(a => {
+        const sel = _msgSelected.has(a.id);
+        return `<div onclick="_msgToggle('${a.id}')" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid rgba(42,42,42,0.5);cursor:pointer">
+          <div style="width:18px;height:18px;border-radius:4px;border:2px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'var(--accent)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#000">${sel?'✓':''}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:var(--text)">${a.nome}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:1px">${a.telefone} · ${fmt(a.valor)} · ${a.vencimento}</div>
+          </div>
+          <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--surface2);color:var(--text3);text-transform:uppercase;flex-shrink:0">${a.tipo}</span>
+        </div>`;
+      }).join('')}
+      ${semTel.length > 0 ? `<div style="padding:8px 14px;background:rgba(232,32,10,0.04)"><span style="font-size:11px;color:var(--text3)">⚠ Sem telefone: ${semTel.map(a=>a.nome.split(' ')[0]).join(', ')}</span></div>` : ''}
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <button onclick="_msgLinks()" class="btn btn-ghost" style="flex:1;padding:12px;font-size:13px">Gerar Links WA</button>
+      <button onclick="_msgAPI()" class="btn btn-primary" style="flex:1;padding:12px;font-size:13px">Enviar via API ⚡</button>
+    </div>
+
+    <div id="msgResultado"></div>
+  </div>`;
+
+  _msgPreview();
+}
+
+function _msgPreview() {
+  const tpl = document.getElementById('msgTpl')?.value || '';
+  const preview = tpl.replace(/\{\{nome\}\}/g,'João').replace(/\{\{valor\}\}/g,'R$ 300,00').replace(/\{\{vencimento\}\}/g,'dia 30');
+  const el = document.getElementById('msgPreview');
+  if (el) el.textContent = preview;
+}
+
+function _msgInsert(v) {
+  const ta = document.getElementById('msgTpl');
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0,s) + v + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + v.length;
+  ta.focus();
+  _msgPreview();
+}
+
+function _msgFilt(f) {
+  _msgFiltro = f;
+  _msgSelected = new Set();
+  const md = getMonthData();
+  if (!md.calistenia) md.calistenia = [];
+  if (!md.personal)   md.personal   = { online:[], presencial:[] };
+  const alunos = _msgGetAlunos(md);
+  alunos.filter(a=>a.telefone).forEach(a => _msgSelected.add(a.id));
+  renderMensagens(md);
+}
+
+function _msgToggle(id) {
+  if (_msgSelected.has(id)) _msgSelected.delete(id);
+  else _msgSelected.add(id);
+  const md = getMonthData();
+  renderMensagens(md);
+}
+
+function _msgToggleAll() {
+  const md = getMonthData();
+  const comTel = _msgGetAlunos(md).filter(a=>a.telefone);
+  if (_msgSelected.size === comTel.length) _msgSelected = new Set();
+  else _msgSelected = new Set(comTel.map(a=>a.id));
+  renderMensagens(md);
+}
+
+function _msgLinks() {
+  const md  = getMonthData();
+  const tpl = document.getElementById('msgTpl')?.value || '';
+  const sel = _msgGetAlunos(md).filter(a => a.telefone && _msgSelected.has(a.id));
+
+  if (!sel.length) {
+    document.getElementById('msgResultado').innerHTML = '<div style="color:var(--red);padding:12px 0;font-size:13px">Nenhum aluno selecionado com telefone.</div>';
+    return;
+  }
+
+  const rows = sel.map(a => {
+    const text = _msgBuildText(tpl, a);
+    const url  = `https://wa.me/${_msgFormatTel(a.telefone)}?text=${encodeURIComponent(text)}`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(42,42,42,0.5)">
+      <span style="flex:1;font-size:13px;color:var(--text)">${a.nome.split(' ')[0]} <span style="font-size:11px;color:var(--text3)">(${a.tipo})</span></span>
+      <a href="${url}" target="_blank" style="background:#25D366;color:#fff;border-radius:6px;padding:6px 14px;font-size:12px;text-decoration:none;font-weight:600;font-family:'Barlow Condensed';letter-spacing:.5px;flex-shrink:0">Abrir WA</a>
+    </div>`;
+  }).join('');
+
+  document.getElementById('msgResultado').innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:10px">Links gerados (${sel.length})</div>
+      ${rows}
+    </div>`;
+}
+
+async function _msgAPI() {
+  const md  = getMonthData();
+  const tpl = document.getElementById('msgTpl')?.value || '';
+  const sel = _msgGetAlunos(md).filter(a => a.telefone && _msgSelected.has(a.id));
+
+  if (!sel.length) {
+    document.getElementById('msgResultado').innerHTML = '<div style="color:var(--red);padding:12px 0;font-size:13px">Nenhum aluno selecionado.</div>';
+    return;
+  }
+
+  if (!confirm(`Enviar mensagem via WhatsApp API para ${sel.length} aluno(s)?`)) return;
+
+  const res_el = document.getElementById('msgResultado');
+  res_el.innerHTML = `<div style="padding:12px 0;color:var(--text3);font-size:13px">Enviando... 0/${sel.length}</div>`;
+
+  const messages = sel.map(a => ({ to: _msgFormatTel(a.telefone), body: _msgBuildText(tpl, a), nome: a.nome }));
+
+  try {
+    const res  = await fetch('/api/bulk-send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages }),
+    });
+    const data = await res.json();
+    if (!data.results) throw new Error(data.error || 'Erro desconhecido');
+
+    const ok = data.results.filter(r => r.ok).length;
+    const rows = data.results.map((r,i) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(42,42,42,0.4)">
+        <span style="color:${r.ok?'#4CAF50':'var(--red)'}; font-size:14px">${r.ok?'✓':'✕'}</span>
+        <span style="font-size:12px;color:var(--text2);flex:1">${messages[i]?.nome || r.to}</span>
+        ${r.error ? `<span style="font-size:11px;color:var(--red)">${r.error}</span>` : ''}
+      </div>`).join('');
+
+    res_el.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px">
+        <div style="font-size:13px;font-weight:600;color:${ok===sel.length?'#4CAF50':'var(--accent)'};margin-bottom:10px">${ok}/${sel.length} enviados com sucesso</div>
+        ${rows}
+      </div>`;
+  } catch(e) {
+    res_el.innerHTML = `<div style="color:var(--red);padding:12px 0;font-size:13px">Erro: ${e.message}</div>`;
+  }
+}
 
 // ==================== INIT ====================
 (async()=>{
