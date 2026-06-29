@@ -3344,7 +3344,7 @@ function renderPersonalContent(md, tab) {
         <th style="width:16%" data-col="nome" onclick="sortTable('tblPersonal','nome')">Aluno</th>
         <th style="width:11%" data-col="valor" onclick="sortTable('tblPersonal','valor','num')">Valor</th>
         <th class="hide-mobile" style="width:10%" data-col="plano" onclick="sortTable('tblPersonal','plano')">${tab==='online'?'Plano':'Dia Pgto'}</th>
-        <th class="hide-mobile" style="width:9%" data-col="acerto" onclick="sortTable('tblPersonal','acerto')">${tab==='online'?'Renov.':'—'}</th>
+        <th class="hide-mobile" style="width:9%" data-col="acerto" onclick="sortTable('tblPersonal','acerto')">${tab==='online'?'Renov.':'Aulas'}</th>
         ${tab==='online'?`<th style="width:10%" data-col="att" onclick="sortTable('tblPersonal','att')">Treino</th><th style="width:9%">📩</th>`:''}
         <th style="width:8%" data-col="pago" onclick="sortTable('tblPersonal','pago','bool')">Status</th>
         <th style="width:${tab==='online'?'5%':'10%'}"></th>
@@ -3414,7 +3414,18 @@ function renderPersonalContent(md, tab) {
             ${tab==='online'?`<div style="display:flex;align-items:center;gap:4px">
               <span style="${pgtoStyle}" onclick="editCellPersonal('${a.id}','Renovação','${a.diaAcerto||''}')">${a.diaAcerto||'<span style="color:var(--text3)">—</span>'}</span>
               ${waPhone&&pgtoUrgency?`<a href="https://wa.me/${waPhone}?text=${waMsg}" target="_blank" style="background:#25D366;color:#fff;border-radius:4px;padding:1px 5px;font-size:9px;text-decoration:none;font-weight:700;line-height:1.5;flex-shrink:0">WA</a>`:''}
-            </div>`:''}
+            </div>`:a.tipoPres==='pacote'?(()=>{
+              const usado=( a.aulasDatas||[]).length, total=a.pacoteAulas||0;
+              const restante=Math.max(0,total-usado);
+              const pct=total>0?Math.round(usado/total*100):0;
+              const cor=pct>=100?'var(--red)':pct>=75?'#f1c135':'var(--accent)';
+              return `<div title="${usado}/${total} aulas">
+                <div style="font-size:11px;font-weight:600;color:${cor}">${restante} rest.</div>
+                <div style="height:3px;background:var(--surface2);border-radius:2px;margin-top:2px">
+                  <div style="height:3px;border-radius:2px;background:${cor};width:${Math.min(100,pct)}%"></div>
+                </div>
+              </div>`;
+            })():`<span style="color:var(--text3);font-size:11px">${(a.aulasDatas||[]).length} aulas</span>`}
           </td>
           ${tab==='online'?`<td style="${ro?'':'cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
             ${a.pausado?'—':aV?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(a.proxAtt)} !</span>`:aP?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(a.proxAtt)}</span>`:a7?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(a.proxAtt)}</span>`:a.proxAtt?`<span style="color:var(--text2);font-size:12px">${fmtDate(a.proxAtt)}</span>`:`<span style="color:var(--text3);font-size:11px">Definir</span>`}
@@ -3467,61 +3478,140 @@ function renderPersonalContent(md, tab) {
 function renderRegistroAulas(list) {
   const ativos = list.filter(a => !a.pausado);
   if (ativos.length === 0) return '';
-  const totalAulas = ativos.reduce((s,a) => s + (a.aulasDatas||[]).length * (a.valorAula||0), 0);
-  return `
+
+  const porAula = ativos.filter(a => a.tipoPres !== 'pacote');
+  const pacote  = ativos.filter(a => a.tipoPres === 'pacote');
+
+  const totalAvulsa = porAula.reduce((s,a) => s + (a.aulasDatas||[]).length * (a.valorAula||0), 0);
+
+  const renderCard = (a) => {
+    const isPacote = a.tipoPres === 'pacote';
+    const qtd = (a.aulasDatas||[]).length;
+    const datas = (a.aulasDatas||[]).slice().sort().reverse();
+    const ro = isReadOnly();
+
+    if (isPacote) {
+      const total     = a.pacoteAulas || 0;
+      const restante  = Math.max(0, total - qtd);
+      const pct       = total > 0 ? Math.round(qtd / total * 100) : 0;
+      const valorPkg  = a.valor || 0;
+      const valorAula = total > 0 ? valorPkg / total : 0;
+      const consumido = qtd * valorAula;
+      const corBar    = pct >= 100 ? 'var(--red)' : pct >= 80 ? '#f1c135' : 'var(--accent)';
+      const esgotado  = qtd >= total && total > 0;
+
+      return `<div class="table-card" style="${esgotado?'box-shadow:inset 0 0 0 2px var(--red)':''}">
+        <div class="table-header" style="gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div class="table-title" style="font-size:13px">${a.nome}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">Pacote · ${qtd}/${total} aulas · ${fmt(valorPkg)}</div>
+          </div>
+          ${ro?'':` <div style="display:flex;gap:5px;flex-shrink:0">
+            <button class="btn btn-primary btn-sm" onclick="addAulaHoje('${a.id}')" ${esgotado?'disabled title="Pacote esgotado"':''}>+ Hoje</button>
+            <button class="btn btn-ghost btn-sm" onclick="addAula('${a.id}')">📅</button>
+          </div>`}
+        </div>
+
+        <!-- BARRA DE PROGRESSO -->
+        <div style="padding:10px 14px 8px;background:var(--surface2);border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:5px">
+            <div>
+              <span style="font-size:22px;font-weight:700;color:${corBar};font-family:'Bebas Neue';letter-spacing:1px">${restante}</span>
+              <span style="font-size:11px;color:var(--text3);margin-left:3px">aulas restantes</span>
+            </div>
+            <span style="font-size:11px;color:var(--text3)">${pct}% usado</span>
+          </div>
+          <div style="height:6px;background:var(--surface);border-radius:3px;overflow:hidden">
+            <div style="height:6px;border-radius:3px;background:${corBar};width:${Math.min(100,pct)}%;transition:width 0.3s"></div>
+          </div>
+          ${esgotado ? `<div style="margin-top:6px;font-size:11px;color:var(--red);font-weight:600">⚠ Pacote esgotado — hora de renovar!</div>` : ''}
+        </div>
+
+        ${valorAula > 0 ? `
+        <div style="padding:7px 14px;border-bottom:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap">
+          <div><span style="font-size:10px;color:var(--text3)">Consumido</span><div style="font-size:13px;font-weight:600;color:var(--text2)">${fmt(consumido)}</div></div>
+          <div><span style="font-size:10px;color:var(--text3)">Por aula</span><div style="font-size:13px;color:var(--text3)">${fmt(valorAula)}</div></div>
+          <div><span style="font-size:10px;color:var(--text3)">Pacote total</span><div style="font-size:13px;color:var(--text3)">${fmt(valorPkg)}</div></div>
+        </div>` : ''}
+
+        ${datas.length > 0 ? `
+        <div style="max-height:160px;overflow-y:auto">
+          ${datas.map(d => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;border-bottom:1px solid rgba(42,42,42,0.4)">
+              <span style="font-size:12px;color:var(--text2)">${fmtDateLong(d)}</span>
+              ${ro?'':`<button class="btn btn-danger btn-sm" onclick="removeAula('${a.id}','${d}',0)" style="padding:2px 6px;font-size:10px">✕</button>`}
+            </div>`).join('')}
+        </div>` : `<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Nenhuma aula registrada</div>`}
+      </div>`;
+
+    } else {
+      const valorAula = a.valorAula || 0;
+      const total = qtd * valorAula;
+      const ro = isReadOnly();
+      return `<div class="table-card">
+        <div class="table-header" style="gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div class="table-title" style="font-size:13px">${a.nome}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">
+              <span style="color:var(--text2)">${qtd} aula(s)</span>
+              ${valorAula > 0 ? ` × <span style="cursor:pointer;border-bottom:1px dashed var(--text3)" onclick="editValorAula('${a.id}')">R$${valorAula}</span> = <strong style="color:var(--accent)">${fmt(total)}</strong>` : ` · <span style="cursor:pointer;color:var(--accent3);font-size:11px" onclick="editValorAula('${a.id}')">definir R$/aula ✎</span>`}
+            </div>
+          </div>
+          ${ro?'':` <div style="display:flex;gap:5px;flex-shrink:0">
+            <button class="btn btn-primary btn-sm" onclick="addAulaHoje('${a.id}')">+ Hoje</button>
+            <button class="btn btn-ghost btn-sm" onclick="addAula('${a.id}')">📅</button>
+          </div>`}
+        </div>
+        ${valorAula > 0 ? `
+        <div style="padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--text3)">Total a cobrar no próx. mês</span>
+          <span style="font-size:20px;font-weight:700;color:var(--accent);font-family:'Bebas Neue';letter-spacing:1px">${fmt(total)}</span>
+        </div>` : ''}
+        ${datas.length > 0 ? `
+        <div style="max-height:160px;overflow-y:auto">
+          ${datas.map(d => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;border-bottom:1px solid rgba(42,42,42,0.4)">
+              <span style="font-size:12px;color:var(--text2)">${fmtDateLong(d)}</span>
+              ${valorAula > 0 ? `<span style="font-size:11px;color:var(--text3)">${fmt(valorAula)}</span>` : ''}
+              ${ro?'':`<button class="btn btn-danger btn-sm" onclick="removeAula('${a.id}','${d}',0)" style="padding:2px 6px;font-size:10px">✕</button>`}
+            </div>`).join('')}
+        </div>` : `<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Nenhuma aula registrada</div>`}
+      </div>`;
+    }
+  };
+
+  const ro = isReadOnly();
+  let html = '';
+
+  if (pacote.length > 0) {
+    html += `
     <div class="section-header" style="margin-top:20px">
+      <div class="section-title">PACOTES DE AULAS</div>
+      ${ro?'':'<button class="btn btn-ghost btn-sm" onclick="resetarPresencas()" style="font-size:11px;color:var(--red)">↺ Zerar presenças</button>'}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:${porAula.length>0?'20px':'0'}">
+      ${pacote.map(renderCard).join('')}
+    </div>`;
+  }
+
+  if (porAula.length > 0) {
+    html += `
+    <div class="section-header" style="margin-top:${pacote.length>0?'0':'20px'}">
       <div class="section-title" style="display:flex;align-items:center;gap:10px">
         CONTROLE DE AULAS — REFERÊNCIA PRÓXIMO MÊS
-        ${totalAulas > 0 ? `<span style="font-size:13px;font-weight:600;color:var(--accent)">${fmt(totalAulas)}</span>` : ''}
+        ${totalAvulsa > 0 ? `<span style="font-size:13px;font-weight:600;color:var(--accent)">${fmt(totalAvulsa)}</span>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <div style="font-size:11px;color:var(--text3)">Apenas visual · não afeta os ganhos do mês atual</div>
-        ${isReadOnly()?'':'<button class="btn btn-ghost btn-sm" onclick="resetarPresencas()" style="font-size:11px;color:var(--red)">↺ Zerar presenças</button>'}
+        ${ro?'':'<button class="btn btn-ghost btn-sm" onclick="resetarPresencas()" style="font-size:11px;color:var(--red)">↺ Zerar presenças</button>'}
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
-      ${ativos.map(a => {
-        const qtd = (a.aulasDatas||[]).length;
-        const valorAula = a.valorAula || 0;
-        const total = qtd * valorAula;
-        const datas = (a.aulasDatas||[]).slice().sort().reverse();
-        return `<div class="table-card">
-          <!-- HEADER -->
-          <div class="table-header" style="gap:8px;flex-wrap:wrap">
-            <div style="flex:1;min-width:0">
-              <div class="table-title" style="font-size:13px">${a.nome}</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">
-                <span style="color:var(--text2)">${qtd} aula(s)</span>
-                ${valorAula > 0 ? ` × <span style="cursor:pointer;border-bottom:1px dashed var(--text3)" onclick="editValorAula('${a.id}')">R$${valorAula}</span> = <strong style="color:var(--accent)">${fmt(total)}</strong>` : ` · <span style="cursor:pointer;color:var(--accent3);font-size:11px" onclick="editValorAula('${a.id}')">definir R$/aula ✎</span>`}
-              </div>
-            </div>
-            <div style="display:flex;gap:5px;flex-shrink:0">
-              <button class="btn btn-primary btn-sm" onclick="addAulaHoje('${a.id}')">+ Hoje</button>
-              <button class="btn btn-ghost btn-sm" onclick="addAula('${a.id}')">📅</button>
-            </div>
-          </div>
-
-          <!-- TOTAL DESTAQUE -->
-          ${valorAula > 0 ? `
-          <div style="padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:11px;color:var(--text3)">Total a cobrar no próx. mês</span>
-            <span style="font-size:20px;font-weight:700;color:var(--accent);font-family:'Bebas Neue';letter-spacing:1px">${fmt(total)}</span>
-          </div>` : ''}
-
-          <!-- LISTA DE DATAS -->
-          ${datas.length > 0 ? `
-          <div style="max-height:160px;overflow-y:auto">
-            ${datas.map(d => `
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;border-bottom:1px solid rgba(42,42,42,0.4)">
-                <span style="font-size:12px;color:var(--text2)">${fmtDateLong(d)}</span>
-                ${valorAula > 0 ? `<span style="font-size:11px;color:var(--text3)">${fmt(valorAula)}</span>` : ''}
-                <button class="btn btn-danger btn-sm" onclick="removeAula('${a.id}','${d}',0)" style="padding:2px 6px;font-size:10px">✕</button>
-              </div>
-            `).join('')}
-          </div>` : `<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Nenhuma aula registrada</div>`}
-        </div>`;
-      }).join('')}
+      ${porAula.map(renderCard).join('')}
     </div>`;
+  }
+
+  return html;
 }
 
 function setPersonalTab(t){personalTab=t;renderPersonal(getMonthData());}
@@ -3626,9 +3716,10 @@ function editValorPersonal(id) {
   const planoOpts = getPlanos().map(p =>
     '<option value="'+p.id+'"'+(a.plano===p.id?' selected':'')+'>'+p.label+(p.desc?' — '+p.desc:'')+'</option>'
   ).join('');
+  const isPacote = isPres && a.tipoPres === 'pacote';
   openModal(`<div class="modal-handle"></div><div class="modal-title">EDITAR — ${a.nome}</div>
     <div class="form-group">
-      <label class="form-label">Valor mensal (R$)</label>
+      <label class="form-label">${isPacote?'Valor do pacote (R$)':'Valor mensal (R$)'}</label>
       <input id="mValEdit" type="number" inputmode="decimal" value="${a.valor||0}">
     </div>
     ${!isPres ? '<div class="form-group"><label class="form-label">Plano</label><select id="mPlanoEdit">'+planoOpts+'</select></div>' : ''}
@@ -3636,11 +3727,35 @@ function editValorPersonal(id) {
       <label class="form-label">${isPres?'Dia de pagamento':'Data de renovação'}</label>
       <input id="mDiaEdit" placeholder="${isPres?'Ex: Dia 10':'Ex: 15/05'}" value="${a.diaAcerto||''}">
     </div>
-    ${isPres ? `
+    ${isPres && !isPacote ? `
     <div class="form-group">
-      <label class="form-label">Valor por aula avulsa (R$)</label>
-      <input id="mVAEdit" type="number" inputmode="decimal" value="${a.valorAula||0}">
+      <label class="form-label">Tipo presencial</label>
+      <select id="mTPEdit" onchange="
+        const p=this.value==='pacote';
+        document.getElementById('mVAEditRow').style.display=p?'none':'block';
+        document.getElementById('mPAEditRow').style.display=p?'block':'none';">
+        <option value="por-aula" ${!isPacote?'selected':''}>Por aula avulsa</option>
+        <option value="pacote" ${isPacote?'selected':''}>Pacote de aulas</option>
+      </select>
+    </div>
+    <div id="mVAEditRow">
+      <div class="form-group">
+        <label class="form-label">Valor por aula (R$)</label>
+        <input id="mVAEdit" type="number" inputmode="decimal" value="${a.valorAula||0}">
+      </div>
+    </div>
+    <div id="mPAEditRow" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Qtd de aulas no pacote</label>
+        <input id="mPAEdit" type="number" inputmode="numeric" value="${a.pacoteAulas||0}">
+      </div>
     </div>` : ''}
+    ${isPacote ? `
+    <div class="form-group">
+      <label class="form-label">Qtd de aulas no pacote</label>
+      <input id="mPAEdit" type="number" inputmode="numeric" value="${a.pacoteAulas||0}">
+    </div>
+    <input type="hidden" id="mTPEdit" value="pacote">` : ''}
     <hr style="border-color:var(--border);margin:14px 0">
     <div class="form-group"><label class="form-label">Próxima atualização de treino</label>
       <input id="mProxEdit" type="date" value="${a.proxAtt||''}">
@@ -3661,7 +3776,17 @@ function saveValorPersonal(id, isPres) {
   if (!isPres) a.plano = document.getElementById('mPlanoEdit')?.value || a.plano;
   const proxEditVal = document.getElementById('mProxEdit')?.value;
   if (proxEditVal) a.proxAtt = proxEditVal;
-  if (isPres) a.valorAula = parseFloat(document.getElementById('mVAEdit')?.value)||0;
+  if (isPres) {
+    const novoTipo = document.getElementById('mTPEdit')?.value || a.tipoPres || 'por-aula';
+    a.tipoPres = novoTipo;
+    if (novoTipo === 'pacote') {
+      a.pacoteAulas = parseInt(document.getElementById('mPAEdit')?.value)||0;
+      a.valorAula   = 0;
+    } else {
+      a.valorAula   = parseFloat(document.getElementById('mVAEdit')?.value)||0;
+      a.pacoteAulas = 0;
+    }
+  }
   saveData(); closeModal(); renderPersonal(md);
 }
 
@@ -3853,25 +3978,67 @@ function salvarPlanoOnline(i) {
   savePlanos(); closeModal(); setAlunosTab('online');
 }
 
+function _togglePresType() {
+  const t = document.getElementById('mTP')?.value;
+  if (!t) return;
+  document.getElementById('mAulaValRow').style.display  = t === 'por-aula' ? 'grid' : 'none';
+  document.getElementById('mPacoteRow').style.display   = t === 'pacote'   ? 'grid' : 'none';
+}
 function openAddPersonal(){openModal(`<div class="modal-handle"></div><div class="modal-title">NOVO ALUNO</div>
   <div class="form-group"><label class="form-label">Nome</label><input id="mN"></div>
   <div class="form-row">
-    <div class="form-group"><label class="form-label">Valor mensal (R$)</label><input id="mV" type="number" inputmode="decimal"></div>
+    <div class="form-group"><label class="form-label">Valor (R$)</label><input id="mV" type="number" inputmode="decimal"></div>
     <div class="form-group"><label class="form-label">Dia Acerto</label><input id="mD" placeholder="Dia 10"></div>
   </div>
   <div class="form-row">
     <div class="form-group"><label class="form-label">Modalidade</label>
-      <select id="mM" onchange="document.getElementById('mAulaRow').style.display=this.value==='presencial'?'grid':'none'">
+      <select id="mM" onchange="
+        const p=this.value==='presencial';
+        document.getElementById('mPresRow').style.display=p?'grid':'none';
+        if(!p){document.getElementById('mAulaValRow').style.display='none';document.getElementById('mPacoteRow').style.display='none';}
+        else _togglePresType();">
         <option value="online">Online</option><option value="presencial">Presencial</option>
       </select>
     </div>
     <div class="form-group"><label class="form-label">Status</label><select id="mS"><option value="0">Pendente</option><option value="1">Pago</option></select></div>
   </div>
-  <div class="form-row" id="mAulaRow" style="display:none">
-    <div class="form-group"><label class="form-label">Valor por aula avulsa (R$)</label><input id="mVA" type="number" inputmode="decimal" placeholder="45"></div>
+  <div class="form-row" id="mPresRow" style="display:none">
+    <div class="form-group" style="grid-column:1/-1"><label class="form-label">Tipo presencial</label>
+      <select id="mTP" onchange="_togglePresType()">
+        <option value="por-aula">Por aula avulsa</option>
+        <option value="pacote">Pacote de aulas</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-row" id="mAulaValRow" style="display:none">
+    <div class="form-group"><label class="form-label">Valor por aula (R$)</label><input id="mVA" type="number" inputmode="decimal" placeholder="45"></div>
+  </div>
+  <div class="form-row" id="mPacoteRow" style="display:none">
+    <div class="form-group"><label class="form-label">Qtd de aulas no pacote</label><input id="mPA" type="number" inputmode="numeric" placeholder="10"></div>
+    <div class="form-group"><label class="form-label" style="font-size:10px;color:var(--text3)">Valor já é o total do pacote</label><div style="font-size:11px;color:var(--text3);padding:8px 0">Use o campo "Valor (R$)" acima</div></div>
   </div>
   <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addPersonal()">Adicionar</button></div>`);}
-function addPersonal(){if(guardReadOnly())return;const n=document.getElementById('mN').value.trim();const v=parseFloat(document.getElementById('mV').value)||0;const d=document.getElementById('mD').value;const m=document.getElementById('mM').value;const p=document.getElementById('mS').value==='1';const va=parseFloat(document.getElementById('mVA')?.value)||0;if(!validateRequired('mN','Nome')) return;if(!validateNumber('mV','Valor',0)) return;if(!n)return;const md=getMonthData();const obj={id:uid(),nome:n,valor:v,diaAcerto:d,pago:p,attTreino:'',obs:'',valorAula:m==='presencial'?va:0,aulasDatas:[]};if(m==='online'){md.personal.online.push(obj);personalTab='online';}else{md.personal.presencial.push(obj);personalTab='presencial';}saveData();closeModal();setAlunosTab(personalTab);}
+function addPersonal(){
+  if(guardReadOnly())return;
+  const n=document.getElementById('mN').value.trim();
+  const v=parseFloat(document.getElementById('mV').value)||0;
+  const d=document.getElementById('mD').value;
+  const m=document.getElementById('mM').value;
+  const p=document.getElementById('mS').value==='1';
+  const tipoPres=m==='presencial'?(document.getElementById('mTP')?.value||'por-aula'):'';
+  const va=tipoPres==='por-aula'?(parseFloat(document.getElementById('mVA')?.value)||0):0;
+  const pa=tipoPres==='pacote'?(parseInt(document.getElementById('mPA')?.value)||0):0;
+  if(!validateRequired('mN','Nome')) return;
+  if(!validateNumber('mV','Valor',0)) return;
+  if(!n)return;
+  const md=getMonthData();
+  const obj={id:uid(),nome:n,valor:v,diaAcerto:d,pago:p,attTreino:'',obs:'',
+    valorAula:tipoPres==='por-aula'?va:0,aulasDatas:[],
+    tipoPres:m==='presencial'?tipoPres:'',pacoteAulas:pa};
+  if(m==='online'){md.personal.online.push(obj);personalTab='online';}
+  else{md.personal.presencial.push(obj);personalTab='presencial';}
+  saveData();closeModal();setAlunosTab(personalTab);
+}
 
 // ==================== FICHA DO ALUNO ====================
 function abrirFichaAluno(id, tipo) {
