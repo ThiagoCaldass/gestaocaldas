@@ -3343,7 +3343,7 @@ function renderPersonalContent(md, tab) {
         <th style="width:11%" data-col="valor" onclick="sortTable('tblPersonal','valor','num')">Valor</th>
         <th class="hide-mobile" style="width:10%" data-col="plano" onclick="sortTable('tblPersonal','plano')">${tab==='online'?'Plano':'Dia Pgto'}</th>
         <th class="hide-mobile" style="width:9%" data-col="acerto" onclick="sortTable('tblPersonal','acerto')">${tab==='online'?'Renov.':'Aulas'}</th>
-        ${tab==='online'?`<th style="width:10%" data-col="att" onclick="sortTable('tblPersonal','att')">Treino</th><th style="width:9%">📩</th>`:''}
+        ${tab==='online'?`<th style="width:10%" data-col="att" onclick="sortTable('tblPersonal','att')">Treino</th>`:''}
         <th style="width:8%" data-col="pago" onclick="sortTable('tblPersonal','pago','bool')">Status</th>
         <th style="width:${tab==='online'?'5%':'10%'}"></th>
       </tr></thead>
@@ -3428,12 +3428,7 @@ function renderPersonalContent(md, tab) {
           ${tab==='online'?`<td style="${ro?'':'cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
             ${a.pausado?'—':aV?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(a.proxAtt)} !</span>`:aP?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(a.proxAtt)}</span>`:a7?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(a.proxAtt)}</span>`:a.proxAtt?`<span style="color:var(--text2);font-size:12px">${fmtDate(a.proxAtt)}</span>`:`<span style="color:var(--text3);font-size:11px">Definir</span>`}
           </td>
-          <td style="text-align:center">
-            <div style="display:flex;align-items:center;justify-content:center;gap:4px">
-              <span style="cursor:pointer" onclick="toggleMsgSemana('${a.id}')">${a.msgSemana?'✅':'❌'}</span>
-              ${a.telefone?`<a href="https://wa.me/${a.telefone.replace(/\D/g,'')}?text=${encodeURIComponent('Eaii '+a.nome.split(' ')[0]+', como foram os treinos essa semana?')}" target="_blank" style="background:#25D366;color:#fff;border-radius:5px;padding:2px 6px;font-size:10px;text-decoration:none;font-weight:600;line-height:1.4">WA</a>`:''}
-            </div>
-          </td>`:''  }
+`:''  }
           <td style="${ro?'':'cursor:pointer'}" onclick="${a.pausado?`togglePausadoPersonal('${a.id}')`:`togglePersonal('${a.id}')`}">
             ${a.pausado?`<span class="badge badge-yellow">Pause</span>`:`<span class="badge ${a.pago?'badge-green':'badge-red'}">${a.pago?'OK':'Pend'}</span>`}
           </td>
@@ -3449,7 +3444,6 @@ function renderPersonalContent(md, tab) {
     <div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);font-size:12px">
       <span style="color:var(--text3)">Total</span>
       <div style="display:flex;align-items:center;gap:12px">
-        ${tab==='online'&&!ro?`<button class="btn btn-ghost btn-sm" onclick="desmarcarTodosMsg()" style="font-size:11px">↺ Msg</button>`:''}
         <span class="mono stat-green">${fmt(tab==='online'?tOl:tPr)}</span>
       </div>
     </div></div>
@@ -3844,19 +3838,6 @@ function saveEditCell_Cali(id, campo) {
   calcValoresCali(md.calistenia); saveData(); closeModal(); setAlunosTab('calistenia');
 }
 
-function toggleMsgSemana(id) {
-  const md = getMonthData();
-  const a = md.personal.online.find(x=>x.id===id);
-  if (!a) return;
-  a.msgSemana = !a.msgSemana;
-  saveData(); setAlunosTab('online');
-}
-
-function desmarcarTodosMsg() {
-  const md = getMonthData();
-  md.personal.online.forEach(a => { a.msgSemana = false; });
-  saveData(); setAlunosTab('online');
-}
 
 function attTreino(id){
   if(guardReadOnly())return;
