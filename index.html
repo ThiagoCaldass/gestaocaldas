@@ -386,16 +386,11 @@
     .stat-label { font-size: 9px; margin-bottom: 4px; }
     .stat-sub { font-size: 10px; }
 
-    /* Tables: no horizontal scroll */
-    .table-scroll { overflow-x: hidden; min-width: 0; }
-    table { width: 100%; table-layout: fixed !important; }
-    /* Reset desktop column widths — visible columns share space evenly */
-    th[style*="width"] { width: auto !important; }
-    th[style*="width:34px"], th[style*="width: 34px"] { width: 30px !important; }
+    /* Tables: horizontal scroll, todas as colunas visíveis */
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: calc(100vw - 24px); }
+    table { min-width: 560px; width: 100%; table-layout: fixed !important; }
     th, td { padding: 6px 8px; font-size: 12px; }
     th { font-size: 9px; letter-spacing: 1px; }
-
-    .hide-mobile { display: none !important; }
 
     /* Touch targets */
     .btn { min-height: 36px; }
@@ -432,13 +427,11 @@
     /* Action buttons compact */
     .btn-sm { padding: 4px 6px; font-size: 11px; min-width: 0; }
     .toggle-btn { padding: 4px 6px; font-size: 11px; min-width: 0; }
-    /* Tighten action cells on mobile */
-    td > div[style*="display:flex"] { gap: 2px !important; }
-    td, th { padding: 8px 8px !important; }
-    /* Action column: fixed width + kill whitespace gaps so all buttons fit */
-    .table-scroll table th:last-child { width: 82px !important; }
+    td, th { padding: 5px 6px !important; }
+    /* Action column: largura fixa + botões compactos */
+    .table-scroll table th:last-child { width: 90px !important; }
     .table-scroll table td:last-child {
-      width: 82px !important;
+      width: 90px !important;
       font-size: 0 !important;
       padding: 4px 2px !important;
     }
