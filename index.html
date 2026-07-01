@@ -3357,7 +3357,7 @@ function renderPersonalContent(md, tab) {
         <th class="hide-mobile" style="width:9%" data-col="acerto" onclick="sortTable('tblPersonal','acerto')">${tab==='online'?'Renov.':'Aulas'}</th>
         ${tab==='online'?`<th style="width:10%" data-col="att" onclick="sortTable('tblPersonal','att')">Treino</th>`:''}
         <th style="width:8%" data-col="pago" onclick="sortTable('tblPersonal','pago','bool')">Status</th>
-        <th style="width:${tab==='online'?'5%':'10%'}"></th>
+        <th style="width:10%"></th>
       </tr></thead>
       <tbody>${list.map(a=>{
         const h0=new Date();h0.setHours(0,0,0,0);
