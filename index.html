@@ -386,11 +386,13 @@
     .stat-label { font-size: 9px; margin-bottom: 4px; }
     .stat-sub { font-size: 10px; }
 
-    /* Tables: no horizontal scroll, keep fixed layout */
+    /* Tables: no horizontal scroll */
     .table-scroll { overflow-x: hidden; min-width: 0; }
     table { width: 100%; table-layout: fixed !important; }
-    td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    th, td { padding: 8px 10px; font-size: 12px; }
+    /* Reset desktop column widths — visible columns share space evenly */
+    th[style*="width"] { width: auto !important; }
+    th[style*="width:34px"], th[style*="width: 34px"] { width: 30px !important; }
+    th, td { padding: 6px 8px; font-size: 12px; }
     th { font-size: 9px; letter-spacing: 1px; }
 
     .hide-mobile { display: none !important; }
