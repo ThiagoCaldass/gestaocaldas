@@ -435,6 +435,17 @@
     /* Tighten action cells on mobile */
     td > div[style*="display:flex"] { gap: 2px !important; }
     td, th { padding: 8px 8px !important; }
+    /* Action column: fixed width + kill whitespace gaps so all buttons fit */
+    .table-scroll table th:last-child { width: 82px !important; }
+    .table-scroll table td:last-child {
+      width: 82px !important;
+      font-size: 0 !important;
+      padding: 4px 2px !important;
+    }
+    .table-scroll table td:last-child .btn-sm {
+      font-size: 10px !important;
+      padding: 2px 4px !important;
+    }
   }
 
   @media (max-width: 480px) {
@@ -5686,7 +5697,7 @@ function brandRenderPage(cnt) {
           </div>
           <div style="font-size:10px;color:var(--text3);margin-top:6px">Versão alternativa<br>fundo claro</div>
         </div>
-        <div style="flex:1;min-width:180px">
+        <div style="flex:1;min-width:0;overflow:hidden;word-break:break-word">
           <div style="font-size:11px;color:var(--text2);line-height:1.8">
             <div>• Borda vermelha <span style="color:#E8200A;font-family:monospace">#E8200A</span>, 4px — nunca alterar</div>
             <div>• Fundo: transparente ou preto <span style="font-family:monospace">#0A0A0A</span></div>
