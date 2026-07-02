@@ -4967,6 +4967,7 @@ const MODALITY_CONFIG = {
 const PERIOD_CONFIG = {
   'Manhã':   { bg: 'rgba(76,175,80,0.12)',  color: '#4CAF50' },
   'Tarde':   { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa' },
+  'Noite':   { bg: 'rgba(251,146,60,0.15)', color: '#fb923c' },
   'Dia todo':{ bg: 'rgba(255,255,255,0.07)', color: '#888'  },
 };
 
@@ -5233,6 +5234,7 @@ function treinoOpenCreate(dayIdx = null) {
         <select id="trPeriodo">
           <option value="Manhã">Manhã</option>
           <option value="Tarde">Tarde</option>
+          <option value="Noite">Noite</option>
           <option value="Dia todo">Dia todo</option>
         </select>
       </div>
@@ -5555,6 +5557,7 @@ function renderTreino() {
       <div style="margin-left:auto;display:flex;gap:6px">
         <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(76,175,80,0.12);color:#4CAF50;letter-spacing:.5px">Manhã</span>
         <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(139,92,246,0.15);color:#a78bfa;letter-spacing:.5px">Tarde</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(251,146,60,0.15);color:#fb923c;letter-spacing:.5px">Noite</span>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:20px">${miniBar}</div>
