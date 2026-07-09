@@ -3513,6 +3513,7 @@ function renderRegistroAulas(list) {
           ${ro?'':` <div style="display:flex;gap:5px;flex-shrink:0">
             <button class="btn btn-primary btn-sm" onclick="addAulaHoje('${a.id}')" ${esgotado?'disabled title="Pacote esgotado"':''}>+ Hoje</button>
             <button class="btn btn-ghost btn-sm" onclick="addAula('${a.id}')">📅</button>
+            ${qtd>0?`<button class="btn btn-ghost btn-sm" onclick="zerarPresencasAluno('${a.id}')" style="color:var(--red)" title="Zerar presenças deste aluno">↺</button>`:''}
           </div>`}
         </div>
 
@@ -3564,6 +3565,7 @@ function renderRegistroAulas(list) {
           ${ro?'':` <div style="display:flex;gap:5px;flex-shrink:0">
             <button class="btn btn-primary btn-sm" onclick="addAulaHoje('${a.id}')">+ Hoje</button>
             <button class="btn btn-ghost btn-sm" onclick="addAula('${a.id}')">📅</button>
+            ${qtd>0?`<button class="btn btn-ghost btn-sm" onclick="zerarPresencasAluno('${a.id}')" style="color:var(--red)" title="Zerar presenças deste aluno">↺</button>`:''}
           </div>`}
         </div>
         ${valorAula > 0 ? `
@@ -3624,6 +3626,16 @@ function resetarPresencas() {
   if (!confirm('Zerar todas as presenças do mês?')) return;
   const md = getMonthData();
   md.personal.presencial.forEach(a => { a.aulasDatas = []; });
+  saveData();
+  setAlunosTab('presencial');
+}
+
+function zerarPresencasAluno(id) {
+  const md = getMonthData();
+  const a = md.personal.presencial.find(x => x.id === id);
+  if (!a) return;
+  if (!confirm(`Zerar presenças de ${a.nome}?`)) return;
+  a.aulasDatas = [];
   saveData();
   setAlunosTab('presencial');
 }
