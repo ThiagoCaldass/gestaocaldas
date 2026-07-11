@@ -622,16 +622,91 @@ async function sbGet(monthKey) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data?month_key=eq.${monthKey}&select=*`, { headers: sbHeaders });
   if (!res.ok) throw new Error(await res.text());
   const rows = await res.json();
-  return rows.length > 0 ? rows[0].data : null;
+  if (rows.length > 0) {
+    if (rows[0].updated_at) lastRemoteUpdatedAt[monthKey] = rows[0].updated_at;
+    dataSnapshots[monthKey] = JSON.parse(JSON.stringify(rows[0].data));
+    return rows[0].data;
+  }
+  return null;
 }
 
 async function sbUpsert(monthKey, data) {
+  // Before saving, check if another device updated the remote since our last fetch.
+  // If yes, merge our local delta on top of the remote data to avoid blind overwrites.
+  try {
+    const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data?month_key=eq.${monthKey}&select=updated_at,data`, { headers: sbHeaders });
+    if (checkRes.ok) {
+      const rows = await checkRes.json();
+      if (rows.length > 0 && rows[0].updated_at && rows[0].updated_at > (lastRemoteUpdatedAt[monthKey] || '')) {
+        const snapshot = dataSnapshots[monthKey];
+        if (snapshot) {
+          data = mergeMonthData(snapshot, data, rows[0].data);
+          cachedData[monthKey] = data;
+          try { localStorage.setItem(`gestor_${monthKey}`, JSON.stringify(data)); } catch(e) {}
+        }
+        lastRemoteUpdatedAt[monthKey] = rows[0].updated_at;
+      }
+    }
+  } catch(e) { /* non-fatal — proceed with local data */ }
+
+  const savedAt = new Date().toISOString();
   const res = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data`, {
     method: 'POST',
     headers: { ...sbHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ month_key: monthKey, data, updated_at: new Date().toISOString() })
+    body: JSON.stringify({ month_key: monthKey, data, updated_at: savedAt })
   });
   if (!res.ok) throw new Error(await res.text());
+  lastRemoteUpdatedAt[monthKey] = savedAt;
+  dataSnapshots[monthKey] = JSON.parse(JSON.stringify(data));
+}
+
+// ── Conflict-free merge helpers ──
+// Computes what changed between snapshot and current local state (per id-keyed array)
+function computeArrayDelta(snapshot, current) {
+  const snapById = {}, currById = {};
+  (snapshot || []).forEach(x => { if (x.id) snapById[x.id] = x; });
+  (current  || []).forEach(x => { if (x.id) currById[x.id] = x; });
+  const added = [], removed = [], modified = [];
+  Object.keys(currById).forEach(id => {
+    if (!snapById[id]) added.push(currById[id]);
+    else if (JSON.stringify(snapById[id]) !== JSON.stringify(currById[id])) modified.push(currById[id]);
+  });
+  Object.keys(snapById).forEach(id => { if (!currById[id]) removed.push(id); });
+  return { added, removed, modified };
+}
+
+// Applies a local delta onto a remote array, preserving remote additions
+function applyArrayDelta(remoteArr, delta) {
+  let result = [...(remoteArr || [])];
+  result = result.filter(x => !delta.removed.includes(x.id));
+  result = result.map(x => delta.modified.find(m => m.id === x.id) || x);
+  const existingIds = new Set(result.map(x => x.id));
+  delta.added.forEach(x => { if (!existingIds.has(x.id)) result.push(x); });
+  // Also keep remote items that are new (added by other device)
+  (remoteArr || []).forEach(x => { if (x.id && !existingIds.has(x.id)) result.push(x); });
+  return result;
+}
+
+// Merges local changes (computed from snapshot→local diff) onto remote data
+function mergeMonthData(snapshot, local, remote) {
+  const merged = JSON.parse(JSON.stringify(remote));
+  const sections = [
+    [x => x.calistenia,         (o,v) => { o.calistenia = v; }],
+    [x => x.personal?.online,   (o,v) => { if (o.personal) o.personal.online = v; }],
+    [x => x.personal?.presencial,(o,v) => { if (o.personal) o.personal.presencial = v; }],
+    [x => x.parcerias,          (o,v) => { o.parcerias = v; }],
+    [x => x.balanco?.ganhos,    (o,v) => { if (o.balanco) o.balanco.ganhos = v; }],
+    [x => x.balanco?.gastos,    (o,v) => { if (o.balanco) o.balanco.gastos = v; }],
+  ];
+  sections.forEach(([getter, setter]) => {
+    const snapArr = getter(snapshot), localArr = getter(local), remoteArr = getter(merged);
+    if (!snapArr || !localArr) return;
+    const delta = computeArrayDelta(snapArr, localArr);
+    if (delta.added.length + delta.removed.length + delta.modified.length > 0) {
+      setter(merged, applyArrayDelta(remoteArr, delta));
+    }
+  });
+  return merged;
 }
 
 // ==================== STATE ====================
@@ -646,6 +721,8 @@ let historicoOverrides = {}; // manual overrides for the Histórico page
 let syncTimeout = null;
 let poupancaSyncTimeout = null;
 let planosSyncTimeout = null;
+let dataSnapshots = {};       // k → snapshot of data at last remote fetch (for conflict merge)
+let lastRemoteUpdatedAt = {}; // k → remote updated_at ISO string at last fetch
 
 // Global planos (editable by user)
 let globalPlanos = [
@@ -6233,9 +6310,54 @@ function validateMonthYear(prefix) {
   if (!m.value && y.value) { showFieldError(prefix+'-m', 'Selecione o mês'); return false; }
   return true;
 }
+// ── Live polling — mantém o app atualizado entre dispositivos ──
+function rerenderCurrentPage() {
+  const md = getMonthData();
+  if (!md) return;
+  switch(currentPage) {
+    case 'dashboard': renderDashboard(md); break;
+    case 'financas':  renderFinancas(md);  break;
+    case 'alunos':    renderAlunos(md);    break;
+    case 'treino':    renderTreino(md);    break;
+    case 'brand':     renderBrand(md);     break;
+    case 'historico': renderHistorico();   break;
+  }
+}
+
+async function checkAndApplyRemoteUpdates() {
+  if (!navigator.onLine || dirtyKeys.size > 0 || syncTimeout) return;
+  const k = monthKey();
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data?month_key=eq.${k}&select=updated_at`, { headers: sbHeaders });
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (rows.length === 0) return;
+    const remoteUpdatedAt = rows[0].updated_at;
+    if (!remoteUpdatedAt || remoteUpdatedAt <= (lastRemoteUpdatedAt[k] || '')) return;
+    // Remote is newer — fetch full data and re-render
+    const fullRes = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data?month_key=eq.${k}&select=*`, { headers: sbHeaders });
+    if (!fullRes.ok) return;
+    const fullRows = await fullRes.json();
+    if (fullRows.length === 0) return;
+    cachedData[k] = fullRows[0].data;
+    lastRemoteUpdatedAt[k] = fullRows[0].updated_at;
+    dataSnapshots[k] = JSON.parse(JSON.stringify(fullRows[0].data));
+    try { localStorage.setItem(`gestor_${k}`, JSON.stringify(cachedData[k])); } catch(e) {}
+    migrateMonthData(cachedData[k]);
+    rerenderCurrentPage();
+    setSyncStatus('synced', '↺ Atualizado');
+    setTimeout(() => setSyncStatus('synced', 'Sincronizado'), 2500);
+  } catch(e) {}
+}
+
+function startLivePolling() {
+  setInterval(checkAndApplyRemoteUpdates, 30000);
+}
+
 // Flush imediato quando o app é ocultado/fechado (confiável no iOS PWA)
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushSave();
+  else checkAndApplyRemoteUpdates();
 });
 
 // ==================== INIT ====================
@@ -6255,6 +6377,7 @@ document.addEventListener('visibilitychange', () => {
     const tlbl = document.getElementById('topbarMonthLabel');
     if (tlbl) tlbl.textContent = `${MONTHS[currentMonth.m].slice(0,3)} ${currentMonth.y}`;
     updateLockUI();
+    startLivePolling();
     navigate('dashboard');
   }
 })();
