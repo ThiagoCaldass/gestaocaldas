@@ -968,6 +968,35 @@ function migrateMonthData(md) {
   });
 }
 
+// Migra alunos de parceria para online com plano='parceria'
+function migrateParceriasToOnline(md) {
+  if (!md.parcerias || md.parcerias.length === 0) return false;
+  if (!md.personal) md.personal = { online: [], presencial: [] };
+  if (!md.personal.online) md.personal.online = [];
+  const existingIds = new Set(md.personal.online.map(x => x.id));
+  md.parcerias.forEach(p => {
+    if (existingIds.has(p.id)) return; // já migrado
+    md.personal.online.push({
+      id: p.id,
+      nome: p.nome,
+      valor: 0,
+      pago: false,
+      diaAcerto: '',
+      plano: 'parceria',
+      proxAtt: p.proxAtt || null,
+      attTreino: p.attTreino || null,
+      obs: p.obs || '',
+      telefone: p.telefone || '',
+      email: p.email || '',
+      nascimento: p.nascimento || '',
+      pausado: false,
+      msgSemana: false,
+    });
+  });
+  md.parcerias = [];
+  return true;
+}
+
 // Find the most recent previous month key that has data in cache
 function findPrevMonthData(k) {
   const [y, m] = k.split('-').map(Number);
@@ -1114,6 +1143,7 @@ async function loadMonthData() {
     // Month exists in Supabase — load it
     cachedData[k] = remote;
     migrateMonthData(cachedData[k]);
+    if (migrateParceriasToOnline(cachedData[k])) saveData();
     setSyncStatus('synced', 'Sincronizado');
     return;
   }
@@ -3080,15 +3110,13 @@ function renderAlunos(md) {
       <button class="tab ${alunosTab==='calistenia'?'active':''}" onclick="setAlunosTab('calistenia')">Calistenia (${md.calistenia.length})</button>
       <button class="tab ${alunosTab==='online'?'active':''}" onclick="setAlunosTab('online')">Online (${md.personal.online.length})</button>
       <button class="tab ${alunosTab==='presencial'?'active':''}" onclick="setAlunosTab('presencial')">Presencial (${md.personal.presencial.length})</button>
-      <button class="tab ${alunosTab==='parcerias'?'active':''}" onclick="setAlunosTab('parcerias')">Parcerias (${(md.parcerias||[]).length})</button>
     </div>
 
     <!-- CONTEÚDO DA ABA -->
     <div id="alunosTabContent">
-      ${alunosTab==='calistenia'  ? renderCalisteniaContent(md) :
-        alunosTab==='online'      ? renderPersonalContent(md,'online') :
-        alunosTab==='presencial'  ? renderPersonalContent(md,'presencial') :
-                                    renderParceriasContent(md)}
+      ${alunosTab==='calistenia' ? renderCalisteniaContent(md) :
+        alunosTab==='online'     ? renderPersonalContent(md,'online') :
+                                   renderPersonalContent(md,'presencial')}
     </div>
   </div>`;
   reapplyAllSorts();
@@ -3100,21 +3128,20 @@ function setAlunosTab(tab) {
   const md = getMonthData();
   const el = document.getElementById('alunosTabContent');
   if (el) el.innerHTML =
-    tab==='calistenia'  ? renderCalisteniaContent(md) :
-    tab==='online'      ? renderPersonalContent(md,'online') :
-    tab==='presencial'  ? renderPersonalContent(md,'presencial') :
-                          renderParceriasContent(md);
+    tab==='calistenia' ? renderCalisteniaContent(md) :
+    tab==='online'     ? renderPersonalContent(md,'online') :
+                         renderPersonalContent(md,'presencial');
   reapplyAllSorts();
   // Update tab buttons
   document.querySelectorAll('.tab').forEach((t,i)=>{
-    const tabs=['calistenia','online','presencial','parcerias'];
+    const tabs=['calistenia','online','presencial'];
     t.classList.toggle('active', tabs[i]===tab);
   });
 }
 
 function openAddAlunoUnified() {
   if (alunosTab==='calistenia') openAddCali();
-  else { personalTab=alunosTab; openAddPersonal(); }
+  else { personalTab = (alunosTab==='presencial') ? 'presencial' : 'online'; openAddPersonal(); }
 }
 
 function renderCalistenia(md) { renderAlunos(md); }
@@ -3425,7 +3452,8 @@ function renderPersonalContent(md, tab) {
         <th style="width:11%" data-col="valor" onclick="sortTable('tblPersonal','valor','num')">Valor</th>
         <th class="hide-mobile" style="width:10%" data-col="plano" onclick="sortTable('tblPersonal','plano')">${tab==='online'?'Plano':'Dia Pgto'}</th>
         <th class="hide-mobile" style="width:9%" data-col="acerto" onclick="sortTable('tblPersonal','acerto')">${tab==='online'?'Renov.':'Aulas'}</th>
-        ${tab==='online'?`<th style="width:10%" data-col="att" onclick="sortTable('tblPersonal','att')">Treino</th><th style="width:9%">📩</th>`:''}
+        ${(tab==='online'||tab==='presencial')?`<th style="width:10%" data-col="att" onclick="sortTable('tblPersonal','att')">Treino</th>`:''}
+        ${tab==='online'?`<th style="width:9%">📩</th>`:''}
         <th style="width:8%" data-col="pago" onclick="sortTable('tblPersonal','pago','bool')">Status</th>
         <th style="width:10%"></th>
       </tr></thead>
@@ -3507,7 +3535,7 @@ function renderPersonalContent(md, tab) {
               </div>`;
             })():`<span style="color:var(--text3);font-size:11px">${(a.aulasDatas||[]).length} aulas</span>`}
           </td>
-          ${tab==='online'?`<td style="${ro?'':'cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
+          ${(tab==='online'||tab==='presencial')?`<td style="${ro?'':'cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
             ${a.pausado?'—':aV?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(a.proxAtt)} !</span>`:aP?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(a.proxAtt)}</span>`:a7?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(a.proxAtt)}</span>`:a.proxAtt?`<span style="color:var(--text2);font-size:12px">${fmtDate(a.proxAtt)}</span>`:`<span style="color:var(--text3);font-size:11px">Definir</span>`}
           </td>
 `:''}
@@ -6344,6 +6372,7 @@ async function checkAndApplyRemoteUpdates() {
     dataSnapshots[k] = JSON.parse(JSON.stringify(fullRows[0].data));
     try { localStorage.setItem(`gestor_${k}`, JSON.stringify(cachedData[k])); } catch(e) {}
     migrateMonthData(cachedData[k]);
+    migrateParceriasToOnline(cachedData[k]);
     rerenderCurrentPage();
     setSyncStatus('synced', '↺ Atualizado');
     setTimeout(() => setSyncStatus('synced', 'Sincronizado'), 2500);
