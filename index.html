@@ -6909,9 +6909,8 @@ renderDashboard = (function(_orig) {
         .dg-pal-btn:hover { border-color:var(--accent) }
         @media (max-width:899px) {
           .dg-grid { grid-template-columns:1fr; grid-auto-flow:row }
-          .dg-widget { grid-column:1/-1!important; grid-row:auto!important; height:auto!important }
+          .dg-widget { grid-column:1/-1!important; grid-row:auto!important }
           .dg-mob-hide { display:none!important }
-          .dg-mob-1{order:1} .dg-mob-2{order:2} .dg-mob-3{order:3} .dg-mob-4{order:4}
         }
       `;
       document.head.appendChild(s);
@@ -6920,7 +6919,7 @@ renderDashboard = (function(_orig) {
     const saldoVsExp  = expSaldo - realSaldo;
     const saldoColor  = realSaldo >= 0 ? 'var(--green)' : 'var(--red)';
 
-    const MOB = {quickadd:'dg-mob-1', saldo:'dg-mob-2', alunos:'dg-mob-3', chart:'dg-mob-4'};
+    const MOB = {quickadd:'', saldo:'', alunos:'', chart:''}; // sem order fixo — usa ordem do DOM
 
     const W = {
       lembretes: () => renderLembretesDashboard(),
@@ -7058,7 +7057,8 @@ renderDashboard = (function(_orig) {
       const rs   = DASH_ROW_SPANS[w.height||'auto'];
       const hStyle  = hpx ? ';height:'+hpx+'px' : '';
       const rsStyle = rs  ? ';grid-row:span '+rs : '';
-      return '<div class="dg-widget '+(MOB[w.id]||'dg-mob-hide')+'" data-wid="'+w.id+'" data-span="'+w.span+'" data-height="'+(w.height||'auto')+'" style="grid-column:span '+w.span+hStyle+rsStyle+'">'+W[w.id]()+'</div>';
+      const mobCls = (w.id in MOB) ? MOB[w.id] : 'dg-mob-hide';
+      return '<div class="dg-widget '+mobCls+'" data-wid="'+w.id+'" data-span="'+w.span+'" data-height="'+(w.height||'auto')+'" style="grid-column:span '+w.span+hStyle+rsStyle+'">'+W[w.id]()+'</div>';
     }).join('');
 
     document.getElementById('content').innerHTML = '<div class="page">'
