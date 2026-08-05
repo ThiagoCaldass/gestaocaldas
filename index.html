@@ -6246,13 +6246,15 @@ window.abrirModalWhatsApp = function(preSelIds) {
   const templates = waGetTemplates();
 
   const listaHtml = comTel.map(a => {
-    const checked = preSet.has(a.id) ? 'checked' : '';
+    const isSel = preSet.has(String(a.id));
     const tel = (a.telefone||'').replace(/\D/g,'');
     const pago = a.pago
       ? `<span style="color:var(--green);font-size:10px">✓ pago</span>`
       : `<span style="color:var(--red);font-size:10px">pendente</span>`;
-    return `<label style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px">
-      <input type="checkbox" data-aid="${a.id}" ${checked} style="width:15px;height:15px;flex-shrink:0">
+    return `<label onclick="waToggleItem(this)" data-aid="${a.id}" data-sel="${isSel?'1':'0'}" style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;border-radius:4px;${isSel?'background:rgba(37,211,102,0.08)':''}">
+      <div style="width:16px;height:16px;border-radius:4px;border:2px solid ${isSel?'#25D366':'var(--border)'};background:${isSel?'#25D366':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 0.15s">
+        ${isSel?'<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+      </div>
       <span style="flex:1;font-weight:500">${a.nome}</span>
       <span style="font-size:10px;color:var(--text3)">${a.tipo}</span>
       ${pago}
@@ -6358,23 +6360,45 @@ window.abrirModalWhatsApp = function(preSelIds) {
   _waStatusInterval = setInterval(waVerificarServidor, 3000);
 };
 
+// Marca/desmarca visualmente um item do modal
+window.waToggleItem = function(label) {
+  const isSel = label.dataset.sel === '1';
+  waSetItem(label, !isSel);
+  waAtualizarContagem();
+};
+
+function waSetItem(label, sel) {
+  label.dataset.sel = sel ? '1' : '0';
+  label.style.background = sel ? 'rgba(37,211,102,0.08)' : '';
+  const box = label.querySelector('div');
+  if (!box) return;
+  box.style.borderColor = sel ? '#25D366' : 'var(--border)';
+  box.style.background  = sel ? '#25D366' : 'transparent';
+  box.innerHTML = sel ? '<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
+}
+
+function waGetSelecionados() {
+  return [...document.querySelectorAll('#wa-lista label[data-sel="1"]')]
+    .map(l => l.dataset.aid).filter(Boolean);
+}
+
 window.waAtualizarContagem = function() {
-  const checks = [...document.querySelectorAll('#wa-lista input[type=checkbox]')];
-  const sel = checks.filter(c => c.checked).length;
+  const total = document.querySelectorAll('#wa-lista label[data-aid]').length;
+  const sel   = document.querySelectorAll('#wa-lista label[data-sel="1"]').length;
   const el = document.getElementById('wa-contagem');
-  if (el) el.textContent = `${sel} de ${checks.length} selecionados`;
+  if (el) el.textContent = sel > 0 ? `${sel} de ${total} selecionados` : `${total} alunos com telefone`;
 };
 
 window.waSelectAll = function(val) {
-  document.querySelectorAll('#wa-lista input[type=checkbox]').forEach(c => c.checked = val);
+  document.querySelectorAll('#wa-lista label[data-aid]').forEach(l => waSetItem(l, val));
   waAtualizarContagem();
 };
 
 window.waSelectPendentes = function() {
   const todos = waColetarTodosAlunos();
-  const pendIds = new Set(todos.filter(a=>!a.pago&&!a.pausado).map(a=>a.id));
-  document.querySelectorAll('#wa-lista input[type=checkbox]').forEach(c => {
-    c.checked = pendIds.has(c.dataset.aid);
+  const pendIds = new Set(todos.filter(a=>!a.pago&&!a.pausado).map(a => String(a.id)));
+  document.querySelectorAll('#wa-lista label[data-aid]').forEach(l => {
+    waSetItem(l, pendIds.has(l.dataset.aid));
   });
   waAtualizarContagem();
 };
@@ -6404,8 +6428,8 @@ window.waBaixarCsv = function() {
   // Monta lista de alunos selecionados
   const todos = waColetarTodosAlunos();
   const mapaAlunos = Object.fromEntries(todos.map(a=>[a.id, a]));
-  const selecionados = [...document.querySelectorAll('#wa-lista input[type=checkbox]:checked')]
-    .map(c => mapaAlunos[c.dataset.aid])
+  const selecionados = waGetSelecionados()
+    .map(id => mapaAlunos[id])
     .filter(a => a && (a.telefone||'').replace(/\D/g,'').length >= 10);
 
   if (!selecionados.length) {
@@ -6513,9 +6537,9 @@ window.waEnviar = async function() {
 
   // Coleta selecionados
   const todos = waColetarTodosAlunos();
-  const mapaAlunos = Object.fromEntries(todos.map(a=>[a.id, a]));
-  const selecionados = [...document.querySelectorAll('#wa-lista input[type=checkbox]:checked')]
-    .map(c => mapaAlunos[c.dataset.aid])
+  const mapaAlunos = Object.fromEntries(todos.map(a=>[String(a.id), a]));
+  const selecionados = waGetSelecionados()
+    .map(id => mapaAlunos[id])
     .filter(a => a && (a.telefone||'').replace(/\D/g,'').length >= 10);
   if (!selecionados.length) { alert('Selecione pelo menos um aluno com telefone cadastrado.'); return; }
 
