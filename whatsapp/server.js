@@ -7,6 +7,7 @@
 const express  = require('express');
 const cors     = require('cors');
 const qrcode   = require('qrcode');
+const path     = require('path');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 
 const app  = express();
@@ -70,20 +71,11 @@ function initClient() {
 
 // ── Rotas da API ─────────────────────────────────────────────────────
 
-// Página de status (acesso direto pelo browser)
+// Serve o site principal (resolve o bloqueio de mixed content HTTPS→HTTP)
+const SITE_PATH = path.resolve(__dirname, '..');
+app.use(express.static(SITE_PATH));
 app.get('/', (req, res) => {
-  const icons = { iniciando:'⏳', qr:'📱', conectado:'✅', desconectado:'🔴' };
-  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>WA Gestor Caldas</title>
-    <style>body{font-family:sans-serif;background:#111;color:#eee;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-    .box{text-align:center;padding:40px;background:#1a1a1a;border-radius:16px;border:1px solid #333}
-    h2{margin:0 0 8px}p{color:#888;margin:0 0 24px}code{background:#222;padding:4px 10px;border-radius:6px;font-size:14px}</style></head>
-    <body><div class="box">
-      <div style="font-size:48px">${icons[waStatus]||'⏳'}</div>
-      <h2>Servidor WhatsApp</h2>
-      <p>Status: <strong style="color:#${waStatus==='conectado'?'22c55e':waStatus==='qr'?'f59e0b':'ef4444'}">${waStatus}</strong></p>
-      <p>Este servidor é usado pelo site Gestor Caldas.<br>Abra o site normalmente e clique em 📲 WA.</p>
-      <code>http://localhost:3001/status</code>
-    </div></body></html>`);
+  res.sendFile(path.join(SITE_PATH, 'index.html'));
 });
 
 // Status e QR code
