@@ -6578,7 +6578,7 @@ window.waEnviar = async function() {
     const r = await fetch(getWaServer() + '/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contatos, mensagens: templates, intervaloMin: 8, intervaloMax: 30 }),
+      body: JSON.stringify({ contatos, mensagens: templates, intervaloMin: 5, intervaloMax: 15 }),
       signal: AbortSignal.timeout(30000)
     });
     if (!r.ok) { const e = await r.json(); throw new Error(e.erro || 'Erro ao iniciar envio'); }
@@ -7027,7 +7027,7 @@ window.wapEnviar = async function() {
     const r = await fetch(getWaServer() + '/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contatos, mensagens: tpls, intervaloMin: 8, intervaloMax: 30 }),
+      body: JSON.stringify({ contatos, mensagens: tpls, intervaloMin: 5, intervaloMax: 15 }),
       signal: AbortSignal.timeout(30000)
     });
     if (!r.ok) throw new Error((await r.json()).erro || 'Erro');
