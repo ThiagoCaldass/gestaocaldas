@@ -1181,6 +1181,37 @@ async function loadMonthData() {
   setSyncStatus('error', 'Offline');
 }
 
+// Carrega todos os meses do ano atual para popular o gráfico anual
+async function loadYearData() {
+  const year = currentMonth.y;
+  const from = `${year}-01`;
+  const to   = `${year}-12`;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/gestor_data?month_key=gte.${from}&month_key=lte.${to}&select=month_key,data`,
+      { headers: sbHeaders }
+    );
+    if (!res.ok) return;
+    const rows = await res.json();
+    rows.forEach(row => {
+      if (!cachedData[row.month_key] && row.data) {
+        cachedData[row.month_key] = row.data;
+        migrateMonthData(cachedData[row.month_key]);
+      }
+    });
+  } catch(e) {
+    // offline — tenta localStorage para os meses anteriores
+    for (let m = 1; m <= currentMonth.m; m++) {
+      const mk = `${year}-${String(m).padStart(2,'0')}`;
+      if (cachedData[mk]) continue;
+      try {
+        const local = localStorage.getItem(`gestor_${mk}`);
+        if (local) cachedData[mk] = JSON.parse(local);
+      } catch(_) {}
+    }
+  }
+}
+
 // Fetch up to 3 previous months from Supabase so seedNewMonth can find alunos
 async function loadPrevMonthForSeed(k) {
   const [y, m] = k.split('-').map(Number);
@@ -7049,6 +7080,8 @@ renderDashboard = (function(_orig) {
   try {
     document.getElementById('loadingMsg').textContent='Carregando dados...';
     await Promise.allSettled([loadMonthData(), loadPoupanca(), loadPlanos(), loadPlanosCali(), loadLembretes()]);
+    // Carrega meses anteriores do ano em background para o gráfico anual
+    loadYearData().then(() => { if (window.renderDashboard) renderDashboard(); }).catch(()=>{});
     document.getElementById('loadingMsg').textContent='Pronto!';
   } catch(e) {
     console.error('Init error:', e);
