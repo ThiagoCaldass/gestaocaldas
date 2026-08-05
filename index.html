@@ -6239,7 +6239,7 @@ function waColetarTodosAlunos() {
 
 const WA_SERVER_KEY = 'wa_server_url';
 function getWaServer() {
-  return localStorage.getItem(WA_SERVER_KEY) || 'https://localhost:3001';
+  return localStorage.getItem(WA_SERVER_KEY) || 'https://wa-caldas.onrender.com';
 }
 // Compat: mantém WA_SERVER como alias para o modal legado
 Object.defineProperty(window, 'WA_SERVER', { get: getWaServer });
@@ -6689,9 +6689,9 @@ function renderWhatsApp() {
       </div>
       <div style="display:flex;align-items:center;gap:8px;padding:7px 16px">
         <span style="font-size:10px;color:var(--text3);flex-shrink:0;white-space:nowrap">🌐 URL do servidor</span>
-        <input id="wap-url-input" value="${localStorage.getItem(WA_SERVER_KEY)||'https://localhost:3001'}"
+        <input id="wap-url-input" value="${localStorage.getItem(WA_SERVER_KEY)||'https://wa-caldas.onrender.com'}"
           style="flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text2);font-size:11px;font-family:monospace"
-          placeholder="https://localhost:3001 ou https://xxx.trycloudflare.com"
+          placeholder="https://wa-caldas.onrender.com"
           onchange="wapSetServerUrl(this.value)">
         <div class="wap-srv-badge" id="wap-srv-badge">
           <span id="wap-srv-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>
@@ -6842,7 +6842,7 @@ function _renderWapAutoReplies(d) {
 
 window.wapSetServerUrl = function(url) {
   const clean = (url || '').trim().replace(/\/$/, '');
-  localStorage.setItem(WA_SERVER_KEY, clean || 'https://localhost:3001');
+  localStorage.setItem(WA_SERVER_KEY, clean || 'https://wa-caldas.onrender.com');
   // Re-testa imediatamente
   wapPollStatus();
 };
