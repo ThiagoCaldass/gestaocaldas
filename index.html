@@ -6244,6 +6244,8 @@ function getWaServer() {
 // Compat: mantém WA_SERVER como alias para o modal legado
 Object.defineProperty(window, 'WA_SERVER', { get: getWaServer });
 let _waStatusInterval = null;
+let _waStatusFails = 0;   // debounce: só marca offline após N falhas consecutivas
+let _waPageStatusFails = 0;
 
 window.abrirModalWhatsApp = function(preSelIds) {
   const todos   = waColetarTodosAlunos();
@@ -6504,9 +6506,10 @@ window.waVerificarServidor = async function() {
   if (!dot) return; // modal fechado
 
   try {
-    const r = await fetch(getWaServer() + '/status', { signal: AbortSignal.timeout(2500) });
+    const r = await fetch(getWaServer() + '/status', { signal: AbortSignal.timeout(7000) });
     if (!r.ok) throw new Error('erro');
     const { status, qr } = await r.json();
+    _waStatusFails = 0; // reset debounce
 
     if (status === 'conectado') {
       dot.style.background   = '#22c55e';
@@ -6532,6 +6535,8 @@ window.waVerificarServidor = async function() {
       info.textContent       = 'Aguarde o servidor inicializar...';
     }
   } catch {
+    _waStatusFails++;
+    if (_waStatusFails < 3) return; // ignora falhas isoladas (Render lento)
     dot.style.background   = '#ef4444';
     label.textContent      = '🔴 Servidor offline';
     qrArea.style.display   = 'none';
@@ -6573,7 +6578,8 @@ window.waEnviar = async function() {
     const r = await fetch(getWaServer() + '/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contatos, mensagens: templates, intervaloMin: 8, intervaloMax: 30 })
+      body: JSON.stringify({ contatos, mensagens: templates, intervaloMin: 8, intervaloMax: 30 }),
+      signal: AbortSignal.timeout(30000)
     });
     if (!r.ok) { const e = await r.json(); throw new Error(e.erro || 'Erro ao iniciar envio'); }
     const { total } = await r.json();
@@ -6611,7 +6617,9 @@ window.waEnviar = async function() {
     }, 1500);
 
   } catch(e) {
-    if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ ${e.message}</span>`;
+    const isNet = e.name === 'TypeError' || e.name === 'AbortError';
+    const msg = isNet ? 'Servidor não respondeu — verifique se está online e tente novamente.' : e.message;
+    if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ ${msg}</span>`;
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Tentar novamente'; }
     if (body) body.style.display = 'grid';
     if (logArea) logArea.style.display = 'none';
@@ -6844,9 +6852,10 @@ async function wapPollStatus() {
   const label = document.getElementById('wap-srv-label');
   if (!dot) { clearInterval(_waPagePollInterval); return; }
   try {
-    const r = await fetch(getWaServer() + '/status', { signal: AbortSignal.timeout(2500) });
+    const r = await fetch(getWaServer() + '/status', { signal: AbortSignal.timeout(7000) });
     const { status } = await r.json();
     _waServerStatus = status;
+    _waPageStatusFails = 0; // reset debounce
     const ok = status === 'conectado';
     dot.style.background = ok ? '#22c55e' : status === 'qr' ? '#f59e0b' : '#f59e0b';
     label.textContent = ok ? '🟢 Conectado' : status === 'qr' ? '📱 Scan QR' : '⏳ ' + status;
@@ -6855,6 +6864,8 @@ async function wapPollStatus() {
       btn.disabled = !ok; btn.style.opacity = ok ? '1' : '.4';
     }
   } catch {
+    _waPageStatusFails++;
+    if (_waPageStatusFails < 3) return; // ignora falhas isoladas (Render lento)
     _waServerStatus = 'offline';
     if (dot) { dot.style.background = '#ef4444'; label.textContent = '🔴 Offline'; }
   }
@@ -7016,7 +7027,8 @@ window.wapEnviar = async function() {
     const r = await fetch(getWaServer() + '/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contatos, mensagens: tpls, intervaloMin: 8, intervaloMax: 30 })
+      body: JSON.stringify({ contatos, mensagens: tpls, intervaloMin: 8, intervaloMax: 30 }),
+      signal: AbortSignal.timeout(30000)
     });
     if (!r.ok) throw new Error((await r.json()).erro || 'Erro');
 
@@ -7042,7 +7054,9 @@ window.wapEnviar = async function() {
       } catch { clearInterval(poll); }
     }, 1500);
   } catch(e) {
-    if (logArea) logArea.innerHTML += `<div style="color:var(--red);font-size:11px;margin-top:5px">❌ ${e.message}</div>`;
+    const isNet = e.name === 'TypeError' || e.name === 'AbortError';
+    const msg = isNet ? 'Servidor não respondeu — verifique se está online e tente novamente.' : e.message;
+    if (logArea) logArea.innerHTML += `<div style="color:var(--red);font-size:11px;margin-top:5px">❌ ${msg}</div>`;
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Enviar'; }
   }
 };
