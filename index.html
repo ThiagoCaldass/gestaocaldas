@@ -6237,7 +6237,12 @@ function waColetarTodosAlunos() {
   return todos;
 }
 
-const WA_SERVER = 'https://localhost:3001';
+const WA_SERVER_KEY = 'wa_server_url';
+function getWaServer() {
+  return localStorage.getItem(WA_SERVER_KEY) || 'https://localhost:3001';
+}
+// Compat: mantém WA_SERVER como alias para o modal legado
+Object.defineProperty(window, 'WA_SERVER', { get: getWaServer });
 let _waStatusInterval = null;
 
 window.abrirModalWhatsApp = function(preSelIds) {
@@ -6499,7 +6504,7 @@ window.waVerificarServidor = async function() {
   if (!dot) return; // modal fechado
 
   try {
-    const r = await fetch(WA_SERVER + '/status', { signal: AbortSignal.timeout(2500) });
+    const r = await fetch(getWaServer() + '/status', { signal: AbortSignal.timeout(2500) });
     if (!r.ok) throw new Error('erro');
     const { status, qr } = await r.json();
 
@@ -6565,7 +6570,7 @@ window.waEnviar = async function() {
   const contatos = selecionados.map(a => ({ nome: a.nome, telefone: (a.telefone||'').replace(/\D/g,'') }));
 
   try {
-    const r = await fetch(WA_SERVER + '/send', {
+    const r = await fetch(getWaServer() + '/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contatos, mensagens: templates, intervaloMin: 8, intervaloMax: 30 })
@@ -6577,7 +6582,7 @@ window.waEnviar = async function() {
     // Poll /send-status
     const poll = setInterval(async () => {
       try {
-        const sr = await fetch(WA_SERVER + '/send-status');
+        const sr = await fetch(getWaServer() + '/send-status');
         const { results, done, total: tot } = await sr.json();
         if (!log) { clearInterval(poll); return; }
 
@@ -6669,12 +6674,24 @@ function renderWhatsApp() {
     </style>
 
     <!-- COMMAND BAR -->
-    <div class="wap-cmd">
-      <span style="color:var(--text3);flex-shrink:0">💻</span>
-      <code>cd "/Users/thiagocaldas/Documents/Claude/Projetos Code/gestao_caldas/whatsapp" && npm start</code>
-      <div class="wap-srv-badge" id="wap-srv-badge">
-        <span id="wap-srv-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>
-        <span id="wap-srv-label">Verificando...</span>
+    <div style="background:var(--surface2);border-bottom:1px solid var(--border)">
+      <div class="wap-cmd" style="border-bottom:1px solid var(--border)">
+        <span style="color:var(--text3);flex-shrink:0">💻</span>
+        <code>cd "/Users/thiagocaldas/Documents/Claude/Projetos Code/gestao_caldas/whatsapp" && npm start</code>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:7px 16px">
+        <span style="font-size:10px;color:var(--text3);flex-shrink:0;white-space:nowrap">🌐 URL do servidor</span>
+        <input id="wap-url-input" value="${localStorage.getItem(WA_SERVER_KEY)||'https://localhost:3001'}"
+          style="flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text2);font-size:11px;font-family:monospace"
+          placeholder="https://localhost:3001 ou https://xxx.trycloudflare.com"
+          onchange="wapSetServerUrl(this.value)">
+        <div class="wap-srv-badge" id="wap-srv-badge">
+          <span id="wap-srv-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>
+          <span id="wap-srv-label">Verificando...</span>
+        </div>
+      </div>
+      <div style="padding:0 16px 8px;font-size:10px;color:var(--text3)">
+        Para acessar do celular: <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;user-select:all">cloudflared tunnel --url https://localhost:3001</code> → cole a URL gerada acima
       </div>
     </div>
 
@@ -6815,12 +6832,19 @@ function _renderWapAutoReplies(d) {
 
 // ── Status polling ──────────────────────────────────────────────────
 
+window.wapSetServerUrl = function(url) {
+  const clean = (url || '').trim().replace(/\/$/, '');
+  localStorage.setItem(WA_SERVER_KEY, clean || 'https://localhost:3001');
+  // Re-testa imediatamente
+  wapPollStatus();
+};
+
 async function wapPollStatus() {
   const dot = document.getElementById('wap-srv-dot');
   const label = document.getElementById('wap-srv-label');
   if (!dot) { clearInterval(_waPagePollInterval); return; }
   try {
-    const r = await fetch(WA_SERVER + '/status', { signal: AbortSignal.timeout(2500) });
+    const r = await fetch(getWaServer() + '/status', { signal: AbortSignal.timeout(2500) });
     const { status } = await r.json();
     _waServerStatus = status;
     const ok = status === 'conectado';
@@ -6989,7 +7013,7 @@ window.wapEnviar = async function() {
   if (btn) { btn.disabled = true; btn.style.opacity = '.5'; btn.textContent = '⏳ Enviando...'; }
 
   try {
-    const r = await fetch(WA_SERVER + '/send', {
+    const r = await fetch(getWaServer() + '/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contatos, mensagens: tpls, intervaloMin: 8, intervaloMax: 30 })
@@ -6998,7 +7022,7 @@ window.wapEnviar = async function() {
 
     const poll = setInterval(async () => {
       try {
-        const { results, done, total } = await (await fetch(WA_SERVER + '/send-status')).json();
+        const { results, done, total } = await (await fetch(getWaServer() + '/send-status')).json();
         const inner = document.getElementById('wap-page-log-inner');
         const footer = document.getElementById('wap-page-log-footer');
         if (!inner) { clearInterval(poll); return; }
@@ -7087,7 +7111,7 @@ window.wapRemoveKw = function(arId, kw) {
 
 async function wapSyncAutoReplies(d) {
   try {
-    await fetch(WA_SERVER + '/autoreplies', {
+    await fetch(getWaServer() + '/autoreplies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ regras: d.autoRespostas.filter(a => a.ativo) })
