@@ -6339,15 +6339,21 @@ window.abrirModalWhatsApp = function(preSelIds) {
       </div>
 
       <!-- FOOTER -->
-      <div style="display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);background:var(--surface2);border-radius:6px;padding:7px 10px;display:flex;align-items:center;gap:8px">
+          <span style="flex-shrink:0">💻 Terminal:</span>
+          <code style="font-size:11px;color:var(--text2);word-break:break-all">cd "/Users/thiagocaldas/Documents/Claude/Projetos Code/gestao_caldas/whatsapp" && npm start</code>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
         <button class="btn btn-ghost" onclick="waFecharModal()" style="flex-shrink:0">Fechar</button>
         <div id="wa-footer-info" style="flex:1;font-size:11px;color:var(--text3)">
-          Inicie o servidor: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">cd gestao_caldas/whatsapp && npm start</code>
+          Inicie o servidor: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">npm start</code>
         </div>
         <button id="wa-send-btn" onclick="waEnviar()" disabled
           style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-weight:700;cursor:pointer;font-size:13px;font-family:'Barlow Condensed';letter-spacing:0.5px;flex-shrink:0;opacity:0.4">
           📲 Enviar mensagens
         </button>
+        </div>
       </div>
     </div>
   `);
