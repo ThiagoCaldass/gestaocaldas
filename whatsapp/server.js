@@ -28,11 +28,15 @@ let job = {
 };
 
 // ── Cliente WhatsApp ─────────────────────────────────────────────────
+// Caminho do Chrome for Testing (versão 148 — funcional no cache local)
+const CHROME_PATH = '/Users/thiagocaldas/.cache/puppeteer/chrome/mac_arm-148.0.7778.97/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
+
 function initClient() {
   waClient = new Client({
     authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
     puppeteer: {
       headless: true,
+      executablePath: CHROME_PATH,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     },
   });
