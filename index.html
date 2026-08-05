@@ -319,6 +319,8 @@
   .selection-bar.has-selection .sel-sum { color:inherit }
   .selection-bar .btn-danger { opacity:0.35;pointer-events:none;transition:opacity 0.15s }
   .selection-bar.has-selection .btn-danger { opacity:1;pointer-events:auto }
+  .selection-bar .btn-wa { opacity:0.35;pointer-events:none;transition:opacity 0.15s;background:transparent;border:1px solid #25D366;color:#25D366;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'Barlow Condensed';letter-spacing:0.5px }
+  .selection-bar.has-selection .btn-wa { opacity:1;pointer-events:auto }
 
   /* QUICK ADD WIDGET */
   .quick-add {
@@ -3180,7 +3182,7 @@ function renderCalisteniaContent(md) {
 
   return `<div>
     <div class="table-card">
-      ${ro ? '' : '<div id="tblCali-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum" style="font-weight:600"></span><button class="btn btn-danger btn-sm" onclick="deleteSelectedCali()" style="margin-left:auto">Excluir</button></div>'}
+      ${ro ? '' : '<div id="tblCali-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum" style="font-weight:600"></span><button class="btn-wa" onclick="waAbrirSelecionados(\'tblCali\')" style="margin-left:auto">📲 Enviar WA</button><button class="btn btn-danger btn-sm" onclick="deleteSelectedCali()">Excluir</button></div>'}
       <div class="table-scroll"><table id="tblCali" style="table-layout:fixed;width:100%">
       <thead><tr>
         ${ro?'<th style="width:34px"></th>':`<th style="width:34px"><div class="row-select-cell-all" onclick="toggleSelectAll('tblCali')" title="Selecionar todos"></div></th>`}
@@ -3470,7 +3472,7 @@ function renderPersonalContent(md, tab) {
   return `<div>
     ${vencidos.length>0?`<div class="notice" style="margin-bottom:10px">⚠ ${vencidos.length} treino(s) vencido(s): ${vencidos.map(a=>a.nome).join(', ')}</div>`:''}
     <div class="table-card">
-      ${ro ? '' : '<div id="tblPersonal-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum" style="font-weight:600"></span><button class="btn btn-danger btn-sm" onclick="deleteSelectedPersonal()" style="margin-left:auto">Excluir</button></div>'}
+      ${ro ? '' : '<div id="tblPersonal-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum" style="font-weight:600"></span><button class="btn-wa" onclick="waAbrirSelecionados(\'tblPersonal\')" style="margin-left:auto">📲 Enviar WA</button><button class="btn btn-danger btn-sm" onclick="deleteSelectedPersonal()">Excluir</button></div>'}
       <div class="table-scroll"><table id="tblPersonal" style="table-layout:fixed;width:100%">
       <thead><tr>
         ${ro?'<th style="width:34px"></th>':`<th style="width:34px"><div class="row-select-cell-all" onclick="toggleSelectAll('tblPersonal')" title="Selecionar todos"></div></th>`}
@@ -6440,6 +6442,13 @@ window.waBaixarCsv = function() {
   setTimeout(() => alert(`✅ Baixados:\n• contatos.csv (${selecionados.length} alunos)\n• mensagens.js (${templates.length} versões)\n\nColoque os dois arquivos em gestao_caldas/whatsapp/ e rode:\n  npm start`), 400);
 };
 
+
+// Abre o modal com os alunos selecionados na tabela pré-marcados
+window.waAbrirSelecionados = function(tableId) {
+  const ids = getSelectedIds(tableId);
+  if (!ids.length) return;
+  abrirModalWhatsApp(ids);
+};
 
 // Fecha o modal e para o polling de status
 window.waFecharModal = function() {
