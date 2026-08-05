@@ -29,6 +29,9 @@ let waStatus  = 'iniciando';   // iniciando | qr | conectado | desconectado
 let waQR      = null;          // data-URL do QR code (PNG base64)
 let waClient  = null;
 
+// Auto-respostas: [{ palavras:[], resposta:'' }]
+let autoReplies = [];
+
 let job = {
   running: false,
   total:   0,
@@ -60,6 +63,24 @@ function initClient() {
     waStatus = 'conectado';
     waQR = null;
     console.log('✅ WhatsApp conectado! O site pode enviar mensagens.\n');
+  });
+
+  waClient.on('message', async (msg) => {
+    if (!autoReplies.length) return;
+    const texto = (msg.body || '').toLowerCase().trim();
+    const regra = autoReplies.find(r =>
+      r.palavras.some(p => texto.includes(p.toLowerCase()))
+    );
+    if (!regra || !regra.resposta) return;
+    try {
+      const contact = await msg.getContact();
+      const nome = contact.pushname || contact.name || 'você';
+      const resposta = regra.resposta.replace(/\{nome\}/g, nome);
+      await msg.reply(resposta);
+      console.log(`🤖 Auto-resposta para ${nome}: "${texto}" → regra correspondida`);
+    } catch(e) {
+      console.error('❌ Erro na auto-resposta:', e.message);
+    }
   });
 
   waClient.on('auth_failure', () => {
@@ -151,6 +172,18 @@ app.post('/send', async (req, res) => {
     job.done    = true;
     console.log('\n✔️  Envio concluído.\n');
   })();
+});
+
+// Auto-respostas
+app.get('/autoreplies', (req, res) => {
+  res.json({ regras: autoReplies });
+});
+
+app.post('/autoreplies', (req, res) => {
+  const { regras = [] } = req.body;
+  autoReplies = regras;
+  console.log(`🤖 Auto-respostas atualizadas: ${regras.length} regra(s) ativa(s)`);
+  res.json({ ok: true });
 });
 
 // Progresso do envio atual

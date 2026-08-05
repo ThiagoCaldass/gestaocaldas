@@ -543,6 +543,7 @@
 
       <div class="nav-section">Trabalho</div>
       <div class="nav-item" data-page="alunos" onclick="navigate('alunos');closeSidebar()"><span class="icon">◯</span> Alunos</div>
+      <div class="nav-item" data-page="whatsapp" onclick="navigate('whatsapp');closeSidebar()"><span class="icon">📲</span> WhatsApp</div>
       <div class="nav-section">Social Media</div>
       <div class="nav-item" data-page="brand" onclick="navigate('brand');closeSidebar()"><span class="icon">◉</span> Identidade Visual</div>
       <div class="nav-section">Análise</div>
@@ -1442,9 +1443,9 @@ async function navigate(page) {
 
   const titles = {
     dashboard:'DASHBOARD', balanco:'BALANÇO', cartao:'CARTÃO',
-    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO'
+    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO', whatsapp:'WHATSAPP'
   };
-  document.getElementById('topbarMonthNav').style.display = page === 'historico' ? 'none' : 'flex';
+  document.getElementById('topbarMonthNav').style.display = (page === 'historico' || page === 'whatsapp') ? 'none' : 'flex';
   document.getElementById('pageTitle').textContent = titles[page]||page.toUpperCase();
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="confirmarResetMes()" title="Resetar mês" style="color:var(--text3);font-size:11px">↺ Reset</button>`;
   document.getElementById('content').innerHTML = '';
@@ -1470,6 +1471,7 @@ async function navigate(page) {
     case 'treino':       renderTreino(); break;
     case 'brand':        renderBrand(); break;
     case 'historico':    await renderHistorico(); break;
+    case 'whatsapp':     renderWhatsApp(); break;
   }
 }
 
@@ -6610,6 +6612,488 @@ window.waEnviar = async function() {
     if (logArea) logArea.style.display = 'none';
   }
 };
+
+// ==================== WHATSAPP PAGE ====================
+
+const WA_PAGE_KEY = 'wa_page_data';
+const WA_CAT_CORES = ['#25D366','#35c8f1','#f1c135','#e8200a','#a78bfa','#fb923c','#34d399'];
+
+function waPageGet() {
+  try { return JSON.parse(localStorage.getItem(WA_PAGE_KEY)) || { categorias:[], autoRespostas:[] }; }
+  catch { return { categorias:[], autoRespostas:[] }; }
+}
+function waPageSave(d) { localStorage.setItem(WA_PAGE_KEY, JSON.stringify(d)); }
+
+// Estado da página
+let _waCatAtiva = null;
+let _waServerStatus = 'desconhecido';
+let _waPagePollInterval = null;
+
+function renderWhatsApp() {
+  // Para o polling do modal se estiver ativo
+  if (_waStatusInterval) { clearInterval(_waStatusInterval); _waStatusInterval = null; }
+
+  const d = waPageGet();
+  if (!_waCatAtiva || !d.categorias.find(c => c.id === _waCatAtiva)) {
+    _waCatAtiva = d.categorias[0]?.id || null;
+  }
+
+  document.getElementById('content').innerHTML = `
+    <style>
+      .wap-cmd { display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px }
+      .wap-cmd code { background:var(--surface3);padding:3px 8px;border-radius:5px;color:var(--text2);font-size:12px;user-select:all;cursor:text;flex:1 }
+      .wap-srv-badge { display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:16px;font-size:11px;font-weight:600;border:1px solid var(--border);background:var(--surface);flex-shrink:0 }
+      .wap-grid { display:grid;grid-template-columns:1fr 1fr;gap:0;height:calc(100vh - 130px);overflow:hidden }
+      @media(max-width:899px){ .wap-grid { grid-template-columns:1fr;height:auto;overflow:auto } }
+      .wap-col { display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border) }
+      .wap-col:last-child { border-right:none }
+      .wap-col-h { padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0 }
+      .wap-col-h-title { font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--text3) }
+      .wap-cats { display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0 }
+      .wap-cat-chip { padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:2px solid transparent;transition:all .15s;font-family:'Barlow Condensed';letter-spacing:.5px }
+      .wap-cat-chip.active { color:#000 }
+      .wap-cat-chip:not(.active) { background:var(--surface2);color:var(--text3) }
+      .wap-contacts { flex:1;overflow-y:auto }
+      .wap-contact-row { display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--border);font-size:12px }
+      .wap-contact-row:hover { background:var(--surface2) }
+      .wap-chk { width:16px;height:16px;border-radius:4px;border:2px solid var(--border);background:transparent;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s }
+      .wap-chk.on { border-color:#25D366;background:#25D366 }
+      .wap-add-contact { padding:10px 14px;display:flex;gap:6px;border-top:1px solid var(--border);flex-shrink:0 }
+      .wap-add-contact input { flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;font-family:inherit }
+      .wap-selbar { padding:8px 14px;background:var(--surface2);border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;font-size:11px;color:var(--text3) }
+      .wap-tpl { display:flex;gap:6px;margin-bottom:8px }
+      .wap-tpl textarea { flex:1;min-height:60px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;resize:vertical;font-family:inherit }
+      .wap-ar-rule { background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px }
+      .wap-ar-kw { display:inline-flex;align-items:center;gap:4px;background:var(--surface3);border-radius:4px;padding:2px 7px;font-size:11px;margin:2px }
+      .wap-log { background:var(--surface2);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;max-height:180px;overflow-y:auto;margin-top:10px }
+    </style>
+
+    <!-- COMMAND BAR -->
+    <div class="wap-cmd">
+      <span style="color:var(--text3);flex-shrink:0">💻</span>
+      <code>cd "/Users/thiagocaldas/Documents/Claude/Projetos Code/gestao_caldas/whatsapp" && npm start</code>
+      <div class="wap-srv-badge" id="wap-srv-badge">
+        <span id="wap-srv-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>
+        <span id="wap-srv-label">Verificando...</span>
+      </div>
+    </div>
+
+    <!-- MAIN GRID -->
+    <div class="wap-grid">
+
+      <!-- COL 1: CATEGORIAS + CONTATOS -->
+      <div class="wap-col">
+        <div class="wap-col-h">
+          <span class="wap-col-h-title">Categorias</span>
+          <button onclick="wapNovaCat()" style="font-size:11px;padding:3px 10px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer">+ Nova</button>
+        </div>
+        <div class="wap-cats" id="wap-cats">${_renderWapCats(d)}</div>
+        <div id="wap-cat-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">
+          ${_renderWapCatBody(d)}
+        </div>
+      </div>
+
+      <!-- COL 2: MENSAGEM + ENVIO -->
+      <div class="wap-col">
+        <div class="wap-col-h">
+          <span class="wap-col-h-title">Mensagem</span>
+          <button onclick="wapAddTpl()" style="font-size:11px;padding:3px 10px;background:transparent;border:1px solid var(--green);border-radius:6px;color:var(--green);cursor:pointer">+ Versão</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:12px 14px" id="wap-tpls">
+          ${_renderWapTpls(d)}
+        </div>
+        <div style="padding:10px 14px;background:var(--surface2);border-top:1px solid var(--border);font-size:11px;color:var(--text3);line-height:1.5;flex-shrink:0">
+          💡 Use <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{nome}</code> para personalizar. O robô sorteia uma versão por pessoa.
+        </div>
+        <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <div style="flex:1;font-size:11px;color:var(--text3)" id="wap-send-info">Selecione contatos para enviar</div>
+          <button id="wap-send-btn" onclick="wapEnviar()" disabled
+            style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-weight:700;cursor:pointer;font-size:13px;font-family:'Barlow Condensed';letter-spacing:.5px;opacity:.4">
+            📲 Enviar
+          </button>
+        </div>
+        <div id="wap-page-log" style="display:none;padding:0 14px 14px"></div>
+      </div>
+    </div>
+
+    <!-- AUTO-RESPOSTAS -->
+    <div style="border-top:2px solid var(--border);padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--text3)">Auto-respostas</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Quando alguém responder com uma palavra-chave, o robô manda a mensagem automaticamente</div>
+        </div>
+        <button onclick="wapAddAutoReply()" style="font-size:11px;padding:4px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;flex-shrink:0">+ Nova regra</button>
+      </div>
+      <div id="wap-ar-list">${_renderWapAutoReplies(d)}</div>
+    </div>
+  `;
+
+  // Polling status
+  wapPollStatus();
+  _waPagePollInterval = setInterval(wapPollStatus, 3000);
+  wapAtualizarSelbar();
+}
+
+// ── Renders parciais ────────────────────────────────────────────────
+
+function _renderWapCats(d) {
+  if (!d.categorias.length) return '<span style="font-size:11px;color:var(--text3)">Nenhuma categoria</span>';
+  return d.categorias.map(c => {
+    const active = c.id === _waCatAtiva;
+    return `<div class="wap-cat-chip ${active?'active':''}" style="${active?`background:${c.cor};border-color:${c.cor}`:`border-color:var(--border)`}" onclick="wapSetCat('${c.id}')">${c.nome}</div>`;
+  }).join('');
+}
+
+function _renderWapCatBody(d) {
+  const cat = d.categorias.find(c => c.id === _waCatAtiva);
+  if (!cat) return `<div style="padding:40px;text-align:center;color:var(--text3);font-size:12px">Crie uma categoria para começar</div>`;
+
+  const contatos = cat.contatos || [];
+  const rows = contatos.map(ct => `
+    <div class="wap-contact-row" data-cid="${ct.id}">
+      <div class="wap-chk" onclick="wapToggleContact('${ct.id}')" data-cid="${ct.id}" title="Selecionar"></div>
+      <span style="flex:1;font-weight:500">${ct.nome}</span>
+      <span style="color:var(--text3);font-size:11px">${(ct.telefone||'').replace(/\D/g,'')}</span>
+      <button onclick="wapRemoveContact('${cat.id}','${ct.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:2px 4px;font-size:14px;flex-shrink:0">✕</button>
+    </div>`).join('');
+
+  return `
+    <div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <span style="font-weight:600;color:var(--text)">${cat.nome}</span>
+      <div style="width:10px;height:10px;border-radius:50%;background:${cat.cor};flex-shrink:0"></div>
+      <button onclick="wapEditCat('${cat.id}')" style="font-size:10px;padding:2px 7px;background:transparent;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text3)">Editar</button>
+      <button onclick="wapDeleteCat('${cat.id}')" style="font-size:10px;padding:2px 7px;background:transparent;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--red);margin-left:auto">Excluir</button>
+    </div>
+    <div class="wap-contacts" id="wap-contacts-list">
+      ${rows || '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum contato</div>'}
+    </div>
+    <div class="wap-add-contact">
+      <input id="wap-new-nome" placeholder="Nome" style="max-width:130px">
+      <input id="wap-new-tel" placeholder="Telefone" type="tel">
+      <button onclick="wapAddContact('${cat.id}')" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;flex-shrink:0">+</button>
+    </div>
+    <div class="wap-selbar" id="wap-selbar">
+      <button onclick="wapSelectAllContacts(true)" style="font-size:10px;padding:2px 7px;border:1px solid var(--border);background:transparent;border-radius:4px;cursor:pointer;color:var(--text2)">Todos</button>
+      <button onclick="wapSelectAllContacts(false)" style="font-size:10px;padding:2px 7px;border:1px solid var(--border);background:transparent;border-radius:4px;cursor:pointer;color:var(--text2)">Nenhum</button>
+      <span id="wap-selcount" style="flex:1;text-align:right;font-size:11px">0 selecionados</span>
+    </div>`;
+}
+
+function _renderWapTpls(d) {
+  const cat = d.categorias.find(c => c.id === _waCatAtiva);
+  const tpls = cat?.templates || waGetTemplates();
+  if (!tpls.length) return '<div style="color:var(--text3);font-size:12px;padding:8px 0">Nenhuma versão. Clique em "+ Versão" para adicionar.</div>';
+  return tpls.map((t, i) => `
+    <div class="wap-tpl" data-tpl="${i}">
+      <textarea data-tpl="${i}" onchange="wapSaveTpls()">${t}</textarea>
+      <button onclick="wapRemoveTpl(${i})" style="padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text3);cursor:pointer;align-self:flex-start">✕</button>
+    </div>`).join('');
+}
+
+function _renderWapAutoReplies(d) {
+  if (!d.autoRespostas.length) return '<div style="color:var(--text3);font-size:12px">Nenhuma regra. Clique em "+ Nova regra" para criar.</div>';
+  return d.autoRespostas.map(ar => `
+    <div class="wap-ar-rule" id="wap-ar-${ar.id}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:11px;font-weight:600;color:var(--text2)">Palavras-chave (responde se a mensagem contiver uma delas):</span>
+        <label style="margin-left:auto;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px">
+          <input type="checkbox" ${ar.ativo?'checked':''} onchange="wapToggleAR('${ar.id}',this.checked)">
+          Ativa
+        </label>
+        <button onclick="wapDeleteAR('${ar.id}')" style="font-size:10px;padding:2px 7px;background:transparent;border:1px solid var(--red);border-radius:4px;cursor:pointer;color:var(--red)">Excluir</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;align-items:center" id="wap-kws-${ar.id}">
+        ${ar.palavras.map(p => `<span class="wap-ar-kw">${p}<span onclick="wapRemoveKw('${ar.id}','${p}')" style="cursor:pointer;margin-left:4px;color:var(--text3)">×</span></span>`).join('')}
+        <input id="wap-kw-inp-${ar.id}" placeholder="+ palavra" style="width:90px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--text);font-size:11px;font-family:inherit"
+          onkeydown="if(event.key==='Enter'||event.key===','){event.preventDefault();wapAddKw('${ar.id}',this)}">
+      </div>
+      <textarea rows="3" style="width:100%;box-sizing:border-box;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text);font-size:12px;resize:vertical;font-family:inherit"
+        onchange="wapSaveAR('${ar.id}',this.value)" placeholder="Resposta automática... use {nome}">${ar.resposta||''}</textarea>
+    </div>`).join('');
+}
+
+// ── Status polling ──────────────────────────────────────────────────
+
+async function wapPollStatus() {
+  const dot = document.getElementById('wap-srv-dot');
+  const label = document.getElementById('wap-srv-label');
+  if (!dot) { clearInterval(_waPagePollInterval); return; }
+  try {
+    const r = await fetch(WA_SERVER + '/status', { signal: AbortSignal.timeout(2500) });
+    const { status } = await r.json();
+    _waServerStatus = status;
+    const ok = status === 'conectado';
+    dot.style.background = ok ? '#22c55e' : status === 'qr' ? '#f59e0b' : '#f59e0b';
+    label.textContent = ok ? '🟢 Conectado' : status === 'qr' ? '📱 Scan QR' : '⏳ ' + status;
+    const btn = document.getElementById('wap-send-btn');
+    if (btn && btn.dataset.ready === '1') {
+      btn.disabled = !ok; btn.style.opacity = ok ? '1' : '.4';
+    }
+  } catch {
+    _waServerStatus = 'offline';
+    if (dot) { dot.style.background = '#ef4444'; label.textContent = '🔴 Offline'; }
+  }
+}
+
+// ── Categorias CRUD ─────────────────────────────────────────────────
+
+window.wapSetCat = function(id) {
+  _waCatAtiva = id;
+  const d = waPageGet();
+  document.getElementById('wap-cats').innerHTML = _renderWapCats(d);
+  document.getElementById('wap-cat-body').innerHTML = _renderWapCatBody(d);
+  document.getElementById('wap-tpls').innerHTML = _renderWapTpls(d);
+  wapAtualizarSelbar();
+};
+
+window.wapNovaCat = function() {
+  const nome = prompt('Nome da categoria (ex: Leads, Follow-up, Cobrança):');
+  if (!nome?.trim()) return;
+  const d = waPageGet();
+  const cor = WA_CAT_CORES[d.categorias.length % WA_CAT_CORES.length];
+  const cat = { id: 'cat-'+Date.now(), nome: nome.trim(), cor, contatos: [], templates: [] };
+  d.categorias.push(cat);
+  waPageSave(d);
+  _waCatAtiva = cat.id;
+  renderWhatsApp();
+};
+
+window.wapEditCat = function(id) {
+  const d = waPageGet();
+  const cat = d.categorias.find(c => c.id === id);
+  if (!cat) return;
+  const nome = prompt('Novo nome:', cat.nome);
+  if (!nome?.trim()) return;
+  cat.nome = nome.trim();
+  waPageSave(d);
+  document.getElementById('wap-cats').innerHTML = _renderWapCats(d);
+  document.getElementById('wap-cat-body').innerHTML = _renderWapCatBody(d);
+};
+
+window.wapDeleteCat = function(id) {
+  if (!confirm('Excluir esta categoria e todos os contatos?')) return;
+  const d = waPageGet();
+  d.categorias = d.categorias.filter(c => c.id !== id);
+  _waCatAtiva = d.categorias[0]?.id || null;
+  waPageSave(d);
+  renderWhatsApp();
+};
+
+// ── Contatos CRUD ───────────────────────────────────────────────────
+
+window.wapAddContact = function(catId) {
+  const nome = document.getElementById('wap-new-nome')?.value.trim();
+  const tel  = document.getElementById('wap-new-tel')?.value.trim();
+  if (!nome || !tel) { alert('Preencha nome e telefone.'); return; }
+  const d = waPageGet();
+  const cat = d.categorias.find(c => c.id === catId);
+  if (!cat) return;
+  cat.contatos.push({ id: 'ct-'+Date.now(), nome, telefone: tel });
+  waPageSave(d);
+  document.getElementById('wap-new-nome').value = '';
+  document.getElementById('wap-new-tel').value = '';
+  document.getElementById('wap-contacts-list').innerHTML = _renderWapCatBody(d).match(/id="wap-contacts-list"[^>]*>([\s\S]*?)<\/div>/)?.[1] || '';
+  document.getElementById('wap-cat-body').innerHTML = _renderWapCatBody(d);
+  wapAtualizarSelbar();
+};
+
+window.wapRemoveContact = function(catId, ctId) {
+  const d = waPageGet();
+  const cat = d.categorias.find(c => c.id === catId);
+  if (!cat) return;
+  cat.contatos = cat.contatos.filter(c => c.id !== ctId);
+  waPageSave(d);
+  document.getElementById('wap-cat-body').innerHTML = _renderWapCatBody(d);
+  wapAtualizarSelbar();
+};
+
+window.wapToggleContact = function(ctId) {
+  const chk = document.querySelector(`.wap-chk[data-cid="${ctId}"]`);
+  if (!chk) return;
+  const on = !chk.classList.contains('on');
+  chk.classList.toggle('on', on);
+  chk.innerHTML = on ? '<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
+  wapAtualizarSelbar();
+};
+
+window.wapSelectAllContacts = function(val) {
+  document.querySelectorAll('.wap-chk[data-cid]').forEach(chk => {
+    chk.classList.toggle('on', val);
+    chk.innerHTML = val ? '<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
+  });
+  wapAtualizarSelbar();
+};
+
+function wapAtualizarSelbar() {
+  const sel = document.querySelectorAll('.wap-chk.on').length;
+  const tot = document.querySelectorAll('.wap-chk[data-cid]').length;
+  const countEl = document.getElementById('wap-selcount');
+  if (countEl) countEl.textContent = sel > 0 ? `${sel} de ${tot} selecionados` : `${tot} contatos`;
+  const info = document.getElementById('wap-send-info');
+  const btn  = document.getElementById('wap-send-btn');
+  if (info) info.textContent = sel > 0 ? `${sel} contato(s) selecionado(s)` : 'Selecione contatos para enviar';
+  if (btn) {
+    const ok = sel > 0 && _waServerStatus === 'conectado';
+    btn.disabled = !ok;
+    btn.style.opacity = ok ? '1' : '.4';
+    btn.dataset.ready = sel > 0 ? '1' : '0';
+  }
+}
+
+// ── Templates ───────────────────────────────────────────────────────
+
+window.wapAddTpl = function() {
+  const container = document.getElementById('wap-tpls');
+  if (!container) return;
+  const i = container.querySelectorAll('[data-tpl]').length;
+  const div = document.createElement('div');
+  div.className = 'wap-tpl'; div.dataset.tpl = i;
+  div.innerHTML = `<textarea data-tpl="${i}" onchange="wapSaveTpls()" style="flex:1;min-height:60px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;resize:vertical;font-family:inherit" placeholder="Oi {nome}, ..."></textarea>
+    <button onclick="wapRemoveTpl(${i})" style="padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text3);cursor:pointer;align-self:flex-start">✕</button>`;
+  container.appendChild(div);
+};
+
+window.wapRemoveTpl = function(i) {
+  document.querySelector(`#wap-tpls [data-tpl="${i}"]`)?.remove();
+  wapSaveTpls();
+};
+
+window.wapSaveTpls = function() {
+  const d = waPageGet();
+  const cat = d.categorias.find(c => c.id === _waCatAtiva);
+  const tpls = [...document.querySelectorAll('#wap-tpls textarea')].map(t => t.value.trim()).filter(Boolean);
+  if (cat) cat.templates = tpls;
+  else waSaveTemplates(tpls);
+  waPageSave(d);
+};
+
+// ── Envio ───────────────────────────────────────────────────────────
+
+window.wapEnviar = async function() {
+  const d = waPageGet();
+  const cat = d.categorias.find(c => c.id === _waCatAtiva);
+  wapSaveTpls();
+  const tpls = [...document.querySelectorAll('#wap-tpls textarea')].map(t => t.value.trim()).filter(Boolean);
+  if (!tpls.length) { alert('Adicione pelo menos uma versão de mensagem.'); return; }
+
+  const selIds = new Set([...document.querySelectorAll('.wap-chk.on')].map(c => c.dataset.cid));
+  const contatos = (cat?.contatos || [])
+    .filter(c => selIds.has(c.id) && (c.telefone||'').replace(/\D/g,'').length >= 10)
+    .map(c => ({ nome: c.nome, telefone: c.telefone }));
+  if (!contatos.length) { alert('Nenhum contato selecionado com telefone válido.'); return; }
+
+  const logArea = document.getElementById('wap-page-log');
+  const btn = document.getElementById('wap-send-btn');
+  if (logArea) { logArea.style.display = 'block'; logArea.innerHTML = `<div class="wap-log" id="wap-page-log-inner">Iniciando envio para ${contatos.length} contato(s)...</div><div id="wap-page-log-footer" style="font-size:11px;color:var(--text3);margin-top:5px"></div>`; }
+  if (btn) { btn.disabled = true; btn.style.opacity = '.5'; btn.textContent = '⏳ Enviando...'; }
+
+  try {
+    const r = await fetch(WA_SERVER + '/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contatos, mensagens: tpls, intervaloMin: 8, intervaloMax: 30 })
+    });
+    if (!r.ok) throw new Error((await r.json()).erro || 'Erro');
+
+    const poll = setInterval(async () => {
+      try {
+        const { results, done, total } = await (await fetch(WA_SERVER + '/send-status')).json();
+        const inner = document.getElementById('wap-page-log-inner');
+        const footer = document.getElementById('wap-page-log-footer');
+        if (!inner) { clearInterval(poll); return; }
+        inner.innerHTML = results.map((r,i) => {
+          const ico = r.status==='enviado'?'✅':r.status==='sem_whatsapp'?'⚠️':'❌';
+          const cor = r.status==='enviado'?'var(--green)':r.status==='sem_whatsapp'?'#f59e0b':'var(--red)';
+          return `<span style="color:${cor}">${ico} [${i+1}/${total}] ${r.nome} — ${r.status}</span>`;
+        }).join('\n') || 'Aguardando...';
+        inner.scrollTop = inner.scrollHeight;
+        if (footer) footer.textContent = `${results.length} de ${total} processados`;
+        if (done) {
+          clearInterval(poll);
+          const env = results.filter(r=>r.status==='enviado').length;
+          if (footer) footer.innerHTML = `<strong>✔️ Concluído: ${env} enviados · ${results.length-env} outros</strong>`;
+          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '✔️ Concluído'; }
+        }
+      } catch { clearInterval(poll); }
+    }, 1500);
+  } catch(e) {
+    if (logArea) logArea.innerHTML += `<div style="color:var(--red);font-size:11px;margin-top:5px">❌ ${e.message}</div>`;
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Enviar'; }
+  }
+};
+
+// ── Auto-respostas ──────────────────────────────────────────────────
+
+window.wapAddAutoReply = function() {
+  const d = waPageGet();
+  d.autoRespostas.push({ id: 'ar-'+Date.now(), ativo: true, palavras: [], resposta: '' });
+  waPageSave(d);
+  document.getElementById('wap-ar-list').innerHTML = _renderWapAutoReplies(d);
+  wapSyncAutoReplies(d);
+};
+
+window.wapDeleteAR = function(id) {
+  if (!confirm('Excluir esta regra?')) return;
+  const d = waPageGet();
+  d.autoRespostas = d.autoRespostas.filter(a => a.id !== id);
+  waPageSave(d);
+  document.getElementById('wap-ar-list').innerHTML = _renderWapAutoReplies(d);
+  wapSyncAutoReplies(d);
+};
+
+window.wapToggleAR = function(id, val) {
+  const d = waPageGet();
+  const ar = d.autoRespostas.find(a => a.id === id);
+  if (ar) ar.ativo = val;
+  waPageSave(d);
+  wapSyncAutoReplies(d);
+};
+
+window.wapSaveAR = function(id, resposta) {
+  const d = waPageGet();
+  const ar = d.autoRespostas.find(a => a.id === id);
+  if (ar) ar.resposta = resposta;
+  waPageSave(d);
+  wapSyncAutoReplies(d);
+};
+
+window.wapAddKw = function(arId, input) {
+  const kw = input.value.replace(/,/g,'').trim().toLowerCase();
+  if (!kw) return;
+  const d = waPageGet();
+  const ar = d.autoRespostas.find(a => a.id === arId);
+  if (!ar || ar.palavras.includes(kw)) { input.value = ''; return; }
+  ar.palavras.push(kw);
+  waPageSave(d);
+  input.value = '';
+  const kwsEl = document.getElementById(`wap-kws-${arId}`);
+  if (kwsEl) kwsEl.innerHTML = ar.palavras.map(p => `<span class="wap-ar-kw">${p}<span onclick="wapRemoveKw('${arId}','${p}')" style="cursor:pointer;margin-left:4px;color:var(--text3)">×</span></span>`).join('') +
+    `<input id="wap-kw-inp-${arId}" placeholder="+ palavra" style="width:90px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--text);font-size:11px;font-family:inherit" onkeydown="if(event.key==='Enter'||event.key===','){event.preventDefault();wapAddKw('${arId}',this)}">`;
+  wapSyncAutoReplies(d);
+};
+
+window.wapRemoveKw = function(arId, kw) {
+  const d = waPageGet();
+  const ar = d.autoRespostas.find(a => a.id === arId);
+  if (!ar) return;
+  ar.palavras = ar.palavras.filter(p => p !== kw);
+  waPageSave(d);
+  const kwsEl = document.getElementById(`wap-kws-${arId}`);
+  if (kwsEl) kwsEl.innerHTML = ar.palavras.map(p => `<span class="wap-ar-kw">${p}<span onclick="wapRemoveKw('${arId}','${p}')" style="cursor:pointer;margin-left:4px;color:var(--text3)">×</span></span>`).join('') +
+    `<input id="wap-kw-inp-${arId}" placeholder="+ palavra" style="width:90px;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--text);font-size:11px;font-family:inherit" onkeydown="if(event.key==='Enter'||event.key===','){event.preventDefault();wapAddKw('${arId}',this)}">`;
+  wapSyncAutoReplies(d);
+};
+
+async function wapSyncAutoReplies(d) {
+  try {
+    await fetch(WA_SERVER + '/autoreplies', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ regras: d.autoRespostas.filter(a => a.ativo) })
+    });
+  } catch {}
+}
 
 // ==================== DRAG & DROP REORDER ====================
 let dragSrcRow = null;
