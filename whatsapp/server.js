@@ -162,8 +162,29 @@ async function initClient() {
 const SITE = path.resolve(__dirname, '..');
 if (!IS_RENDER && fs.existsSync(path.join(SITE, 'index.html'))) {
   app.use(express.static(SITE));
-  app.get('/', (req, res) => res.sendFile(path.join(SITE, 'index.html')));
 }
+
+// Página de status com QR — acessível em qualquer ambiente
+app.get('/', (req, res) => {
+  const icons = { iniciando:'⏳', qr:'📱', conectado:'✅', reconectando:'🔄', desconectado:'🔴' };
+  const cor   = waStatus === 'conectado' ? '#22c55e' : waStatus === 'qr' ? '#f59e0b' : '#ef4444';
+  const qrHtml = waQR
+    ? `<img src="${waQR}" style="width:220px;height:220px;border-radius:12px;background:#fff;padding:10px;margin:16px 0"><p style="color:#aaa;font-size:13px">WhatsApp → Aparelhos conectados → Conectar aparelho</p>`
+    : '';
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>WA Gestor Caldas</title>
+    <meta http-equiv="refresh" content="5">
+    <style>*{box-sizing:border-box}body{margin:0;background:#111;color:#eee;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+    .box{text-align:center;padding:32px 40px;background:#1a1a1a;border-radius:16px;border:1px solid #333;max-width:400px;width:100%}
+    h2{margin:8px 0 4px}p{color:#888;margin:4px 0 0}</style></head>
+    <body><div class="box">
+      <div style="font-size:48px">${icons[waStatus]||'⏳'}</div>
+      <h2>WhatsApp — Gestor Caldas</h2>
+      <p>Status: <strong style="color:${cor}">${waStatus}</strong></p>
+      ${qrHtml}
+      ${!waQR && waStatus !== 'qr' ? '<p style="margin-top:16px;font-size:13px">Página atualiza automaticamente a cada 5s</p>' : ''}
+    </div></body></html>`);
+});
 
 // ── Rotas da API ──────────────────────────────────────────────────────
 
