@@ -6682,7 +6682,7 @@ function getSelectedIds(tableId) {
   const tbl = document.getElementById(tableId);
   if (!tbl) return [];
   return [...tbl.querySelectorAll('tbody .row-select-cell.checked')]
-    .map(c => c.dataset.id)
+    .map(c => c.previousElementSibling?.dataset.id)
     .filter(Boolean);
 }
 function deleteSelected(tableId, deleteFn) {
