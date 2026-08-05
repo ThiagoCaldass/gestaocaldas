@@ -1,17 +1,25 @@
 // =====================================================================
 //  SERVIDOR WHATSAPP — Gestor Caldas
 //  Rode: npm start
-//  O site chama http://localhost:3001/ para enviar mensagens.
+//  O site chama https://localhost:3001/ para enviar mensagens.
 // =====================================================================
 
 const express  = require('express');
 const cors     = require('cors');
 const qrcode   = require('qrcode');
 const path     = require('path');
+const https    = require('https');
+const fs       = require('fs');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 
 const app  = express();
 const PORT = 3001;
+
+// Certificado mkcert (gerado com: mkcert localhost)
+const sslOptions = {
+  key:  fs.readFileSync(path.join(__dirname, 'localhost-key.pem')),
+  cert: fs.readFileSync(path.join(__dirname, 'localhost.pem')),
+};
 
 app.use(cors());
 app.use(express.json());
@@ -156,9 +164,9 @@ app.get('/send-status', (req, res) => {
 });
 
 // ── Inicia ───────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+https.createServer(sslOptions, app).listen(PORT, () => {
   console.log(`\n🤖 Servidor Gestor Caldas WhatsApp`);
-  console.log(`   Rodando em http://localhost:${PORT}`);
+  console.log(`   Rodando em https://localhost:${PORT}`);
   console.log(`   Iniciando WhatsApp...\n`);
   initClient();
 });
