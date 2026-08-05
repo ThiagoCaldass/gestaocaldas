@@ -99,7 +99,14 @@ async function initClient() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 
-  sock = makeWASocket({ version, auth: state, logger, printQRInTerminal: true });
+  sock = makeWASocket({
+    version,
+    auth: state,
+    logger,
+    printQRInTerminal: true,
+    markOnlineOnConnect: false,   // não transmite "online" → celular recebe notificações normalmente
+    syncFullHistory: false,       // não sincroniza histórico antigo ao conectar
+  });
 
   sock.ev.on('creds.update', async () => {
     await saveCreds();
