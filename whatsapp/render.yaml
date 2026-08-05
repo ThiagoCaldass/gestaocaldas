@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: wa-caldas
+    runtime: node
+    rootDir: whatsapp
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: RENDER
+        value: "true"
+      - key: SUPABASE_URL
+        sync: false   # preencha no dashboard do Render
+      - key: SUPABASE_KEY
+        sync: false   # preencha no dashboard do Render
+    autoDeploy: true
