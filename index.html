@@ -6188,6 +6188,389 @@ function closeModalOutside(e){if(e.target===document.getElementById('modalOverla
 function fmt(v){if(v===undefined||v===null)return'R$—';return'R$'+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtDate(d){if(!d)return'—';const p=d.split('-');return`${p[2]}/${p[1]}`;}
 
+// ==================== WHATSAPP MODAL ====================
+
+const WA_TEMPLATES_KEY = 'wa_templates';
+const WA_TEMPLATES_DEFAULT = [
+  `Oi {nome}, tudo bem? Passando pra te falar sobre seu pagamento do mês 🙏`,
+  `E aí {nome}! Tudo certo? Lembrete rápido do pagamento deste mês 😊`,
+  `Olá {nome}! Como estão os treinos? Queria só te lembrar do pagamento pendente.`,
+  `Fala {nome}! Seu pagamento deste mês está em aberto — qualquer dúvida é só falar!`,
+];
+
+function waGetTemplates() {
+  try {
+    const s = localStorage.getItem(WA_TEMPLATES_KEY);
+    if (s) return JSON.parse(s);
+  } catch(e) {}
+  return [...WA_TEMPLATES_DEFAULT];
+}
+
+function waSaveTemplates(ts) {
+  try { localStorage.setItem(WA_TEMPLATES_KEY, JSON.stringify(ts)); } catch(e) {}
+}
+
+function waColetarTodosAlunos() {
+  const mk = monthKey();
+  const md = cachedData[mk];
+  if (!md) return [];
+  const todos = [];
+  // Calistenia
+  (md.calistenia || []).forEach(a => {
+    todos.push({id: a.id, nome: a.nome, telefone: a.telefone||'', tipo:'Cali',
+      pago: !!(a.pago), pausado: !!(a.pausado), valor: a.valor||0});
+  });
+  // Online
+  (md.personal?.online || []).forEach(a => {
+    todos.push({id: a.id, nome: a.nome, telefone: a.telefone||'', tipo:'Online',
+      pago: !!(a.pago), pausado: !!(a.pausado), valor: a.valorFinal||a.valor||0});
+  });
+  // Presencial
+  (md.personal?.presencial || []).forEach(a => {
+    todos.push({id: a.id, nome: a.nome, telefone: a.telefone||'', tipo:'Pres',
+      pago: !!(a.pago), pausado: !!(a.pausado), valor: a.valorFinal||a.valor||0});
+  });
+  return todos;
+}
+
+const WA_SERVER = 'http://localhost:3001';
+let _waStatusInterval = null;
+
+window.abrirModalWhatsApp = function(preSelIds) {
+  const todos   = waColetarTodosAlunos();
+  const comTel  = todos.filter(a => (a.telefone||'').replace(/\D/g,'').length >= 10);
+  const semTel  = todos.filter(a => (a.telefone||'').replace(/\D/g,'').length < 10);
+  const preSet  = new Set(preSelIds || todos.filter(a=>!a.pago&&!a.pausado).map(a=>a.id));
+  const templates = waGetTemplates();
+
+  const listaHtml = comTel.map(a => {
+    const checked = preSet.has(a.id) ? 'checked' : '';
+    const tel = (a.telefone||'').replace(/\D/g,'');
+    const pago = a.pago
+      ? `<span style="color:var(--green);font-size:10px">✓ pago</span>`
+      : `<span style="color:var(--red);font-size:10px">pendente</span>`;
+    return `<label style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px">
+      <input type="checkbox" data-aid="${a.id}" ${checked} style="width:15px;height:15px;flex-shrink:0">
+      <span style="flex:1;font-weight:500">${a.nome}</span>
+      <span style="font-size:10px;color:var(--text3)">${a.tipo}</span>
+      ${pago}
+      <span style="font-size:10px;color:var(--text3)">${tel}</span>
+    </label>`;
+  }).join('');
+
+  const semTelHtml = semTel.length ? `<div style="margin-top:8px;padding:8px;background:rgba(241,193,53,0.08);border-radius:6px;font-size:11px;color:var(--text3)">
+    ⚠️ ${semTel.length} aluno(s) sem telefone: ${semTel.map(a=>a.nome).join(', ')}
+  </div>` : '';
+
+  const templatesHtml = templates.map((t, i) => `
+    <div style="display:flex;gap:6px;margin-bottom:8px" data-ti="${i}">
+      <textarea data-ti="${i}" style="flex:1;min-height:55px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;resize:vertical;font-family:inherit">${t}</textarea>
+      <button onclick="waRemoveTemplate(${i})" style="padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text3);cursor:pointer;flex-shrink:0;align-self:flex-start">✕</button>
+    </div>`).join('');
+
+  openModal(`
+    <div style="display:flex;flex-direction:column;height:82vh;max-height:720px">
+
+      <!-- HEADER -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span style="font-size:22px">📲</span>
+        <div style="flex:1">
+          <div style="font-size:16px;font-weight:700">Envio WhatsApp</div>
+          <div style="font-size:11px;color:var(--text3)">Servidor local em http://localhost:3001</div>
+        </div>
+        <!-- Status do servidor -->
+        <div id="wa-srv-badge" style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border)">
+          <span id="wa-srv-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>
+          <span id="wa-srv-label">Verificando...</span>
+        </div>
+      </div>
+
+      <!-- QR CODE (aparece só quando servidor aguarda scan) -->
+      <div id="wa-qr-area" style="display:none;text-align:center;padding:16px;background:var(--surface2);border-radius:10px;margin-bottom:12px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Abra o WhatsApp → Aparelhos conectados → Conectar aparelho → escaneie:</div>
+        <img id="wa-qr-img" src="" style="max-width:200px;border-radius:8px;background:#fff;padding:8px">
+      </div>
+
+      <!-- LOG DE ENVIO (aparece durante/após envio) -->
+      <div id="wa-log-area" style="display:none;flex-direction:column;min-height:0;margin-bottom:12px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600;margin-bottom:6px">Log de envio</div>
+        <div id="wa-log" style="flex:1;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-family:monospace;background:var(--surface2)"></div>
+        <div id="wa-log-footer" style="margin-top:6px;font-size:11px;color:var(--text3)"></div>
+      </div>
+
+      <!-- CORPO: alunos + mensagens (some durante envio) -->
+      <div id="wa-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex:1;min-height:0">
+
+        <!-- ESQUERDA: alunos -->
+        <div style="display:flex;flex-direction:column;min-height:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Destinatários</span>
+            <div style="display:flex;gap:5px">
+              <button onclick="waSelectAll(true)" style="font-size:10px;padding:2px 7px;border:1px solid var(--border);background:transparent;border-radius:4px;cursor:pointer;color:var(--text2)">Todos</button>
+              <button onclick="waSelectAll(false)" style="font-size:10px;padding:2px 7px;border:1px solid var(--border);background:transparent;border-radius:4px;cursor:pointer;color:var(--text2)">Nenhum</button>
+              <button onclick="waSelectPendentes()" style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);background:transparent;border-radius:4px;cursor:pointer;color:var(--accent)">Pendentes</button>
+            </div>
+          </div>
+          <div id="wa-lista" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px">
+            ${listaHtml || '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum aluno com telefone</div>'}
+          </div>
+          ${semTelHtml}
+          <div id="wa-contagem" style="margin-top:6px;font-size:11px;color:var(--text3)"></div>
+        </div>
+
+        <!-- DIREITA: mensagens -->
+        <div style="display:flex;flex-direction:column;min-height:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Versões de mensagem</span>
+            <button onclick="waAddTemplate()" style="font-size:10px;padding:2px 10px;border:1px solid var(--green);background:transparent;border-radius:4px;cursor:pointer;color:var(--green)">+ Versão</button>
+          </div>
+          <div id="wa-templates" style="flex:1;overflow-y:auto;padding-right:4px">
+            ${templatesHtml}
+          </div>
+          <div style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px;font-size:11px;color:var(--text3);line-height:1.5">
+            💡 Use <code style="background:var(--surface3);padding:1px 4px;border-radius:3px">{nome}</code> para personalizar.
+            O robô sorteia uma versão diferente por pessoa.
+          </div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div style="display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="btn btn-ghost" onclick="waFecharModal()" style="flex-shrink:0">Fechar</button>
+        <div id="wa-footer-info" style="flex:1;font-size:11px;color:var(--text3)">
+          Inicie o servidor: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">cd gestao_caldas/whatsapp && npm start</code>
+        </div>
+        <button id="wa-send-btn" onclick="waEnviar()" disabled
+          style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-weight:700;cursor:pointer;font-size:13px;font-family:'Barlow Condensed';letter-spacing:0.5px;flex-shrink:0;opacity:0.4">
+          📲 Enviar mensagens
+        </button>
+      </div>
+    </div>
+  `);
+
+  waAtualizarContagem();
+  document.getElementById('wa-lista')?.addEventListener('change', waAtualizarContagem);
+
+  // Começa polling do status do servidor
+  waVerificarServidor();
+  _waStatusInterval = setInterval(waVerificarServidor, 3000);
+};
+
+window.waAtualizarContagem = function() {
+  const checks = [...document.querySelectorAll('#wa-lista input[type=checkbox]')];
+  const sel = checks.filter(c => c.checked).length;
+  const el = document.getElementById('wa-contagem');
+  if (el) el.textContent = `${sel} de ${checks.length} selecionados`;
+};
+
+window.waSelectAll = function(val) {
+  document.querySelectorAll('#wa-lista input[type=checkbox]').forEach(c => c.checked = val);
+  waAtualizarContagem();
+};
+
+window.waSelectPendentes = function() {
+  const todos = waColetarTodosAlunos();
+  const pendIds = new Set(todos.filter(a=>!a.pago&&!a.pausado).map(a=>a.id));
+  document.querySelectorAll('#wa-lista input[type=checkbox]').forEach(c => {
+    c.checked = pendIds.has(c.dataset.aid);
+  });
+  waAtualizarContagem();
+};
+
+window.waAddTemplate = function() {
+  const container = document.getElementById('wa-templates');
+  if (!container) return;
+  const i = container.querySelectorAll('[data-ti]').length;
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:6px;margin-bottom:8px';
+  div.dataset.ti = i;
+  div.innerHTML = `<textarea data-ti="${i}" style="flex:1;min-height:60px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;resize:vertical;font-family:inherit" placeholder="Oi {nome}, ..."></textarea>
+    <button onclick="waRemoveTemplate(${i})" style="padding:4px 8px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text3);cursor:pointer;flex-shrink:0;align-self:flex-start">✕</button>`;
+  container.appendChild(div);
+};
+
+window.waRemoveTemplate = function(i) {
+  const el = document.querySelector(`#wa-templates [data-ti="${i}"]`);
+  if (el) el.remove();
+};
+
+window.waBaixarCsv = function() {
+  // Coleta e salva templates
+  const templates = [...document.querySelectorAll('#wa-templates textarea')].map(t => t.value.trim()).filter(Boolean);
+  waSaveTemplates(templates);
+
+  // Monta lista de alunos selecionados
+  const todos = waColetarTodosAlunos();
+  const mapaAlunos = Object.fromEntries(todos.map(a=>[a.id, a]));
+  const selecionados = [...document.querySelectorAll('#wa-lista input[type=checkbox]:checked')]
+    .map(c => mapaAlunos[c.dataset.aid])
+    .filter(a => a && (a.telefone||'').replace(/\D/g,'').length >= 10);
+
+  if (!selecionados.length) {
+    alert('Selecione pelo menos um aluno com telefone cadastrado.');
+    return;
+  }
+
+  // Gera contatos.csv
+  const linhas = ['nome,telefone'];
+  selecionados.forEach(a => {
+    const tel = (a.telefone||'').replace(/\D/g,'');
+    linhas.push(`${a.nome.replace(/,/g,' ')},${tel}`);
+  });
+  const csv = linhas.join('\n');
+
+  // Gera mensagens.js
+  const mensagensJs = `// Versões geradas pelo Gestor Caldas em ${new Date().toLocaleDateString('pt-BR')}\nconst versoes = [\n${templates.map(t=>'  `'+t.replace(/`/g,"'")+'`').join(',\n')}\n];\nmodule.exports = versoes;\n`;
+
+  // Download contatos.csv
+  const blobCsv = new Blob([csv], {type:'text/csv'});
+  const aCsv = document.createElement('a');
+  aCsv.href = URL.createObjectURL(blobCsv);
+  aCsv.download = 'contatos.csv';
+  aCsv.click();
+
+  // Download mensagens.js
+  const blobJs = new Blob([mensagensJs], {type:'text/javascript'});
+  const aJs = document.createElement('a');
+  aJs.href = URL.createObjectURL(blobJs);
+  aJs.download = 'mensagens.js';
+  setTimeout(() => aJs.click(), 300);
+
+  closeModal();
+  setTimeout(() => alert(`✅ Baixados:\n• contatos.csv (${selecionados.length} alunos)\n• mensagens.js (${templates.length} versões)\n\nColoque os dois arquivos em gestao_caldas/whatsapp/ e rode:\n  npm start`), 400);
+};
+
+
+// Fecha o modal e para o polling de status
+window.waFecharModal = function() {
+  if (_waStatusInterval) { clearInterval(_waStatusInterval); _waStatusInterval = null; }
+  closeModal();
+};
+
+// Polling do servidor local e atualização de badge + QR
+window.waVerificarServidor = async function() {
+  const dot   = document.getElementById('wa-srv-dot');
+  const label = document.getElementById('wa-srv-label');
+  const qrArea = document.getElementById('wa-qr-area');
+  const qrImg  = document.getElementById('wa-qr-img');
+  const btn    = document.getElementById('wa-send-btn');
+  const info   = document.getElementById('wa-footer-info');
+  if (!dot) return; // modal fechado
+
+  try {
+    const r = await fetch(WA_SERVER + '/status', { signal: AbortSignal.timeout(2500) });
+    if (!r.ok) throw new Error('erro');
+    const { status, qr } = await r.json();
+
+    if (status === 'conectado') {
+      dot.style.background   = '#22c55e';
+      label.textContent      = '🟢 WhatsApp conectado';
+      qrArea.style.display   = 'none';
+      btn.disabled           = false;
+      btn.style.opacity      = '1';
+      info.textContent       = 'Pronto para enviar!';
+    } else if (status === 'qr') {
+      dot.style.background   = '#f59e0b';
+      label.textContent      = '📱 Aguardando scan';
+      qrArea.style.display   = 'block';
+      if (qr) qrImg.src = qr;
+      btn.disabled           = true;
+      btn.style.opacity      = '0.4';
+      info.textContent       = 'Escaneie o QR code com seu WhatsApp para conectar.';
+    } else {
+      dot.style.background   = '#f59e0b';
+      label.textContent      = '⏳ ' + (status === 'iniciando' ? 'Iniciando...' : 'Reconectando...');
+      qrArea.style.display   = 'none';
+      btn.disabled           = true;
+      btn.style.opacity      = '0.4';
+      info.textContent       = 'Aguarde o servidor inicializar...';
+    }
+  } catch {
+    dot.style.background   = '#ef4444';
+    label.textContent      = '🔴 Servidor offline';
+    qrArea.style.display   = 'none';
+    btn.disabled           = true;
+    btn.style.opacity      = '0.4';
+    info.innerHTML         = 'Inicie com: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">cd gestao_caldas/whatsapp && npm start</code>';
+  }
+};
+
+// Envia mensagens via servidor local e mostra log em tempo real
+window.waEnviar = async function() {
+  // Salva templates
+  const templates = [...document.querySelectorAll('#wa-templates textarea')].map(t => t.value.trim()).filter(Boolean);
+  if (!templates.length) { alert('Adicione pelo menos uma versão de mensagem.'); return; }
+  waSaveTemplates(templates);
+
+  // Coleta selecionados
+  const todos = waColetarTodosAlunos();
+  const mapaAlunos = Object.fromEntries(todos.map(a=>[a.id, a]));
+  const selecionados = [...document.querySelectorAll('#wa-lista input[type=checkbox]:checked')]
+    .map(c => mapaAlunos[c.dataset.aid])
+    .filter(a => a && (a.telefone||'').replace(/\D/g,'').length >= 10);
+  if (!selecionados.length) { alert('Selecione pelo menos um aluno com telefone cadastrado.'); return; }
+
+  // Esconde corpo, mostra log
+  const body    = document.getElementById('wa-body');
+  const logArea = document.getElementById('wa-log-area');
+  const log     = document.getElementById('wa-log');
+  const logFooter = document.getElementById('wa-log-footer');
+  const btn     = document.getElementById('wa-send-btn');
+  if (body) body.style.display = 'none';
+  if (logArea) { logArea.style.display = 'flex'; }
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; btn.textContent = '⏳ Enviando...'; }
+  if (log) log.innerHTML = `<span style="color:var(--text3)">Iniciando envio para ${selecionados.length} aluno(s)...</span>\n`;
+
+  const contatos = selecionados.map(a => ({ nome: a.nome, telefone: (a.telefone||'').replace(/\D/g,'') }));
+
+  try {
+    const r = await fetch(WA_SERVER + '/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contatos, mensagens: templates, intervaloMin: 8, intervaloMax: 30 })
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.erro || 'Erro ao iniciar envio'); }
+    const { total } = await r.json();
+    if (log) log.innerHTML += `<span style="color:var(--text3)">📋 ${total} mensagens na fila...</span>\n`;
+
+    // Poll /send-status
+    const poll = setInterval(async () => {
+      try {
+        const sr = await fetch(WA_SERVER + '/send-status');
+        const { results, done, total: tot } = await sr.json();
+        if (!log) { clearInterval(poll); return; }
+
+        // Reconstrói log
+        log.innerHTML = results.map((r,i) => {
+          const ico = r.status==='enviado' ? '✅' : r.status==='sem_whatsapp' ? '⚠️' : '❌';
+          const cor = r.status==='enviado' ? 'var(--green)' : r.status==='sem_whatsapp' ? '#f59e0b' : 'var(--red)';
+          return `<span style="color:${cor}">${ico} [${i+1}/${tot}] ${r.nome} — ${r.status}${r.erro ? ': '+r.erro : ''}</span>`;
+        }).join('\n') || '<span style="color:var(--text3)">Aguardando...</span>';
+        log.scrollTop = log.scrollHeight;
+
+        if (logFooter) logFooter.textContent = `${results.length} de ${tot} processados`;
+
+        if (done) {
+          clearInterval(poll);
+          const enviados = results.filter(r=>r.status==='enviado').length;
+          const semWa    = results.filter(r=>r.status==='sem_whatsapp').length;
+          const erros    = results.filter(r=>r.status==='erro').length;
+          if (logFooter) logFooter.innerHTML = `<strong>✔️ Concluído:</strong> ${enviados} enviados · ${semWa} sem WhatsApp · ${erros} erros`;
+          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '✔️ Concluído'; }
+        }
+      } catch(e) {
+        clearInterval(poll);
+        if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ Erro ao consultar status: ${e.message}</span>`;
+      }
+    }, 1500);
+
+  } catch(e) {
+    if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ ${e.message}</span>`;
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Tentar novamente'; }
+    if (body) body.style.display = 'grid';
+    if (logArea) logArea.style.display = 'none';
+  }
+};
 
 // ==================== DRAG & DROP REORDER ====================
 let dragSrcRow = null;
@@ -6971,8 +7354,13 @@ renderDashboard = (function(_orig) {
             +(vencidos.length>0?'<div onclick="navigate(\'personal\')" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;background:rgba(53,200,241,0.07);border:1px solid rgba(53,200,241,0.18);font-size:11px"><span>📋</span><span style="color:var(--text2)">'+vencidos.length+' treino(s) vencido'+(vencidos.length>1?'s':'')+'</span></div>':''))
           +'</div>'
           +'<div style="padding:10px 14px;flex:1;overflow:auto">'
-          +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:'+(alunosPend.length>0?'#f1c135':'var(--text3)')+';margin-bottom:7px;font-weight:600">'
+          +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">'
+          +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:'+(alunosPend.length>0?'#f1c135':'var(--text3)')+';font-weight:600">'
           +(alunosPend.length>0?'⏳ Pendentes ('+alunosPend.length+')':'✓ Todos Pagos')+'</div>'
+          +(alunosPend.length>0
+            ? '<button onclick="abrirModalWhatsApp()" style="font-size:10px;padding:2px 8px;background:transparent;border:1px solid #25D366;border-radius:4px;color:#25D366;cursor:pointer;font-family:\'Barlow Condensed\';letter-spacing:0.5px">📲 WA</button>'
+            : '')
+          +'</div>'
           +(alunosPend.length===0
             ? '<div style="font-size:11px;color:var(--text3)">Nenhum aluno pendente</div>'
             : alunosPend.slice(0,8).map(a=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:11px;border-bottom:1px solid rgba(255,255,255,0.04)">'
