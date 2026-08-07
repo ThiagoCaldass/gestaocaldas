@@ -84,16 +84,17 @@ async function saveSessionToSupabase() {
 }
 
 async function loadSessionFromSupabase() {
-  if (!SB_URL || !SB_KEY) return;
+  if (!SB_URL || !SB_KEY) { console.log('⚠️  Supabase não configurado — sem persistência de sessão'); return; }
   try {
     const r = await sbFetch('wa_session?id=eq.main&select=data');
+    if (!r.ok) { console.error(`❌ Supabase load HTTP ${r.status}:`, await r.text()); return; }
     const rows = await r.json();
-    if (!rows?.length || !rows[0].data) return;
+    if (!rows?.length || !rows[0].data) { console.log('ℹ️  Nenhuma sessão no Supabase — aguardando QR'); return; }
     if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
     Object.entries(rows[0].data).forEach(([name, content]) => {
       fs.writeFileSync(path.join(AUTH_DIR, name), content);
     });
-    console.log('✅ Sessão restaurada do Supabase');
+    console.log(`✅ Sessão restaurada do Supabase (${Object.keys(rows[0].data).length} arquivo(s))`);
   } catch (e) { console.error('❌ Supabase load:', e.message); }
 }
 
