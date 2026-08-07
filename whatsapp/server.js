@@ -69,11 +69,17 @@ async function saveSessionToSupabase() {
       try { files[f] = fs.readFileSync(path.join(AUTH_DIR, f), 'utf8'); } catch {}
     });
     if (!Object.keys(files).length) return;
-    await sbFetch('wa_session', {
+    const res = await sbFetch('wa_session', {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates' },
       body: JSON.stringify({ id: 'main', data: files, updated_at: new Date().toISOString() }),
     });
+    if (res && !res.ok) {
+      const txt = await res.text();
+      console.error(`❌ Supabase save HTTP ${res.status}:`, txt);
+    } else {
+      console.log('💾 Sessão salva no Supabase');
+    }
   } catch (e) { console.error('❌ Supabase save:', e.message); }
 }
 
