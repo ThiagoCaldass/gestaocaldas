@@ -123,6 +123,8 @@ async function initClient() {
       waStatus = 'conectado';
       waQR = null;
       console.log('✅ WhatsApp conectado!\n');
+      // Volta para "offline" imediatamente — evita suprimir notificações no celular
+      try { await sock.sendPresenceUpdate('unavailable'); } catch {}
     }
     if (connection === 'close') {
       const code = (lastDisconnect?.error instanceof Boom)
@@ -159,6 +161,7 @@ async function initClient() {
         const nome = msg.pushName || 'você';
         const resposta = regra.resposta.replace(/\{nome\}/g, nome);
         await sock.sendMessage(msg.key.remoteJid, { text: resposta });
+        try { await sock.sendPresenceUpdate('unavailable'); } catch {}
         console.log(`🤖 Auto-resposta → ${nome}: "${texto.slice(0,40)}"`);
       } catch (e) { console.error('❌ Auto-resposta:', e.message); }
     }
@@ -222,6 +225,7 @@ app.post('/send', async (req, res) => {
           job.results.push({ nome, status: 'sem_whatsapp' });
         } else {
           await sock.sendMessage(jid, { text: msg });
+          try { await sock.sendPresenceUpdate('unavailable'); } catch {}
           console.log(`[${i+1}/${contatos.length}] ${nome} — ✅ enviado`);
           job.results.push({ nome, status: 'enviado' });
         }
