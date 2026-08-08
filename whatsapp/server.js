@@ -149,7 +149,12 @@ async function initClient() {
         console.log('⚠️  Desconectado. Reconectando em 5s...');
         setTimeout(initClient, 5000);
       } else {
-        console.log('❌ Sessão encerrada (logout). Reinicie para novo QR.');
+        console.log('⚠️  Sessão encerrada (logout). Limpando e gerando novo QR em 3s...');
+        // Apaga arquivos locais de autenticação
+        try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
+        // Apaga sessão do Supabase (estava inválida de qualquer forma)
+        try { await sbFetch('wa_session?id=eq.main', { method: 'DELETE' }); } catch {}
+        setTimeout(initClient, 3000);
       }
     }
   });
