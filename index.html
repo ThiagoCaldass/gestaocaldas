@@ -6697,6 +6697,10 @@ function renderWhatsApp() {
           <span id="wap-srv-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>
           <span id="wap-srv-label">Verificando...</span>
         </div>
+        <button id="wap-pause-btn" onclick="wapTogglePause()" title="Pausar desconecta o servidor — celular volta a receber notificações"
+          style="font-size:11px;padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface3);color:var(--text2);cursor:pointer;white-space:nowrap">
+          ⏸ Pausar
+        </button>
       </div>
       <div style="padding:0 16px 8px;font-size:10px;color:var(--text3)">
         Para acessar do celular: <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;user-select:all">cloudflared tunnel --url https://localhost:3001</code> → cole a URL gerada acima
@@ -6855,21 +6859,52 @@ async function wapPollStatus() {
     const r = await fetch(getWaServer() + '/status', { signal: AbortSignal.timeout(7000) });
     const { status } = await r.json();
     _waServerStatus = status;
-    _waPageStatusFails = 0; // reset debounce
+    _waPageStatusFails = 0;
     const ok = status === 'conectado';
-    dot.style.background = ok ? '#22c55e' : status === 'qr' ? '#f59e0b' : '#f59e0b';
-    label.textContent = ok ? '🟢 Conectado' : status === 'qr' ? '📱 Scan QR' : '⏳ ' + status;
+    const pausado = status === 'pausado';
+    dot.style.background = ok ? '#22c55e' : status === 'qr' ? '#f59e0b' : pausado ? '#888' : '#f59e0b';
+    label.textContent = ok ? '🟢 Conectado' : status === 'qr' ? '📱 Scan QR' : pausado ? '⏸️ Pausado' : '⏳ ' + status;
     const btn = document.getElementById('wap-send-btn');
     if (btn && btn.dataset.ready === '1') {
       btn.disabled = !ok; btn.style.opacity = ok ? '1' : '.4';
     }
+    // Atualiza botão pausar/retomar
+    const pbtn = document.getElementById('wap-pause-btn');
+    if (pbtn) {
+      if (pausado) {
+        pbtn.textContent = '▶ Retomar';
+        pbtn.style.borderColor = '#22c55e';
+        pbtn.style.color = '#22c55e';
+      } else {
+        pbtn.textContent = '⏸ Pausar';
+        pbtn.style.borderColor = '';
+        pbtn.style.color = '';
+      }
+    }
   } catch {
     _waPageStatusFails++;
-    if (_waPageStatusFails < 3) return; // ignora falhas isoladas (Render lento)
+    if (_waPageStatusFails < 3) return;
     _waServerStatus = 'offline';
     if (dot) { dot.style.background = '#ef4444'; label.textContent = '🔴 Offline'; }
   }
 }
+
+window.wapTogglePause = async function() {
+  const pbtn = document.getElementById('wap-pause-btn');
+  if (pbtn) { pbtn.disabled = true; pbtn.style.opacity = '.5'; }
+  const isPaused = _waServerStatus === 'pausado';
+  try {
+    await fetch(getWaServer() + (isPaused ? '/resume' : '/pause'), {
+      method: 'POST', signal: AbortSignal.timeout(10000)
+    });
+    // Atualiza status imediatamente
+    await wapPollStatus();
+  } catch(e) {
+    alert('Erro ao ' + (isPaused ? 'retomar' : 'pausar') + ': ' + e.message);
+  } finally {
+    if (pbtn) { pbtn.disabled = false; pbtn.style.opacity = '1'; }
+  }
+};
 
 // ── Categorias CRUD ─────────────────────────────────────────────────
 

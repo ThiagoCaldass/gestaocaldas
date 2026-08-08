@@ -27,11 +27,12 @@ app.use(cors());
 app.use(express.json());
 
 // ── Estado global ─────────────────────────────────────────────────────
-let waStatus = 'iniciando';   // iniciando | qr | conectado | reconectando | desconectado
+let waStatus = 'iniciando';   // iniciando | qr | conectado | reconectando | desconectado | pausado
 let waQR     = null;
 let sock     = null;
 let autoReplies = [];
 let job = { running: false, total: 0, results: [], done: false };
+let isPaused = false;  // desconectado intencionalmente — não reconecta automaticamente
 
 const AUTH_DIR = path.join(__dirname, 'wa_auth');
 
@@ -134,11 +135,16 @@ async function initClient() {
       try { await sock.sendPresenceUpdate('unavailable'); } catch {}
     }
     if (connection === 'close') {
+      waQR = null;
+      if (isPaused) {
+        waStatus = 'pausado';
+        console.log('⏸️  Conexão pausada — celular recebe notificações normalmente');
+        return;
+      }
       const code = (lastDisconnect?.error instanceof Boom)
         ? lastDisconnect.error.output.statusCode : 0;
       const retry = code !== DisconnectReason.loggedOut;
       waStatus = retry ? 'reconectando' : 'desconectado';
-      waQR = null;
       if (retry) {
         console.log('⚠️  Desconectado. Reconectando em 5s...');
         setTimeout(initClient, 5000);
@@ -183,8 +189,8 @@ if (!IS_RENDER && fs.existsSync(path.join(SITE, 'index.html'))) {
 
 // Página de status com QR — acessível em qualquer ambiente
 app.get('/', (req, res) => {
-  const icons = { iniciando:'⏳', qr:'📱', conectado:'✅', reconectando:'🔄', desconectado:'🔴' };
-  const cor   = waStatus === 'conectado' ? '#22c55e' : waStatus === 'qr' ? '#f59e0b' : '#ef4444';
+  const icons = { iniciando:'⏳', qr:'📱', conectado:'✅', reconectando:'🔄', desconectado:'🔴', pausado:'⏸️' };
+  const cor   = waStatus === 'conectado' ? '#22c55e' : waStatus === 'qr' ? '#f59e0b' : waStatus === 'pausado' ? '#888' : '#ef4444';
   const qrHtml = waQR
     ? `<img src="${waQR}" style="width:220px;height:220px;border-radius:12px;background:#fff;padding:10px;margin:16px 0"><p style="color:#aaa;font-size:13px">WhatsApp → Aparelhos conectados → Conectar aparelho</p>`
     : '';
@@ -256,6 +262,25 @@ app.post('/send', async (req, res) => {
 app.get('/send-status', (req, res) =>
   res.json({ running: job.running, total: job.total, done: job.done, results: job.results })
 );
+
+// Pausa conexão (socket fecha, celular volta a receber notificações)
+app.post('/pause', (req, res) => {
+  isPaused = true;
+  waStatus = 'pausado';
+  if (sock) { try { sock.end(new Error('paused')); } catch {} }
+  console.log('⏸️  Pausado pelo usuário');
+  res.json({ ok: true, status: 'pausado' });
+});
+
+// Retoma conexão
+app.post('/resume', async (req, res) => {
+  if (!isPaused) return res.json({ ok: true, status: waStatus });
+  isPaused = false;
+  waStatus = 'iniciando';
+  console.log('▶️  Retomando conexão...');
+  res.json({ ok: true, status: 'iniciando' });
+  await initClient();
+});
 
 app.get('/autoreplies', (req, res) => res.json({ regras: autoReplies }));
 app.post('/autoreplies', (req, res) => {
