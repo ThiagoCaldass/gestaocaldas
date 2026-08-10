@@ -3136,7 +3136,8 @@ function renderAlunos(md) {
     </div>
 
     <!-- ABAS -->
-    <div class="tabs" style="margin-bottom:16px">
+    <div class="tabs" id="alunos-tabs-bar" style="margin-bottom:16px">
+      <button class="tab ${alunosTab==='todos'?'active':''}" onclick="setAlunosTab('todos')">Todos (${md.calistenia.length+md.personal.online.length+md.personal.presencial.length})</button>
       <button class="tab ${alunosTab==='calistenia'?'active':''}" onclick="setAlunosTab('calistenia')">Calistenia (${md.calistenia.length})</button>
       <button class="tab ${alunosTab==='online'?'active':''}" onclick="setAlunosTab('online')">Online (${md.personal.online.length})</button>
       <button class="tab ${alunosTab==='presencial'?'active':''}" onclick="setAlunosTab('presencial')">Presencial (${md.personal.presencial.length})</button>
@@ -3144,7 +3145,8 @@ function renderAlunos(md) {
 
     <!-- CONTEÚDO DA ABA -->
     <div id="alunosTabContent">
-      ${alunosTab==='calistenia' ? renderCalisteniaContent(md) :
+      ${alunosTab==='todos'      ? renderTodosContent(md) :
+        alunosTab==='calistenia' ? renderCalisteniaContent(md) :
         alunosTab==='online'     ? renderPersonalContent(md,'online') :
                                    renderPersonalContent(md,'presencial')}
     </div>
@@ -3155,16 +3157,18 @@ function renderAlunos(md) {
 function setAlunosTab(tab) {
   alunosTab = tab;
   if (tab==='online'||tab==='presencial') personalTab = tab;
+  if (tab!=='todos') _todosSort = null; // reset sort ao sair da aba Todos
   const md = getMonthData();
   const el = document.getElementById('alunosTabContent');
   if (el) el.innerHTML =
+    tab==='todos'      ? renderTodosContent(md) :
     tab==='calistenia' ? renderCalisteniaContent(md) :
     tab==='online'     ? renderPersonalContent(md,'online') :
                          renderPersonalContent(md,'presencial');
   reapplyAllSorts();
   // Update tab buttons
-  document.querySelectorAll('.tab').forEach((t,i)=>{
-    const tabs=['calistenia','online','presencial'];
+  document.querySelectorAll('#alunos-tabs-bar .tab').forEach((t,i)=>{
+    const tabs=['todos','calistenia','online','presencial'];
     t.classList.toggle('active', tabs[i]===tab);
   });
 }
@@ -3175,6 +3179,175 @@ function openAddAlunoUnified() {
 }
 
 function renderCalistenia(md) { renderAlunos(md); }
+// ── Aba "Todos" ───────────────────────────────────────────────────────
+function renderTodosContent(md) {
+  const ro = isReadOnly();
+  const caliCalc = calcValoresCali(md.calistenia);
+  const online = md.personal.online;
+  const pres   = md.personal.presencial;
+
+  const tCali   = caliCalc.filter(a=>!a.pausado).reduce((s,a)=>s+a.valorFinal,0);
+  const tOnline = online.filter(a=>!a.pausado).reduce((s,a)=>s+(a.valor||0),0);
+  const tPres   = pres.filter(a=>!a.pausado).reduce((s,a)=>s+(a.valor||0),0);
+
+  // Lista unificada com tipo e valor normalizado
+  const allStudents = [
+    ...caliCalc.map(a=>({...a, _tipo:'cali',   _valor:a.valorFinal})),
+    ...online.map(a=>  ({...a, _tipo:'online',  _valor:a.valor||0})),
+    ...pres.map(a=>    ({...a, _tipo:'pres',    _valor:a.valor||0})),
+  ];
+  const isSorted = _todosSort !== null;
+
+  // Render de uma linha unificada
+  function renderTodosRow(a) {
+    const tipoBadge =
+      a._tipo==='cali'   ? `<span class="badge badge-gray"   style="font-size:10px">Cali</span>` :
+      a._tipo==='online' ? `<span class="badge badge-green"  style="font-size:10px">Online</span>` :
+                           `<span class="badge badge-blue"   style="font-size:10px">Pres</span>`;
+    const pts=a.nome.trim().split(' ');
+    const nAbrev=pts.length<=1?a.nome:pts[0]+' '+(pts[pts.length-1].length>=3?pts[pts.length-1].slice(0,3)+'.':pts[pts.length-1]);
+    const editFn   = a._tipo==='cali' ? `editCali('${a.id}')` : `editValorPersonal('${a.id}')`;
+    const toggleFn = a._tipo==='cali'
+      ? (a.pausado?`togglePausadoCali('${a.id}')`    :`toggleCali('${a.id}')`)
+      : (a.pausado?`togglePausadoPersonal('${a.id}')`:`togglePersonal('${a.id}')`);
+    const fichaFn  = `abrirFichaAluno('${a.id}','${a._tipo==='cali'?'calistenia':a._tipo}')`;
+    const removeFn = a._tipo==='cali' ? `removeCali('${a.id}')` : `removePersonal('${a.id}')`;
+    const pauseFn  = a._tipo==='cali' ? `togglePausadoCali('${a.id}')` : `togglePausadoPersonal('${a.id}')`;
+
+    return `<tr data-nome="${a.nome}" data-tipo="${a._tipo}" data-valor="${a._valor}" data-pago="${a.pago?'1':'0'}" data-belongs="${a._tipo}" style="${a.pausado?'opacity:0.45':''}">
+      ${ro?'<td></td>':`<td style="padding:4px 6px;width:32px"><input type="checkbox" class="row-select" data-id="${a.id}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblTodos')" title="Selecionar"></div></td>`}
+      <td style="overflow:hidden" title="${a.nome}">
+        <span style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;cursor:pointer;${a.pausado?'text-decoration:line-through;color:var(--text3)':''}" onclick="${editFn}">${nAbrev}</span>
+      </td>
+      <td>${tipoBadge}</td>
+      <td style="cursor:pointer" onclick="${editFn}"><span class="mono">${a.pausado?'—':fmt(a._valor)}</span></td>
+      <td style="${ro?'':'cursor:pointer'}" onclick="${toggleFn}">
+        ${a.pausado?`<span class="badge badge-yellow">Pause</span>`:`<span class="badge ${a.pago?'badge-green':'badge-red'}">${a.pago?'OK':'Pend'}</span>`}
+      </td>
+      <td><div style="display:flex;gap:2px">
+        <button class="btn btn-ghost btn-sm" onclick="${fichaFn}" style="padding:3px 6px" title="Ficha">ℹ</button>
+        ${ro?'':`<button class="toggle-btn ${a.pausado?'toggle-pendente':'toggle-pago'}" onclick="${pauseFn}" style="padding:3px 6px" title="${a.pausado?'Reativar':'Pausar'}">II</button>
+        <button class="btn btn-danger btn-sm" onclick="${removeFn}" style="padding:3px 6px">✕</button>`}
+      </div></td>
+    </tr>`;
+  }
+
+  // Linha de cabeçalho de grupo
+  function renderGroupHdr(label, color, students, tipo) {
+    const tot = students.filter(a=>!a.pausado).reduce((s,a)=>s+a._valor,0);
+    const open = _todosGroupOpen[tipo] !== false;
+    return `<tr class="todos-group-hdr" data-group="${tipo}" onclick="toggleTodosGroup('${tipo}')" style="cursor:pointer">
+      <td colspan="6" style="padding:7px 14px;background:var(--surface2);border-bottom:1px solid var(--border);user-select:none">
+        <span id="todos-arrow-${tipo}" style="color:var(--text3);font-size:11px;margin-right:6px">${open?'▼':'▶'}</span>
+        <span style="color:${color};font-weight:600;font-size:13px">${label}</span>
+        <span style="color:var(--text3);font-size:12px;margin-left:8px">${students.length} aluno(s)</span>
+        <span class="mono" style="float:right;font-size:12px;color:var(--text2)">${fmt(tot)}</span>
+      </td>
+    </tr>`;
+  }
+
+  let bodyRows;
+  const arrowFor = c => _todosSort?.col===c ? (_todosSort.dir===1?' ↑':' ↓') : '';
+
+  if (isSorted) {
+    // Ordena lista completa
+    const { col, dir, type } = _todosSort;
+    const sorted = [...allStudents].sort((a,b) => {
+      const av = col==='valor'?a._valor : col==='tipo'?a._tipo : col==='pago'?(a.pago?'1':'0') : (a[col]??'');
+      const bv = col==='valor'?b._valor : col==='tipo'?b._tipo : col==='pago'?(b.pago?'1':'0') : (b[col]??'');
+      const cmp = type==='num' ? (parseFloat(av)||0)-(parseFloat(bv)||0)
+                               : String(av).localeCompare(String(bv),'pt-BR',{sensitivity:'base'});
+      return cmp * dir;
+    });
+    bodyRows = sorted.map(renderTodosRow).join('');
+  } else {
+    const open = t => _todosGroupOpen[t] !== false;
+    bodyRows =
+      renderGroupHdr('Calistenia','var(--accent)', caliCalc.map(a=>({...a,_tipo:'cali',_valor:a.valorFinal})), 'cali')
+      + (open('cali')   ? caliCalc.map(a=>renderTodosRow({...a,_tipo:'cali',_valor:a.valorFinal})).join('') : '')
+      + renderGroupHdr('Online','var(--green)', online.map(a=>({...a,_tipo:'online',_valor:a.valor||0})), 'online')
+      + (open('online') ? online.map(a=>renderTodosRow({...a,_tipo:'online',_valor:a.valor||0})).join('') : '')
+      + renderGroupHdr('Presencial','var(--accent3)', pres.map(a=>({...a,_tipo:'pres',_valor:a.valor||0})), 'pres')
+      + (open('pres')   ? pres.map(a=>renderTodosRow({...a,_tipo:'pres',_valor:a.valor||0})).join('') : '');
+  }
+
+  return `<div>
+    <div class="table-card">
+      ${ro?'':'<div id="tblTodos-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum" style="font-weight:600"></span><button class="btn-wa" onclick="waAbrirSelecionados(\'tblTodos\')" style="margin-left:auto">📲 Enviar WA</button><button class="btn btn-danger btn-sm" onclick="deleteSelectedTodos()">Excluir</button></div>'}
+      ${isSorted?`<div style="padding:5px 12px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text3);display:flex;align-items:center;gap:8px">
+        <span>Ordenação ativa — grupos ocultos</span>
+        <button onclick="resetTodosSort()" style="border:none;background:none;color:var(--accent);cursor:pointer;font-size:11px;padding:0;text-decoration:underline">✕ Restaurar grupos</button>
+      </div>`:''}
+      <div class="table-scroll"><table id="tblTodos" style="table-layout:fixed;width:100%">
+        <thead><tr>
+          ${ro?'<th style="width:34px"></th>':`<th style="width:34px"><div class="row-select-cell-all" onclick="toggleSelectAll('tblTodos')" title="Selecionar todos"></div></th>`}
+          <th style="width:24%" data-col="nome" onclick="sortTodos('nome','str')" style="cursor:pointer">Aluno${arrowFor('nome')}</th>
+          <th style="width:10%" data-col="tipo" onclick="sortTodos('tipo','str')" style="cursor:pointer">Tipo${arrowFor('tipo')}</th>
+          <th style="width:14%" data-col="valor" onclick="sortTodos('valor','num')" style="cursor:pointer">Valor${arrowFor('valor')}</th>
+          <th style="width:12%" data-col="pago" onclick="sortTodos('pago','bool')" style="cursor:pointer">Status${arrowFor('pago')}</th>
+          <th style="width:10%">Ações</th>
+        </tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table></div>
+      <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
+        <span style="color:var(--text3)">${allStudents.filter(a=>!a.pausado).length} ativos · ${allStudents.filter(a=>a.pausado).length} pausados</span>
+        <span class="mono stat-green">${fmt(tCali+tOnline+tPres)}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+window.sortTodos = function(col, type='str') {
+  const cur = _todosSort;
+  const dir = cur?.col===col ? -cur.dir : 1;
+  _todosSort = { col, dir, type };
+  const md = getMonthData();
+  const el = document.getElementById('alunosTabContent');
+  if (el) el.innerHTML = renderTodosContent(md);
+};
+
+window.resetTodosSort = function() {
+  _todosSort = null;
+  const md = getMonthData();
+  const el = document.getElementById('alunosTabContent');
+  if (el) el.innerHTML = renderTodosContent(md);
+};
+
+window.toggleTodosGroup = function(tipo) {
+  _todosGroupOpen[tipo] = _todosGroupOpen[tipo] === false ? true : false;
+  // Alterna visibilidade das linhas do grupo
+  document.querySelectorAll(`#tblTodos tr[data-belongs="${tipo}"]`).forEach(tr => {
+    tr.style.display = _todosGroupOpen[tipo]===false ? 'none' : '';
+  });
+  const arrow = document.getElementById(`todos-arrow-${tipo}`);
+  if (arrow) arrow.textContent = _todosGroupOpen[tipo]===false ? '▶' : '▼';
+};
+
+function deleteSelectedTodos() {
+  if (guardReadOnly()) return;
+  const tbl = document.getElementById('tblTodos');
+  if (!tbl) return;
+  const checked = [...tbl.querySelectorAll('.row-select:checked')];
+  if (!checked.length) return;
+  if (!confirm('Excluir ' + checked.length + ' aluno(s)?')) return;
+  const caliIds    = new Set();
+  const personalIds = new Set();
+  checked.forEach(cb => {
+    const tr = cb.closest('tr');
+    const tipo = tr?.dataset.belongs;
+    if (tipo === 'cali') caliIds.add(cb.dataset.id);
+    else personalIds.add(cb.dataset.id);
+  });
+  const md = getMonthData();
+  if (caliIds.size)    md.calistenia = md.calistenia.filter(a => !caliIds.has(a.id));
+  if (personalIds.size) {
+    md.personal.online     = md.personal.online.filter(a => !personalIds.has(a.id));
+    md.personal.presencial = md.personal.presencial.filter(a => !personalIds.has(a.id));
+  }
+  saveData();
+  setAlunosTab('todos');
+}
+
 function renderCalisteniaContent(md) {
   const ro = isReadOnly();
   const lista = calcValoresCali(md.calistenia);
@@ -3456,7 +3629,9 @@ function openGerenciarFamilias(){
 function getPlanos() { return globalPlanos; }
 // ==================== PERSONAL ====================
 let personalTab='online';
-let alunosTab='calistenia';
+let alunosTab='todos';
+let _todosSort = null;          // { col, dir, type } ou null
+let _todosGroupOpen = {};       // { cali: bool, online: bool, pres: bool }
 function renderPersonal(md) { renderAlunos(md); }
 function renderPersonalContent(md, tab) {
   const ro = isReadOnly();
