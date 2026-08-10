@@ -36,6 +36,172 @@ let isPaused = false;  // desconectado intencionalmente — não reconecta autom
 
 const AUTH_DIR = path.join(__dirname, 'wa_auth');
 
+// ── Captação automática ───────────────────────────────────────────────
+const ADMIN_JID      = '5514997115664@s.whatsapp.net';
+const PDF_PATH       = process.env.WA_PDF_PATH || '/Users/thiagocaldas/Documents/Profissional/APRESENTAÇÃO.pdf';
+const PDF_URL        = process.env.WA_PDF_URL;   // URL pública — define no Render
+const CONTACTS_FILE  = path.join(AUTH_DIR, 'contacts.json');
+const TEMPO_LEMBRETE = 24 * 60 * 60 * 1000;      // 24h
+
+// Contatos já conhecidos — JIDs que já mandaram mensagem antes.
+// Novos contatos (não conhecidos) disparam o fluxo de captação.
+let conhecidos = new Set();
+
+function loadConhecidos() {
+  try {
+    if (fs.existsSync(CONTACTS_FILE)) {
+      conhecidos = new Set(JSON.parse(fs.readFileSync(CONTACTS_FILE, 'utf8')));
+      console.log(`📋 ${conhecidos.size} contato(s) conhecido(s) carregado(s)`);
+    }
+  } catch (e) { console.error('❌ loadConhecidos:', e.message); }
+}
+
+function saveConhecidos() {
+  try {
+    if (!fs.existsSync(AUTH_DIR)) return;
+    fs.writeFileSync(CONTACTS_FILE, JSON.stringify([...conhecidos]));
+  } catch (e) { console.error('❌ saveConhecidos:', e.message); }
+}
+
+// jid → { etapa, nome, objetivo, historico, dificuldade, horario, reminderTimer }
+const conversas = new Map();
+
+function cancelarLembrete(jid) {
+  const c = conversas.get(jid);
+  if (c?.reminderTimer) { clearTimeout(c.reminderTimer); c.reminderTimer = null; }
+}
+
+function agendarLembrete(jid) {
+  cancelarLembrete(jid);
+  const c = conversas.get(jid);
+  if (!c) return;
+  c.reminderTimer = setTimeout(async () => {
+    const conv = conversas.get(jid);
+    if (!conv || conv.etapa === 'done') return;
+    const msg = conv.nome
+      ? `Oi, ${conv.nome}! 👋 Só passando pra ver se ficou alguma dúvida sobre o *Team Caldas*. Qualquer coisa é só falar! 😊`
+      : 'Oi! 👋 Só passando pra ver se ficou alguma dúvida sobre o *Team Caldas*. Qualquer coisa é só falar! 😊';
+    try { await enviarMsg(jid, msg); } catch (e) { console.error('❌ Lembrete:', e.message); }
+    // Expira silenciosamente após mais 24h sem resposta
+    conv.reminderTimer = setTimeout(() => {
+      conversas.delete(jid);
+      console.log(`🗑️  Conversa expirada (sem resposta): ${jid}`);
+    }, TEMPO_LEMBRETE);
+  }, TEMPO_LEMBRETE);
+}
+
+async function enviarMsg(jid, texto) {
+  if (!sock || waStatus !== 'conectado') return;
+  await sock.sendMessage(jid, { text: texto });
+  try { await sock.sendPresenceUpdate('unavailable'); } catch {}
+}
+
+async function notificarAdmin(msg) {
+  try { await enviarMsg(ADMIN_JID, msg); } catch {}
+}
+
+async function enviarPDF(jid) {
+  if (!sock || waStatus !== 'conectado') return;
+  let buffer = null;
+  if (PDF_URL) {
+    try {
+      const r = await fetch(PDF_URL, { signal: AbortSignal.timeout(15000) });
+      if (r.ok) buffer = Buffer.from(await r.arrayBuffer());
+    } catch (e) { console.error('❌ PDF via URL:', e.message); }
+  }
+  if (!buffer && fs.existsSync(PDF_PATH)) {
+    try { buffer = fs.readFileSync(PDF_PATH); } catch (e) { console.error('❌ PDF local:', e.message); }
+  }
+  if (!buffer) { console.log('⚠️  PDF não encontrado — etapa pulada'); return; }
+  await sock.sendMessage(jid, { document: buffer, mimetype: 'application/pdf', fileName: 'Team Caldas — Apresentação.pdf' });
+  try { await sock.sendPresenceUpdate('unavailable'); } catch {}
+  console.log(`📎 PDF enviado → ${jid}`);
+}
+
+async function avancarEtapa(jid, c, texto) {
+  if (c.etapa === 1) {
+    const primeiro = texto.split(/\s+/)[0];
+    c.nome  = primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase();
+    c.etapa = 2;
+    await enviarMsg(jid, `${c.nome}, antes de te passar todos os detalhes do acompanhamento, posso te fazer algumas perguntas rápidas pra entender bem como podemos te ajudar no *Team Caldas*? 😊`);
+
+  } else if (c.etapa === 2) {
+    c.etapa = 3;
+    await enviarMsg(jid, `Show, ${c.nome}! 🙌\nQual o seu principal objetivo hoje? Pode dar detalhes como metas, números ou até mandar áudio se preferir…`);
+
+  } else if (c.etapa === 3) {
+    c.objetivo = texto; c.etapa = 4;
+    await notificarAdmin(`🔔 *Novo lead — Team Caldas*\n👤 ${c.nome}\n📱 ${jid.replace('@s.whatsapp.net','')}\n🎯 Objetivo: "${texto}"`);
+    await enviarMsg(jid, `Massa, ${c.nome}! Isso é exatamente o que trabalhamos no Team Caldas. 💪\n\nPra que eu entenda melhor:\n• Há quanto tempo você vem buscando esse objetivo?\n• O que tem feito até agora pra tentar alcançá-lo?`);
+
+  } else if (c.etapa === 4) {
+    c.historico = texto; c.etapa = 5;
+    await enviarMsg(jid, `Entendi! E o que tem sido mais difícil pra você nessa jornada?\nPode detalhar. 🙏`);
+
+  } else if (c.etapa === 5) {
+    c.dificuldade = texto; c.etapa = 6;
+    await notificarAdmin(`🔔 *Atualização — ${c.nome}*\n😓 Dificuldade: "${texto}"`);
+    await enviarMsg(jid, `Faz todo sentido, ${c.nome}. Muita gente passa por isso.\n\nPosso te enviar um material explicando como a gente vai chegar no seu objetivo nos próximos meses? 📎`);
+
+  } else if (c.etapa === 6) {
+    c.etapa = 7;
+    await enviarPDF(jid);
+    await new Promise(r => setTimeout(r, 2000));
+    await enviarMsg(jid, `Prontinho, ${c.nome}! Dá uma olhada com atenção. 😊\n\nShoww! Aqui no *Team Caldas* o trabalho é 100% individualizado MESMO.\nPor isso o próximo passo é agendarmos uma chamada rápida (15-20 min) onde entendo melhor o seu caso e te passo um plano de ação personalizado.\n\nTopa?`);
+
+  } else if (c.etapa === 7) {
+    c.etapa = 8;
+    await enviarMsg(jid, `Que ótimo! ⏰ Qual o melhor horário pra você ainda hoje ou amanhã?`);
+
+  } else if (c.etapa === 8) {
+    c.horario = texto; c.etapa = 'done';
+    await enviarMsg(jid, `Perfeito, ${c.nome}! ✅ Thiago vai entrar em contato no horário combinado.\nQualquer dúvida pode falar. Até já! 💪`);
+    await notificarAdmin(`✅ *Lead qualificado — Team Caldas*\n\n👤 Nome: ${c.nome}\n📱 wa.me/${jid.replace('@s.whatsapp.net','')}\n🎯 Objetivo: "${c.objetivo}"\n📖 Histórico: "${c.historico}"\n😓 Dificuldade: "${c.dificuldade}"\n⏰ Horário solicitado: "${texto}"`);
+    console.log(`✅ Fluxo concluído: ${c.nome} (${jid})`);
+    setTimeout(() => conversas.delete(jid), 60000);
+  }
+}
+
+async function processarFluxo(jid, textoRaw, pushName) {
+  if (!sock || waStatus !== 'conectado') return;
+  if (jid === ADMIN_JID) return;
+
+  const texto = textoRaw.trim();
+  const conv   = conversas.get(jid);
+  const isNovo = !conhecidos.has(jid);
+
+  // Registra como conhecido (salva junto com sessão no Supabase)
+  if (isNovo) {
+    conhecidos.add(jid);
+    saveConhecidos();
+    saveSessionToSupabase().catch(() => {});
+  }
+
+  // Cancelar fluxo por palavra-chave
+  if (conv && ['sair','cancelar','parar'].some(p => texto.toLowerCase().includes(p))) {
+    cancelarLembrete(jid);
+    conversas.delete(jid);
+    console.log(`🚫 Fluxo cancelado por ${jid}`);
+    return;
+  }
+
+  // Conversa ativa → avança etapa
+  if (conv) {
+    cancelarLembrete(jid);
+    await avancarEtapa(jid, conv, texto);
+    if (conv.etapa !== 'done') agendarLembrete(jid);
+    return;
+  }
+
+  // Contato novo → inicia fluxo
+  if (isNovo) {
+    conversas.set(jid, { etapa: 1, nome: pushName || '', ts: Date.now() });
+    await enviarMsg(jid, `Opa! Seja bem-vindo(a) ao *Team Caldas* 💪\nQual o seu nome, por gentileza?`);
+    agendarLembrete(jid);
+    console.log(`🎯 Fluxo iniciado (novo contato): ${jid}`);
+  }
+}
+
 // Logger silencioso (evita flood de pino no console)
 const logger = {
   level: 'silent',
@@ -104,6 +270,7 @@ async function initClient() {
   await loadSessionFromSupabase();
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 
+  loadConhecidos();
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 
@@ -159,26 +326,30 @@ async function initClient() {
     }
   });
 
-  // Auto-respostas
+  // Mensagens recebidas — fluxo de captação + auto-respostas
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify' || !autoReplies.length) return;
+    if (type !== 'notify') return;
     for (const msg of messages) {
       if (!msg.message || msg.key.fromMe) continue;
-      const texto = (
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text || ''
-      ).toLowerCase().trim();
+      const jid    = msg.key.remoteJid;
+      const texto  = (msg.message.conversation || msg.message.extendedTextMessage?.text || '').trim();
       if (!texto) continue;
 
-      const regra = autoReplies.find(r =>
-        r.palavras?.some(p => texto.includes(p.toLowerCase()))
-      );
-      if (!regra?.resposta) continue;
+      // Fluxo de captação (novo contato ou conversa ativa)
+      const emFluxo = conversas.has(jid) || !conhecidos.has(jid);
+      if (emFluxo) {
+        try { await processarFluxo(jid, texto, msg.pushName || ''); } catch (e) { console.error('❌ Fluxo:', e.message); }
+        continue; // fluxo ativo tem prioridade — não processa auto-reply
+      }
 
+      // Auto-respostas (contatos conhecidos sem fluxo ativo)
+      if (!autoReplies.length) continue;
+      const textoLow = texto.toLowerCase();
+      const regra = autoReplies.find(r => r.palavras?.some(p => textoLow.includes(p.toLowerCase())));
+      if (!regra?.resposta) continue;
       try {
         const nome = msg.pushName || 'você';
-        const resposta = regra.resposta.replace(/\{nome\}/g, nome);
-        await sock.sendMessage(msg.key.remoteJid, { text: resposta });
+        await sock.sendMessage(jid, { text: regra.resposta.replace(/\{nome\}/g, nome) });
         try { await sock.sendPresenceUpdate('unavailable'); } catch {}
         console.log(`🤖 Auto-resposta → ${nome}: "${texto.slice(0,40)}"`);
       } catch (e) { console.error('❌ Auto-resposta:', e.message); }
@@ -285,6 +456,25 @@ app.post('/resume', async (req, res) => {
   console.log('▶️  Retomando conexão...');
   res.json({ ok: true, status: 'iniciando' });
   await initClient();
+});
+
+// Conversas ativas no fluxo de captação
+app.get('/conversas', (req, res) => {
+  const lista = [...conversas.entries()].map(([jid, c]) => ({
+    jid, nome: c.nome, etapa: c.etapa, objetivo: c.objetivo,
+    ts: c.ts, tel: jid.replace('@s.whatsapp.net',''),
+  }));
+  res.json({ total: lista.length, conversas: lista });
+});
+
+// Remove um número dos conhecidos (útil para testar o fluxo novamente)
+app.delete('/contatos/:tel', (req, res) => {
+  const jid = req.params.tel.replace(/\D/g,'') + '@s.whatsapp.net';
+  conhecidos.delete(jid);
+  conversas.delete(jid);
+  saveConhecidos();
+  console.log(`🗑️  Contato removido dos conhecidos: ${jid}`);
+  res.json({ ok: true });
 });
 
 app.get('/autoreplies', (req, res) => res.json({ regras: autoReplies }));
