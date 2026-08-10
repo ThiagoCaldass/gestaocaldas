@@ -3278,27 +3278,53 @@ function renderTodosContent(md) {
     </div>`;
   }).join('');
 
+  const nPend = pendAlunos.length, nTreino = treinoAlerta.length;
+  const summaryBadges = [
+    nPend   > 0 ? `<span style="background:rgba(232,32,10,0.15);color:var(--red);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${nPend} pagamento${nPend>1?'s':''}</span>` : '',
+    nTreino > 0 ? `<span style="background:rgba(53,200,241,0.12);color:var(--accent3);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${nTreino} treino${nTreino>1?'s':''}</span>` : '',
+  ].filter(Boolean).join(' ');
+  const allOk = nPend === 0 && nTreino === 0;
+
   const alertsHtml = `
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-    <div class="table-card">
-      <div class="table-header">
-        <div class="table-title">💰 Pagamentos pendentes</div>
-        ${pendAlunos.length>0?`<span class="mono" style="color:var(--red);font-size:12px">${fmt(totPend)}</span>`:''}
+  <details id="todos-alerts-details" style="margin-bottom:14px">
+    <summary style="list-style:none;display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;user-select:none;font-size:13px">
+      <span style="color:var(--text3);font-size:11px" id="todos-alerts-arrow">▶</span>
+      <span style="font-weight:600;color:var(--text)">⚡ Avisos</span>
+      ${allOk
+        ? `<span style="color:var(--green);font-size:12px">✓ Tudo em dia</span>`
+        : summaryBadges}
+    </summary>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">💰 Pagamentos pendentes</div>
+          ${nPend>0?`<span class="mono" style="color:var(--red);font-size:12px">${fmt(totPend)}</span>`:''}
+        </div>
+        <div style="max-height:260px;overflow-y:auto">
+          ${pendRows||`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">✓ Todos em dia!</div>`}
+        </div>
       </div>
-      <div style="max-height:260px;overflow-y:auto">
-        ${pendRows||`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">✓ Todos em dia!</div>`}
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">📋 Treinos a vencer</div>
+          ${nTreino>0?`<span style="font-size:11px;color:var(--accent3)">${nTreino} aluno(s)</span>`:''}
+        </div>
+        <div style="max-height:260px;overflow-y:auto">
+          ${treinoRows||`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">✓ Treinos em dia!</div>`}
+        </div>
       </div>
     </div>
-    <div class="table-card">
-      <div class="table-header">
-        <div class="table-title">📋 Treinos a vencer</div>
-        ${treinoAlerta.length>0?`<span style="font-size:11px;color:var(--accent3)">${treinoAlerta.length} aluno(s)</span>`:''}
-      </div>
-      <div style="max-height:260px;overflow-y:auto">
-        ${treinoRows||`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">✓ Treinos em dia!</div>`}
-      </div>
-    </div>
-  </div>`;
+  </details>
+  <script>
+    (function(){
+      const d = document.getElementById('todos-alerts-details');
+      if (!d) return;
+      d.addEventListener('toggle', () => {
+        const arr = document.getElementById('todos-alerts-arrow');
+        if (arr) arr.textContent = d.open ? '▼' : '▶';
+      });
+    })();
+  </script>`;
   // ── fim alertas ────────────────────────────────────────────────────
 
   // Render de uma linha unificada
