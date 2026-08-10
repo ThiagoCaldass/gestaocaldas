@@ -3304,8 +3304,16 @@ function renderTodosContent(md) {
     // Ordena lista completa
     const { col, dir, type } = _todosSort;
     const sorted = [...allStudents].sort((a,b) => {
-      const av = col==='valor'?a._valor : col==='tipo'?a._tipo : col==='pago'?(a.pago?'1':'0') : col==='acerto'?(a.diaAcerto||'') : col==='att'?(a.proxAtt||'') : (a[col]??'');
-      const bv = col==='valor'?b._valor : col==='tipo'?b._tipo : col==='pago'?(b.pago?'1':'0') : col==='acerto'?(b.diaAcerto||'') : col==='att'?(b.proxAtt||'') : (b[col]??'');
+      // Treino: sem proxAtt sempre vai pro final, independente da direção
+      if (col === 'att') {
+        const av = a.proxAtt, bv = b.proxAtt;
+        if (!av && !bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return av.localeCompare(bv) * dir;
+      }
+      const av = col==='valor'?a._valor : col==='tipo'?a._tipo : col==='pago'?(a.pago?'1':'0') : col==='acerto'?(a.diaAcerto||'') : (a[col]??'');
+      const bv = col==='valor'?b._valor : col==='tipo'?b._tipo : col==='pago'?(b.pago?'1':'0') : col==='acerto'?(b.diaAcerto||'') : (b[col]??'');
       const cmp = type==='num' ? (parseFloat(av)||0)-(parseFloat(bv)||0)
                                : String(av).localeCompare(String(bv),'pt-BR',{sensitivity:'base'});
       return cmp * dir;
