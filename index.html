@@ -3214,13 +3214,64 @@ function renderTodosContent(md) {
     const removeFn = a._tipo==='cali' ? `removeCali('${a.id}')` : `removePersonal('${a.id}')`;
     const pauseFn  = a._tipo==='cali' ? `togglePausadoCali('${a.id}')` : `togglePausadoPersonal('${a.id}')`;
 
-    return `<tr data-nome="${a.nome}" data-tipo="${a._tipo}" data-valor="${a._valor}" data-pago="${a.pago?'1':'0'}" data-belongs="${a._tipo}" style="${a.pausado?'opacity:0.45':''}">
+    // ── Urgência de pagamento (online/pres) ──
+    const h0=new Date(); h0.setHours(0,0,0,0);
+    let pgtoUrgency = null;
+    if (a._tipo!=='cali' && !a.pago && !a.pausado && a.diaAcerto) {
+      const d = a.diaAcerto.trim();
+      const mMatch = d.match(/^[Dd]ia\s*(\d{1,2})$/);
+      if (mMatch) {
+        const pg = new Date(h0.getFullYear(), h0.getMonth(), parseInt(mMatch[1]));
+        const diff = Math.floor((pg - h0) / 86400000);
+        pgtoUrgency = diff < 0 ? 'vermelho' : diff <= 3 ? 'amarelo' : null;
+      }
+      const tMatch = d.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+      if (tMatch) {
+        const ano = tMatch[3] ? (tMatch[3].length===2?2000+parseInt(tMatch[3]):parseInt(tMatch[3])) : h0.getFullYear();
+        const pg = new Date(ano, parseInt(tMatch[2])-1, parseInt(tMatch[1]));
+        const diff = Math.floor((pg - h0) / 86400000);
+        pgtoUrgency = diff < 0 ? 'vermelho' : diff <= 3 ? 'amarelo' : null;
+      }
+    }
+    const pgtoStyle = pgtoUrgency==='vermelho'
+      ? 'display:inline-block;padding:1px 6px;border-radius:4px;background:rgba(232,32,10,0.15);color:var(--red);font-weight:600'
+      : pgtoUrgency==='amarelo'
+        ? 'display:inline-block;padding:1px 6px;border-radius:4px;background:rgba(241,193,53,0.15);color:#f1c135;font-weight:600'
+        : '';
+
+    // ── Urgência de treino (online/pres) ──
+    const pAD = (a._tipo!=='cali' && a.proxAtt) ? new Date(a.proxAtt) : null;
+    const dpV = pAD ? Math.floor((pAD - h0) / 86400000) : null;
+    const aV=dpV!==null&&dpV<0, aP=dpV!==null&&dpV>=0&&dpV<=3, a7=dpV!==null&&dpV>3&&dpV<=7;
+
+    // Célula Renovação
+    const renovCell = a._tipo==='cali'
+      ? `<td class="hide-mobile"><span style="color:var(--text3);font-size:12px">—</span></td>`
+      : `<td class="hide-mobile" style="${ro?'':'cursor:pointer'}" onclick="${ro?'':` editCellPersonal('${a.id}','Renovação','${a.diaAcerto||''}') `}">
+          <span style="${pgtoStyle}">${a.diaAcerto||`<span style="color:var(--text3)">—</span>`}</span>
+        </td>`;
+
+    // Célula Treino
+    const treinoCell = a._tipo==='cali'
+      ? `<td><span style="color:var(--text3);font-size:12px">—</span></td>`
+      : `<td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':` attTreino('${a.id}') `}" title="Atualizar treino">
+          ${a.pausado?'—':aV
+            ?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(a.proxAtt)} !</span>`
+            :aP?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(a.proxAtt)}</span>`
+            :a7?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(a.proxAtt)}</span>`
+            :a.proxAtt?`<span style="color:var(--text2);font-size:12px">${fmtDate(a.proxAtt)}</span>`
+            :`<span style="color:var(--text3);font-size:11px">Definir</span>`}
+        </td>`;
+
+    return `<tr data-nome="${a.nome}" data-tipo="${a._tipo}" data-valor="${a._valor}" data-pago="${a.pago?'1':'0'}" data-acerto="${a.diaAcerto||''}" data-att="${a.proxAtt||''}" data-belongs="${a._tipo}" style="${a.pausado?'opacity:0.45':''}">
       ${ro?'<td></td>':`<td style="padding:4px 6px;width:32px"><input type="checkbox" class="row-select" data-id="${a.id}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblTodos')" title="Selecionar"></div></td>`}
       <td style="overflow:hidden" title="${a.nome}">
         <span style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;cursor:pointer;${a.pausado?'text-decoration:line-through;color:var(--text3)':''}" onclick="${editFn}">${nAbrev}</span>
       </td>
       <td>${tipoBadge}</td>
       <td style="cursor:pointer" onclick="${editFn}"><span class="mono">${a.pausado?'—':fmt(a._valor)}</span></td>
+      ${renovCell}
+      ${treinoCell}
       <td style="${ro?'':'cursor:pointer'}" onclick="${toggleFn}">
         ${a.pausado?`<span class="badge badge-yellow">Pause</span>`:`<span class="badge ${a.pago?'badge-green':'badge-red'}">${a.pago?'OK':'Pend'}</span>`}
       </td>
@@ -3237,7 +3288,7 @@ function renderTodosContent(md) {
     const tot = students.filter(a=>!a.pausado).reduce((s,a)=>s+a._valor,0);
     const open = _todosGroupOpen[tipo] !== false;
     return `<tr class="todos-group-hdr" data-group="${tipo}" onclick="toggleTodosGroup('${tipo}')" style="cursor:pointer">
-      <td colspan="6" style="padding:7px 14px;background:var(--surface2);border-bottom:1px solid var(--border);user-select:none">
+      <td colspan="8" style="padding:7px 14px;background:var(--surface2);border-bottom:1px solid var(--border);user-select:none">
         <span id="todos-arrow-${tipo}" style="color:var(--text3);font-size:11px;margin-right:6px">${open?'▼':'▶'}</span>
         <span style="color:${color};font-weight:600;font-size:13px">${label}</span>
         <span style="color:var(--text3);font-size:12px;margin-left:8px">${students.length} aluno(s)</span>
@@ -3253,8 +3304,8 @@ function renderTodosContent(md) {
     // Ordena lista completa
     const { col, dir, type } = _todosSort;
     const sorted = [...allStudents].sort((a,b) => {
-      const av = col==='valor'?a._valor : col==='tipo'?a._tipo : col==='pago'?(a.pago?'1':'0') : (a[col]??'');
-      const bv = col==='valor'?b._valor : col==='tipo'?b._tipo : col==='pago'?(b.pago?'1':'0') : (b[col]??'');
+      const av = col==='valor'?a._valor : col==='tipo'?a._tipo : col==='pago'?(a.pago?'1':'0') : col==='acerto'?(a.diaAcerto||'') : col==='att'?(a.proxAtt||'') : (a[col]??'');
+      const bv = col==='valor'?b._valor : col==='tipo'?b._tipo : col==='pago'?(b.pago?'1':'0') : col==='acerto'?(b.diaAcerto||'') : col==='att'?(b.proxAtt||'') : (b[col]??'');
       const cmp = type==='num' ? (parseFloat(av)||0)-(parseFloat(bv)||0)
                                : String(av).localeCompare(String(bv),'pt-BR',{sensitivity:'base'});
       return cmp * dir;
@@ -3281,11 +3332,13 @@ function renderTodosContent(md) {
       <div class="table-scroll"><table id="tblTodos" style="table-layout:fixed;width:100%">
         <thead><tr>
           ${ro?'<th style="width:34px"></th>':`<th style="width:34px"><div class="row-select-cell-all" onclick="toggleSelectAll('tblTodos')" title="Selecionar todos"></div></th>`}
-          <th style="width:24%" data-col="nome" onclick="sortTodos('nome','str')" style="cursor:pointer">Aluno${arrowFor('nome')}</th>
-          <th style="width:10%" data-col="tipo" onclick="sortTodos('tipo','str')" style="cursor:pointer">Tipo${arrowFor('tipo')}</th>
-          <th style="width:14%" data-col="valor" onclick="sortTodos('valor','num')" style="cursor:pointer">Valor${arrowFor('valor')}</th>
-          <th style="width:12%" data-col="pago" onclick="sortTodos('pago','bool')" style="cursor:pointer">Status${arrowFor('pago')}</th>
-          <th style="width:10%">Ações</th>
+          <th style="width:18%;cursor:pointer" data-col="nome" onclick="sortTodos('nome','str')">Aluno${arrowFor('nome')}</th>
+          <th style="width:8%;cursor:pointer"  data-col="tipo" onclick="sortTodos('tipo','str')">Tipo${arrowFor('tipo')}</th>
+          <th style="width:10%;cursor:pointer" data-col="valor" onclick="sortTodos('valor','num')">Valor${arrowFor('valor')}</th>
+          <th class="hide-mobile" style="width:10%;cursor:pointer" data-col="acerto" onclick="sortTodos('acerto','str')">Renov.${arrowFor('acerto')}</th>
+          <th style="width:10%;cursor:pointer" data-col="att" onclick="sortTodos('att','str')">Treino${arrowFor('att')}</th>
+          <th style="width:10%;cursor:pointer" data-col="pago" onclick="sortTodos('pago','bool')">Status${arrowFor('pago')}</th>
+          <th style="width:8%">Ações</th>
         </tr></thead>
         <tbody>${bodyRows}</tbody>
       </table></div>
