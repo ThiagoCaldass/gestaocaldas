@@ -3582,6 +3582,7 @@ window.toggleTodosFilter = function(key) {
 
 window.limparTodosFiltros = function() {
   _todosFilters.clear();
+  _todosSort = null;
   const md = getMonthData();
   const el = document.getElementById('alunosTabContent');
   if (el) el.innerHTML = renderTodosContent(md);
