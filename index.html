@@ -7338,13 +7338,7 @@ async function wapPollStatus() {
     }
     // Atualiza botão captação
     const cbtn = document.getElementById('wap-captacao-btn');
-    if (cbtn && data.captacaoAtiva !== undefined) {
-      const on = data.captacaoAtiva;
-      cbtn.textContent = `🤖 Captação: ${on ? 'ON' : 'OFF'}`;
-      cbtn.style.borderColor = on ? 'rgba(53,200,241,0.4)' : 'rgba(232,32,10,0.4)';
-      cbtn.style.background  = on ? 'rgba(53,200,241,0.1)' : 'rgba(232,32,10,0.1)';
-      cbtn.style.color       = on ? 'var(--accent3)' : 'var(--red)';
-    }
+    if (cbtn && data.captacaoAtiva !== undefined) _atualizarBtnCaptacao(cbtn, data.captacaoAtiva);
   } catch {
     _waPageStatusFails++;
     if (_waPageStatusFails < 3) return;
@@ -7372,16 +7366,28 @@ window.wapTogglePause = async function() {
 
 window.wapToggleCaptacao = async function() {
   const cbtn = document.getElementById('wap-captacao-btn');
-  if (cbtn) { cbtn.disabled = true; cbtn.style.opacity = '.5'; }
+  const textoAntes = cbtn?.textContent || '';
+  if (cbtn) { cbtn.disabled = true; cbtn.textContent = '🤖 Alternando...'; cbtn.style.opacity = '.7'; }
   try {
-    await fetch(getWaServer() + '/captacao', { method: 'POST', signal: AbortSignal.timeout(10000) });
-    await wapPollStatus();
+    const r = await fetch(getWaServer() + '/captacao', { method: 'POST', signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    // Atualiza botão direto da resposta — não depende do poll
+    if (cbtn) _atualizarBtnCaptacao(cbtn, data.captacaoAtiva);
   } catch(e) {
+    if (cbtn) cbtn.textContent = textoAntes;
     alert('Erro ao alternar captação: ' + e.message);
   } finally {
     if (cbtn) { cbtn.disabled = false; cbtn.style.opacity = '1'; }
   }
 };
+
+function _atualizarBtnCaptacao(btn, on) {
+  btn.textContent    = `🤖 Captação: ${on ? 'ON' : 'OFF'}`;
+  btn.style.borderColor = on ? 'rgba(53,200,241,0.4)' : 'rgba(232,32,10,0.4)';
+  btn.style.background  = on ? 'rgba(53,200,241,0.1)' : 'rgba(232,32,10,0.1)';
+  btn.style.color       = on ? 'var(--accent3)' : 'var(--red)';
+}
 
 // ── Categorias CRUD ─────────────────────────────────────────────────
 
