@@ -7152,6 +7152,10 @@ function renderWhatsApp() {
           style="font-size:11px;padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface3);color:var(--text2);cursor:pointer;white-space:nowrap">
           ⏸ Pausar
         </button>
+        <button id="wap-captacao-btn" onclick="wapToggleCaptacao()" title="Pausa o fluxo de captação automática sem desconectar o WhatsApp"
+          style="font-size:11px;padding:3px 10px;border-radius:6px;border:1px solid rgba(53,200,241,0.4);background:rgba(53,200,241,0.1);color:var(--accent3);cursor:pointer;white-space:nowrap">
+          🤖 Captação: ON
+        </button>
       </div>
       <div style="padding:0 16px 8px;font-size:10px;color:var(--text3)">
         Para acessar do celular: <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;user-select:all">cloudflared tunnel --url https://localhost:3001</code> → cole a URL gerada acima
@@ -7332,6 +7336,15 @@ async function wapPollStatus() {
         pbtn.style.color = '';
       }
     }
+    // Atualiza botão captação
+    const cbtn = document.getElementById('wap-captacao-btn');
+    if (cbtn && data.captacaoAtiva !== undefined) {
+      const on = data.captacaoAtiva;
+      cbtn.textContent = `🤖 Captação: ${on ? 'ON' : 'OFF'}`;
+      cbtn.style.borderColor = on ? 'rgba(53,200,241,0.4)' : 'rgba(232,32,10,0.4)';
+      cbtn.style.background  = on ? 'rgba(53,200,241,0.1)' : 'rgba(232,32,10,0.1)';
+      cbtn.style.color       = on ? 'var(--accent3)' : 'var(--red)';
+    }
   } catch {
     _waPageStatusFails++;
     if (_waPageStatusFails < 3) return;
@@ -7354,6 +7367,19 @@ window.wapTogglePause = async function() {
     alert('Erro ao ' + (isPaused ? 'retomar' : 'pausar') + ': ' + e.message);
   } finally {
     if (pbtn) { pbtn.disabled = false; pbtn.style.opacity = '1'; }
+  }
+};
+
+window.wapToggleCaptacao = async function() {
+  const cbtn = document.getElementById('wap-captacao-btn');
+  if (cbtn) { cbtn.disabled = true; cbtn.style.opacity = '.5'; }
+  try {
+    await fetch(getWaServer() + '/captacao', { method: 'POST', signal: AbortSignal.timeout(10000) });
+    await wapPollStatus();
+  } catch(e) {
+    alert('Erro ao alternar captação: ' + e.message);
+  } finally {
+    if (cbtn) { cbtn.disabled = false; cbtn.style.opacity = '1'; }
   }
 };
 

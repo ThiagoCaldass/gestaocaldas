@@ -46,6 +46,7 @@ const TEMPO_LEMBRETE = 24 * 60 * 60 * 1000;      // 24h
 // Contatos já conhecidos — JIDs que já mandaram mensagem antes.
 // Novos contatos (não conhecidos) disparam o fluxo de captação.
 let conhecidos = new Set();
+let captacaoAtiva = true;  // pausa/retoma o fluxo de captação sem desconectar
 
 function loadConhecidos() {
   try {
@@ -193,8 +194,8 @@ async function processarFluxo(jid, textoRaw, pushName) {
     return;
   }
 
-  // Contato novo → inicia fluxo
-  if (isNovo) {
+  // Contato novo → inicia fluxo (apenas se captação ativa)
+  if (isNovo && captacaoAtiva) {
     conversas.set(jid, { etapa: 1, nome: pushName || '', ts: Date.now() });
     await enviarMsg(jid, `Opa! Seja bem-vindo(a) ao *Team Caldas* 💪\nQual o seu nome, por gentileza?`);
     agendarLembrete(jid);
@@ -387,7 +388,13 @@ app.get('/', (req, res) => {
 
 // ── Rotas da API ──────────────────────────────────────────────────────
 
-app.get('/status', (req, res) => res.json({ status: waStatus, qr: waQR }));
+app.get('/status', (req, res) => res.json({ status: waStatus, qr: waQR, captacaoAtiva }));
+
+app.post('/captacao', (req, res) => {
+  captacaoAtiva = !captacaoAtiva;
+  console.log(`🤖 Captação ${captacaoAtiva ? 'ativada' : 'pausada'}`);
+  res.json({ ok: true, captacaoAtiva });
+});
 
 app.post('/send', async (req, res) => {
   if (waStatus !== 'conectado') return res.status(400).json({ erro: 'WhatsApp não conectado' });
