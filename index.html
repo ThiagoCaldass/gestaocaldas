@@ -3167,7 +3167,7 @@ function renderAlunos(md) {
 function setAlunosTab(tab) {
   alunosTab = tab;
   if (tab==='online'||tab==='presencial') personalTab = tab;
-  if (tab!=='todos') _todosSort = null; // reset sort ao sair da aba Todos
+  if (tab!=='todos') { _todosSort = null; _todosFilters.clear(); } // reset ao sair da aba Todos
   const md = getMonthData();
   const el = document.getElementById('alunosTabContent');
   if (el) el.innerHTML =
@@ -3206,6 +3206,51 @@ function renderTodosContent(md) {
     ...online.map(a=>  ({...a, _tipo:'online',  _valor:a.valor||0})),
     ...pres.map(a=>    ({...a, _tipo:'pres',    _valor:a.valor||0})),
   ];
+
+  // ── Filtros ativos ─────────────────────────────────────────────────
+  const _h0f = new Date(); _h0f.setHours(0,0,0,0);
+  const FILTROS_DEF = {
+    'nao-pago':    { label:'🔴 Não pagos',        fn: a => !a.pago && !a.pausado },
+    'treino-venc': { label:'📋 Treino vencendo',   fn: a => a._tipo!=='cali' && a.proxAtt && Math.floor((new Date(a.proxAtt)-_h0f)/86400000)<=7 },
+    'pausado':     { label:'⏸ Pausados',          fn: a => !!a.pausado },
+    'cali':        { label:'Cali',                 fn: a => a._tipo==='cali' },
+    'online':      { label:'Online',               fn: a => a._tipo==='online' },
+    'pres':        { label:'Presencial',           fn: a => a._tipo==='pres' },
+  };
+  const hasFilter = _todosFilters.size > 0;
+  // AND entre filtros do mesmo grupo (modalidade), OR dentro do grupo, AND entre grupos
+  const tiposFiltro = ['cali','online','pres'].filter(k=>_todosFilters.has(k));
+  const outrosFiltros = ['nao-pago','treino-venc','pausado'].filter(k=>_todosFilters.has(k));
+  const filteredStudents = hasFilter
+    ? allStudents.filter(a => {
+        if (tiposFiltro.length && !tiposFiltro.some(k=>FILTROS_DEF[k].fn(a))) return false;
+        if (outrosFiltros.length && !outrosFiltros.every(k=>FILTROS_DEF[k].fn(a))) return false;
+        return true;
+      })
+    : allStudents;
+
+  // Chips de filtro
+  const filterChips = Object.entries(FILTROS_DEF).map(([k,f]) => {
+    const ativo = _todosFilters.has(k);
+    const isTipo = ['cali','online','pres'].includes(k);
+    const cor = ativo
+      ? (k==='nao-pago'?'rgba(232,32,10,0.18)':k==='treino-venc'?'rgba(53,200,241,0.18)':k==='pausado'?'rgba(241,193,53,0.18)':'rgba(120,120,120,0.25)')
+      : 'transparent';
+    const corTexto = ativo
+      ? (k==='nao-pago'?'var(--red)':k==='treino-venc'?'var(--accent3)':k==='pausado'?'#f1c135':'var(--text)')
+      : 'var(--text3)';
+    const border = ativo
+      ? (k==='nao-pago'?'rgba(232,32,10,0.4)':k==='treino-venc'?'rgba(53,200,241,0.4)':k==='pausado'?'rgba(241,193,53,0.4)':'rgba(120,120,120,0.4)')
+      : 'var(--border)';
+    return `<button onclick="toggleTodosFilter('${k}')" style="padding:4px 10px;border-radius:20px;border:1px solid ${border};background:${cor};color:${corTexto};font-size:11px;cursor:pointer;transition:all 0.15s;font-family:inherit">${f.label}</button>`;
+  }).join('');
+  const filterBar = `<div style="display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--text3);margin-right:2px">Filtros:</span>
+    ${filterChips}
+    ${hasFilter?`<button onclick="limparTodosFiltros()" style="padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:11px;cursor:pointer;font-family:inherit;margin-left:4px">✕ Limpar</button>`:''}
+    ${hasFilter?`<span style="font-size:11px;color:var(--text3);margin-left:auto">${filteredStudents.length} de ${allStudents.length} aluno(s)</span>`:''}
+  </div>`;
+
   const isSorted = _todosSort !== null;
 
   // ── Painel de alertas ──────────────────────────────────────────────
@@ -3422,7 +3467,7 @@ function renderTodosContent(md) {
   if (isSorted) {
     // Ordena lista completa
     const { col, dir, type } = _todosSort;
-    const sorted = [...allStudents].sort((a,b) => {
+    const sorted = [...filteredStudents].sort((a,b) => {
       // Treino: sem proxAtt sempre vai pro final, independente da direção
       if (col === 'att') {
         const av = a.proxAtt, bv = b.proxAtt;
@@ -3466,19 +3511,22 @@ function renderTodosContent(md) {
     bodyRows = sorted.map(renderTodosRow).join('');
   } else {
     const open = t => _todosGroupOpen[t] !== false;
+    const fCali   = filteredStudents.filter(a=>a._tipo==='cali');
+    const fOnline = filteredStudents.filter(a=>a._tipo==='online');
+    const fPres   = filteredStudents.filter(a=>a._tipo==='pres');
     bodyRows =
-      renderGroupHdr('Calistenia','var(--accent)', caliCalc.map(a=>({...a,_tipo:'cali',_valor:a.valorFinal})), 'cali')
-      + (open('cali')   ? caliCalc.map(a=>renderTodosRow({...a,_tipo:'cali',_valor:a.valorFinal})).join('') : '')
-      + renderGroupHdr('Online','var(--green)', online.map(a=>({...a,_tipo:'online',_valor:a.valor||0})), 'online')
-      + (open('online') ? online.map(a=>renderTodosRow({...a,_tipo:'online',_valor:a.valor||0})).join('') : '')
-      + renderGroupHdr('Presencial','var(--accent3)', pres.map(a=>({...a,_tipo:'pres',_valor:a.valor||0})), 'pres')
-      + (open('pres')   ? pres.map(a=>renderTodosRow({...a,_tipo:'pres',_valor:a.valor||0})).join('') : '');
+      (fCali.length   ? renderGroupHdr('Calistenia','var(--accent)',  fCali,   'cali')   + (open('cali')   ? fCali.map(renderTodosRow).join('')   : '') : '')
+    + (fOnline.length ? renderGroupHdr('Online',    'var(--green)',   fOnline, 'online') + (open('online') ? fOnline.map(renderTodosRow).join('') : '') : '')
+    + (fPres.length   ? renderGroupHdr('Presencial','var(--accent3)', fPres,   'pres')   + (open('pres')   ? fPres.map(renderTodosRow).join('')   : '') : '')
+    + (!fCali.length && !fOnline.length && !fPres.length
+        ? `<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text3);font-size:13px">Nenhum aluno encontrado com os filtros ativos</td></tr>` : '');
   }
 
   return `<div>
     ${alertsHtml}
     <div class="table-card">
       ${ro?'':'<div id="tblTodos-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum" style="font-weight:600"></span><button class="btn-wa" onclick="waAbrirSelecionados(\'tblTodos\')" style="margin-left:auto">📲 Enviar WA</button><button class="btn btn-danger btn-sm" onclick="deleteSelectedTodos()">Excluir</button></div>'}
+      ${filterBar}
       ${isSorted?`<div style="padding:5px 12px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text3);display:flex;align-items:center;gap:8px">
         <span>Ordenação ativa — grupos ocultos</span>
         <button onclick="resetTodosSort()" style="border:none;background:none;color:var(--accent);cursor:pointer;font-size:11px;padding:0;text-decoration:underline">✕ Restaurar grupos</button>
@@ -3497,8 +3545,12 @@ function renderTodosContent(md) {
         <tbody>${bodyRows}</tbody>
       </table></div>
       <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
-        <span style="color:var(--text3)">${allStudents.filter(a=>!a.pausado).length} ativos · ${allStudents.filter(a=>a.pausado).length} pausados</span>
-        <span class="mono stat-green">${fmt(tCali+tOnline+tPres)}</span>
+        <span style="color:var(--text3)">
+          ${hasFilter
+            ? `${filteredStudents.length} filtrado(s) de ${allStudents.length} total`
+            : `${allStudents.filter(a=>!a.pausado).length} ativos · ${allStudents.filter(a=>a.pausado).length} pausados`}
+        </span>
+        <span class="mono stat-green">${fmt(filteredStudents.filter(a=>!a.pausado).reduce((s,a)=>s+a._valor,0))}</span>
       </div>
     </div>
   </div>`;
@@ -3515,6 +3567,21 @@ window.sortTodos = function(col, type='str') {
 
 window.resetTodosSort = function() {
   _todosSort = null;
+  const md = getMonthData();
+  const el = document.getElementById('alunosTabContent');
+  if (el) el.innerHTML = renderTodosContent(md);
+};
+
+window.toggleTodosFilter = function(key) {
+  if (_todosFilters.has(key)) _todosFilters.delete(key);
+  else _todosFilters.add(key);
+  const md = getMonthData();
+  const el = document.getElementById('alunosTabContent');
+  if (el) el.innerHTML = renderTodosContent(md);
+};
+
+window.limparTodosFiltros = function() {
+  _todosFilters.clear();
   const md = getMonthData();
   const el = document.getElementById('alunosTabContent');
   if (el) el.innerHTML = renderTodosContent(md);
@@ -3839,6 +3906,7 @@ let personalTab='online';
 let alunosTab='todos';
 let _todosSort = null;          // { col, dir, type } ou null
 let _todosGroupOpen = {};       // { cali: bool, online: bool, pres: bool }
+let _todosFilters = new Set();  // filtros ativos: 'nao-pago'|'treino-venc'|'pausado'|'cali'|'online'|'pres'
 function renderPersonal(md) { renderAlunos(md); }
 function renderPersonalContent(md, tab) {
   const ro = isReadOnly();
