@@ -3287,8 +3287,8 @@ function renderTodosContent(md) {
 
   const alertsHtml = `
   <details id="todos-alerts-details" style="margin-bottom:14px">
-    <summary style="list-style:none;display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;user-select:none;font-size:13px">
-      <span style="color:var(--text3);font-size:11px" id="todos-alerts-arrow">▶</span>
+    <summary onclick="setTimeout(()=>{const d=this.closest('details');const a=this.querySelector('.ta-arrow');if(a)a.textContent=d.open?'▼':'▶';},0)" style="list-style:none;display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;user-select:none;font-size:13px">
+      <span class="ta-arrow" style="color:var(--text3);font-size:11px">▶</span>
       <span style="font-weight:600;color:var(--text)">⚡ Avisos</span>
       ${allOk
         ? `<span style="color:var(--green);font-size:12px">✓ Tudo em dia</span>`
@@ -3314,17 +3314,7 @@ function renderTodosContent(md) {
         </div>
       </div>
     </div>
-  </details>
-  <script>
-    (function(){
-      const d = document.getElementById('todos-alerts-details');
-      if (!d) return;
-      d.addEventListener('toggle', () => {
-        const arr = document.getElementById('todos-alerts-arrow');
-        if (arr) arr.textContent = d.open ? '▼' : '▶';
-      });
-    })();
-  </script>`;
+  </details>`;
   // ── fim alertas ────────────────────────────────────────────────────
 
   // Render de uma linha unificada
