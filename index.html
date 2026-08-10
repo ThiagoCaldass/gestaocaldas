@@ -3431,8 +3431,34 @@ function renderTodosContent(md) {
         if (!bv) return -1;
         return av.localeCompare(bv) * dir;
       }
-      const av = col==='valor'?a._valor : col==='tipo'?a._tipo : col==='pago'?(a.pago?'1':'0') : col==='acerto'?(a.diaAcerto||'') : (a[col]??'');
-      const bv = col==='valor'?b._valor : col==='tipo'?b._tipo : col==='pago'?(b.pago?'1':'0') : col==='acerto'?(b.diaAcerto||'') : (b[col]??'');
+      // Renovação: converte diaAcerto em dias a partir de hoje; blanks sempre no final
+      if (col === 'acerto') {
+        const _h = new Date(); _h.setHours(0,0,0,0);
+        const parseDias = d => {
+          if (!d) return null;
+          const mM = d.match(/^[Dd]ia\s*(\d{1,2})$/);
+          if (mM) {
+            const day = parseInt(mM[1]);
+            let pg = new Date(_h.getFullYear(), _h.getMonth(), day);
+            if (pg < _h) pg = new Date(_h.getFullYear(), _h.getMonth()+1, day);
+            return Math.floor((pg - _h) / 86400000);
+          }
+          const tM = d.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+          if (tM) {
+            const ano = tM[3] ? (tM[3].length===2?2000+parseInt(tM[3]):parseInt(tM[3])) : _h.getFullYear();
+            const pg = new Date(ano, parseInt(tM[2])-1, parseInt(tM[1]));
+            return Math.floor((pg - _h) / 86400000);
+          }
+          return null;
+        };
+        const av = parseDias(a.diaAcerto), bv = parseDias(b.diaAcerto);
+        if (av===null && bv===null) return 0;
+        if (av===null) return 1;
+        if (bv===null) return -1;
+        return (av - bv) * dir;
+      }
+      const av = col==='valor'?a._valor : col==='tipo'?a._tipo : col==='pago'?(a.pago?'1':'0') : (a[col]??'');
+      const bv = col==='valor'?b._valor : col==='tipo'?b._tipo : col==='pago'?(b.pago?'1':'0') : (b[col]??'');
       const cmp = type==='num' ? (parseFloat(av)||0)-(parseFloat(bv)||0)
                                : String(av).localeCompare(String(bv),'pt-BR',{sensitivity:'base'});
       return cmp * dir;
