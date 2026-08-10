@@ -3256,7 +3256,7 @@ function renderTodosContent(md) {
 
     // Célula Renovação
     const renovCell = a._tipo==='cali'
-      ? `<td class="hide-mobile"><span style="color:var(--text3);font-size:12px">—</span></td>`
+      ? `<td class="hide-mobile"><span style="font-size:12px;color:var(--text2)">${a.diaAcerto||'<span style="color:var(--text3)">—</span>'}</span></td>`
       : `<td class="hide-mobile" style="${ro?'':'cursor:pointer'}" onclick="${ro?'':` editCellPersonal('${a.id}','Renovação','${a.diaAcerto||''}') `}">
           <span style="${pgtoStyle}">${a.diaAcerto||`<span style="color:var(--text3)">—</span>`}</span>
         </td>`;
