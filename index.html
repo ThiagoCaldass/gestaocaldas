@@ -955,6 +955,7 @@ function saveData() {
 
 // Fix data from older versions (wrong categories, etc.)
 function migrateMonthData(md) {
+  let changed = false;
   if (md?.balanco?.gastos) {
     md.balanco.gastos.forEach(g => {
       const nL = (g.nome||'').toLowerCase();
@@ -967,8 +968,9 @@ function migrateMonthData(md) {
   }
   // Calistenia: renovação padrão Dia 10 para quem não tem definido
   if (md?.calistenia) {
-    md.calistenia.forEach(a => { if (!a.diaAcerto) a.diaAcerto = 'Dia 10'; });
+    md.calistenia.forEach(a => { if (!a.diaAcerto) { a.diaAcerto = 'Dia 10'; changed = true; } });
   }
+  return changed;
 }
 
 // Migra alunos de parceria para online com plano='parceria'
@@ -1145,8 +1147,9 @@ async function loadMonthData() {
   if (online && remote) {
     // Month exists in Supabase — load it
     cachedData[k] = remote;
-    migrateMonthData(cachedData[k]);
-    if (migrateParceriasToOnline(cachedData[k])) saveData();
+    const m1 = migrateMonthData(cachedData[k]);
+    const m2 = migrateParceriasToOnline(cachedData[k]);
+    if (m1 || m2) saveData();
     setSyncStatus('synced', 'Sincronizado');
     return;
   }
@@ -1201,12 +1204,14 @@ async function loadYearData() {
     );
     if (!res.ok) return;
     const rows = await res.json();
+    let anyChanged = false;
     rows.forEach(row => {
       if (!cachedData[row.month_key] && row.data) {
         cachedData[row.month_key] = row.data;
-        migrateMonthData(cachedData[row.month_key]);
+        if (migrateMonthData(cachedData[row.month_key])) anyChanged = true;
       }
     });
+    if (anyChanged) saveData();
   } catch(e) {
     // offline — tenta localStorage para os meses anteriores
     for (let m = 1; m <= currentMonth.m; m++) {
