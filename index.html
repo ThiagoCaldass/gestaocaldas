@@ -3208,6 +3208,99 @@ function renderTodosContent(md) {
   ];
   const isSorted = _todosSort !== null;
 
+  // ── Painel de alertas ──────────────────────────────────────────────
+  const h0a = new Date(); h0a.setHours(0,0,0,0);
+
+  function _pgUrgency(a) {
+    if (!a.diaAcerto) return 'neutro';
+    const d = a.diaAcerto.trim();
+    const mMatch = d.match(/^[Dd]ia\s*(\d{1,2})$/);
+    if (mMatch) {
+      const pg = new Date(h0a.getFullYear(), h0a.getMonth(), parseInt(mMatch[1]));
+      const diff = Math.floor((pg - h0a) / 86400000);
+      return diff < 0 ? 'vermelho' : diff <= 3 ? 'amarelo' : 'neutro';
+    }
+    const tMatch = d.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+    if (tMatch) {
+      const ano = tMatch[3] ? (tMatch[3].length===2?2000+parseInt(tMatch[3]):parseInt(tMatch[3])) : h0a.getFullYear();
+      const pg = new Date(ano, parseInt(tMatch[2])-1, parseInt(tMatch[1]));
+      const diff = Math.floor((pg - h0a) / 86400000);
+      return diff < 0 ? 'vermelho' : diff <= 3 ? 'amarelo' : 'neutro';
+    }
+    return 'neutro';
+  }
+
+  // Pendentes de pagamento (não pago, não pausado) — ordenados por urgência
+  const pendAlunos = allStudents
+    .filter(a => !a.pago && !a.pausado)
+    .sort((a,b) => {const o={vermelho:0,amarelo:1,neutro:2}; return o[_pgUrgency(a)]-o[_pgUrgency(b)];});
+  const totPend = pendAlunos.reduce((s,a) => s + a._valor, 0);
+
+  // Treinos a vencer nos próximos 7 dias (ou já vencidos), apenas personal
+  const treinoAlerta = allStudents
+    .filter(a => a._tipo !== 'cali' && !a.pausado && a.proxAtt)
+    .filter(a => Math.floor((new Date(a.proxAtt) - h0a) / 86400000) <= 7)
+    .sort((a,b) => a.proxAtt.localeCompare(b.proxAtt));
+
+  const _tipoBadgeSm = a =>
+    a._tipo==='cali'   ? `<span class="badge badge-gray"  style="font-size:10px">Cali</span>` :
+    a._tipo==='online' ? `<span class="badge badge-green" style="font-size:10px">Online</span>` :
+                         `<span class="badge badge-blue"  style="font-size:10px">Pres</span>`;
+
+  const pendRows = pendAlunos.map(a => {
+    const urg = _pgUrgency(a);
+    const cor = urg==='vermelho' ? 'var(--red)' : urg==='amarelo' ? '#f1c135' : 'var(--text3)';
+    const urgIcon = urg==='vermelho' ? '⚠ ' : urg==='amarelo' ? '! ' : '';
+    const toggleFn = a._tipo==='cali' ? `toggleCali('${a.id}')` : `togglePersonal('${a.id}')`;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;border-bottom:1px solid var(--border);font-size:12px;gap:8px">
+      <div style="display:flex;align-items:center;gap:6px;min-width:0">${_tipoBadgeSm(a)}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nome}</span></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        ${a.diaAcerto?`<span style="color:${cor};font-size:11px">${urgIcon}${a.diaAcerto}</span>`:''}
+        <span class="mono" style="color:var(--red)">${fmt(a._valor)}</span>
+        ${ro?'':`<button class="btn btn-ghost btn-sm" onclick="${toggleFn}" style="padding:2px 8px;font-size:11px;color:var(--green)" title="Marcar como pago">✓</button>`}
+      </div>
+    </div>`;
+  }).join('');
+
+  const treinoRows = treinoAlerta.map(a => {
+    const diff = Math.floor((new Date(a.proxAtt) - h0a) / 86400000);
+    const isVenc = diff < 0;
+    const isMuito = diff >= 0 && diff <= 3;
+    const cor = isVenc ? 'var(--red)' : isMuito ? '#f1c135' : 'var(--text2)';
+    const label = isVenc ? `Venceu ${Math.abs(diff)}d atrás` : diff===0 ? 'Vence hoje' : `Vence em ${diff}d`;
+    const icon = isVenc ? '⚠ ' : isMuito ? '! ' : '⏰ ';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;border-bottom:1px solid var(--border);font-size:12px;gap:8px">
+      <div style="display:flex;align-items:center;gap:6px;min-width:0">${_tipoBadgeSm(a)}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nome}</span></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <span style="color:${cor};font-size:11px">${icon}${label}</span>
+        ${ro?'':`<button class="btn btn-ghost btn-sm" onclick="attTreino('${a.id}')" style="padding:2px 8px;font-size:11px" title="Atualizar treino">📋</button>`}
+      </div>
+    </div>`;
+  }).join('');
+
+  const alertsHtml = `
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <div class="table-card">
+      <div class="table-header">
+        <div class="table-title">💰 Pagamentos pendentes</div>
+        ${pendAlunos.length>0?`<span class="mono" style="color:var(--red);font-size:12px">${fmt(totPend)}</span>`:''}
+      </div>
+      <div style="max-height:260px;overflow-y:auto">
+        ${pendRows||`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">✓ Todos em dia!</div>`}
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="table-header">
+        <div class="table-title">📋 Treinos a vencer</div>
+        ${treinoAlerta.length>0?`<span style="font-size:11px;color:var(--accent3)">${treinoAlerta.length} aluno(s)</span>`:''}
+      </div>
+      <div style="max-height:260px;overflow-y:auto">
+        ${treinoRows||`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">✓ Treinos em dia!</div>`}
+      </div>
+    </div>
+  </div>`;
+  // ── fim alertas ────────────────────────────────────────────────────
+
   // Render de uma linha unificada
   function renderTodosRow(a) {
     const tipoBadge =
@@ -3341,6 +3434,7 @@ function renderTodosContent(md) {
   }
 
   return `<div>
+    ${alertsHtml}
     <div class="table-card">
       ${ro?'':'<div id="tblTodos-selbar" class="selection-bar"><span class="sel-count">Nenhum selecionado</span><span class="sel-sum" style="font-weight:600"></span><button class="btn-wa" onclick="waAbrirSelecionados(\'tblTodos\')" style="margin-left:auto">📲 Enviar WA</button><button class="btn btn-danger btn-sm" onclick="deleteSelectedTodos()">Excluir</button></div>'}
       ${isSorted?`<div style="padding:5px 12px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text3);display:flex;align-items:center;gap:8px">
