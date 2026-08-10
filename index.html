@@ -3091,7 +3091,7 @@ function salvarPlanoCali(i) {
   const valor = parseFloat(document.getElementById('mPCValor')?.value||'0');
   if (!label) return;
   globalPlanosCali[i] = { ...globalPlanosCali[i], label, valor: isNaN(valor)?globalPlanosCali[i].valor:valor };
-  savePlanosCali(); closeModal(); setAlunosTab('calistenia');
+  savePlanosCali(); closeModal(); setAlunosTab(alunosTab);
 }
 
 function removerPlanoCali(i) {
@@ -3516,9 +3516,9 @@ function deleteSelectedPersonal(){
   md.personal.presencial=md.personal.presencial.filter(a=>!ids.includes(a.id));
   saveData();setAlunosTab(alunosTab);
 }
-function toggleCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a)a.pago=!a.pago;syncGanhosFromTables(md);saveData();setAlunosTab('calistenia');}
-function togglePausadoCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a){a.pausado=!a.pausado;if(a.pausado)a.pago=false;}saveData();setAlunosTab('calistenia');}
-function removeCali(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.calistenia=md.calistenia.filter(x=>x.id!==id);saveData();setAlunosTab('calistenia');}
+function toggleCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a)a.pago=!a.pago;syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);}
+function togglePausadoCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a){a.pausado=!a.pausado;if(a.pausado)a.pago=false;}saveData();setAlunosTab(alunosTab);}
+function removeCali(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.calistenia=md.calistenia.filter(x=>x.id!==id);saveData();setAlunosTab(alunosTab);}
 
 function openAddCali(){
   const md=getMonthData();
@@ -4102,7 +4102,7 @@ function saveValorAula(alunoId) {
   const a = [...md.personal.online, ...md.personal.presencial].find(x=>x.id===alunoId);
   if (!a) return;
   a.valorAula = parseFloat(document.getElementById('mVA').value)||0;
-  saveData(); closeModal(); setAlunosTab(personalTab);
+  saveData(); closeModal(); setAlunosTab(alunosTab);
 }
 function editValorPersonal(id) {
   if(guardReadOnly())return;
@@ -4184,12 +4184,12 @@ function saveValorPersonal(id, isPres) {
       a.pacoteAulas = 0;
     }
   }
-  saveData(); closeModal(); renderPersonal(md);
+  saveData(); closeModal(); setAlunosTab(alunosTab);
 }
 
-function togglePersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a)a.pago=!a.pago;syncGanhosFromTables(md);saveData();setAlunosTab(personalTab);}
-function togglePausadoPersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a){a.pausado=!a.pausado;if(a.pausado)a.pago=false;}saveData();setAlunosTab(personalTab);}
-function removePersonal(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.personal.online=md.personal.online.filter(x=>x.id!==id);md.personal.presencial=md.personal.presencial.filter(x=>x.id!==id);saveData();setAlunosTab(personalTab);}
+function togglePersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a)a.pago=!a.pago;syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);}
+function togglePausadoPersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a){a.pausado=!a.pausado;if(a.pausado)a.pago=false;}saveData();setAlunosTab(alunosTab);}
+function removePersonal(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.personal.online=md.personal.online.filter(x=>x.id!==id);md.personal.presencial=md.personal.presencial.filter(x=>x.id!==id);saveData();setAlunosTab(alunosTab);}
 function toggleMsgSemana(id){const md=getMonthData();const a=md.personal.online.find(x=>x.id===id);if(!a)return;a.msgSemana=!a.msgSemana;saveData();setAlunosTab('online');}
 function desmarcarTodosMsg(){const md=getMonthData();md.personal.online.forEach(a=>{a.msgSemana=false;});saveData();setAlunosTab('online');}
 // ── Inline cell edit helpers ──
@@ -4242,7 +4242,7 @@ function saveEditCell_Cali(id, campo) {
   if (!a) return;
   if (campo==='Valor') { const v=parseFloat(novo); if(!isNaN(v)){ a.valorBase=v; a.valorFinal=v; } }
   else if (campo==='Nome') { a.nome=novo; }
-  calcValoresCali(md.calistenia); saveData(); closeModal(); setAlunosTab('calistenia');
+  calcValoresCali(md.calistenia); saveData(); closeModal(); setAlunosTab(alunosTab);
 }
 
 
@@ -4280,7 +4280,7 @@ function saveAtt(id){
   a.attTreino=document.getElementById('mD').value;
   a.proxAtt=document.getElementById('mProx').value;
   a.obs=document.getElementById('mO').value;
-  saveData();closeModal();setAlunosTab(personalTab);
+  saveData();closeModal();setAlunosTab(alunosTab);
 }
 function gerenciarPlanos() {
   const renderList = () => {
