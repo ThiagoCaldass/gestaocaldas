@@ -955,15 +955,20 @@ function saveData() {
 
 // Fix data from older versions (wrong categories, etc.)
 function migrateMonthData(md) {
-  if (!md?.balanco?.gastos) return;
-  md.balanco.gastos.forEach(g => {
-    const nL = (g.nome||'').toLowerCase();
-    if (nL.includes('fatura bb') || nL.includes('fatura inter') || nL.includes('antecip. inter')) {
-      g.categoria = 'cartão de credito';
-    } else if (!g.categoria || g.categoria === '') {
-      g.categoria = g.nome.toLowerCase();
-    }
-  });
+  if (md?.balanco?.gastos) {
+    md.balanco.gastos.forEach(g => {
+      const nL = (g.nome||'').toLowerCase();
+      if (nL.includes('fatura bb') || nL.includes('fatura inter') || nL.includes('antecip. inter')) {
+        g.categoria = 'cartão de credito';
+      } else if (!g.categoria || g.categoria === '') {
+        g.categoria = g.nome.toLowerCase();
+      }
+    });
+  }
+  // Calistenia: renovação padrão Dia 10 para quem não tem definido
+  if (md?.calistenia) {
+    md.calistenia.forEach(a => { if (!a.diaAcerto) a.diaAcerto = 'Dia 10'; });
+  }
 }
 
 // Migra alunos de parceria para online com plano='parceria'
