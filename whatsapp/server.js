@@ -197,6 +197,10 @@ async function processarFluxo(jid, textoRaw, pushName) {
   // Contato novo → inicia fluxo (apenas se captação ativa)
   if (isNovo && captacaoAtiva) {
     conversas.set(jid, { etapa: 1, nome: pushName || '', ts: Date.now() });
+    // Subscreve presença e aguarda sessão E2E ser estabelecida
+    // antes de enviar — evita "mensagem indisponível" no destinatário
+    try { await sock.presenceSubscribe(jid); } catch {}
+    await new Promise(r => setTimeout(r, 1500));
     await enviarMsg(jid, `Opa! Seja bem-vindo(a) ao *Team Caldas* 💪\nQual o seu nome, por gentileza?`);
     agendarLembrete(jid);
     console.log(`🎯 Fluxo iniciado (novo contato): ${jid}`);
