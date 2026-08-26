@@ -3908,6 +3908,7 @@ let alunosTab='todos';
 let _todosSort = null;          // { col, dir, type } ou null
 let _todosGroupOpen = {};       // { cali: bool, online: bool, pres: bool }
 let _todosFilters = new Set();  // filtros ativos: 'nao-pago'|'treino-venc'|'pausado'|'cali'|'online'|'pres'
+let _presViewMode = {};         // { [alunoId]: 'lista'|'calendario' }
 function renderPersonal(md) { renderAlunos(md); }
 function renderPersonalContent(md, tab) {
   const ro = isReadOnly();
@@ -4096,11 +4097,12 @@ function renderRegistroAulas(list) {
             <div class="table-title" style="font-size:13px">${a.nome}</div>
             <div style="font-size:11px;color:var(--text3);margin-top:2px">Pacote · ${qtd}/${total} aulas · ${fmt(valorPkg)}</div>
           </div>
-          ${ro?'':` <div style="display:flex;gap:5px;flex-shrink:0">
-            <button class="btn btn-primary btn-sm" onclick="addAulaHoje('${a.id}')" ${esgotado?'disabled title="Pacote esgotado"':''}>+ Hoje</button>
-            <button class="btn btn-ghost btn-sm" onclick="addAula('${a.id}')">📅</button>
-            ${qtd>0?`<button class="btn btn-ghost btn-sm" onclick="zerarPresencasAluno('${a.id}')" style="color:var(--red)" title="Zerar presenças deste aluno">↺</button>`:''}
-          </div>`}
+          <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="togglePresView('${a.id}')" title="Alternar visualização" style="font-size:10px;padding:3px 7px;border-color:rgba(255,255,255,0.15)">${_presViewMode[a.id]==='calendario'?'📋 Lista':'🗓 Cal.'}</button>
+            ${ro?'':` <button class="btn btn-primary btn-sm" onclick="addAulaHoje('${a.id}')" ${esgotado?'disabled title="Pacote esgotado"':''}>+ Hoje</button>
+            <button class="btn btn-ghost btn-sm" onclick="addAula('${a.id}')">➕ data</button>
+            ${qtd>0?`<button class="btn btn-ghost btn-sm" onclick="zerarPresencasAluno('${a.id}')" style="color:var(--red)" title="Zerar presenças deste aluno">↺</button>`:''}`}
+          </div>
         </div>
 
         <!-- BARRA DE PROGRESSO -->
@@ -4125,14 +4127,14 @@ function renderRegistroAulas(list) {
           <div><span style="font-size:10px;color:var(--text3)">Pacote total</span><div style="font-size:13px;color:var(--text3)">${fmt(valorPkg)}</div></div>
         </div>` : ''}
 
-        ${datas.length > 0 ? `
+        ${_presViewMode[a.id]==='calendario' ? renderCalendario(a) : (datas.length > 0 ? `
         <div style="max-height:160px;overflow-y:auto">
           ${datas.map(d => `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;border-bottom:1px solid rgba(42,42,42,0.4)">
               <span style="font-size:12px;color:var(--text2)">${fmtDateLong(d)}</span>
               ${ro?'':`<button class="btn btn-danger btn-sm" onclick="removeAula('${a.id}','${d}',0)" style="padding:2px 6px;font-size:10px">✕</button>`}
             </div>`).join('')}
-        </div>` : `<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Nenhuma aula registrada</div>`}
+        </div>` : `<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Nenhuma aula registrada</div>`)}
       </div>`;
 
     } else {
@@ -4148,18 +4150,19 @@ function renderRegistroAulas(list) {
               ${valorAula > 0 ? ` × <span style="cursor:pointer;border-bottom:1px dashed var(--text3)" onclick="editValorAula('${a.id}')">R$${valorAula}</span> = <strong style="color:var(--accent)">${fmt(total)}</strong>` : ` · <span style="cursor:pointer;color:var(--accent3);font-size:11px" onclick="editValorAula('${a.id}')">definir R$/aula ✎</span>`}
             </div>
           </div>
-          ${ro?'':` <div style="display:flex;gap:5px;flex-shrink:0">
-            <button class="btn btn-primary btn-sm" onclick="addAulaHoje('${a.id}')">+ Hoje</button>
-            <button class="btn btn-ghost btn-sm" onclick="addAula('${a.id}')">📅</button>
-            ${qtd>0?`<button class="btn btn-ghost btn-sm" onclick="zerarPresencasAluno('${a.id}')" style="color:var(--red)" title="Zerar presenças deste aluno">↺</button>`:''}
-          </div>`}
+          <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="togglePresView('${a.id}')" title="Alternar visualização" style="font-size:10px;padding:3px 7px;border-color:rgba(255,255,255,0.15)">${_presViewMode[a.id]==='calendario'?'📋 Lista':'🗓 Cal.'}</button>
+            ${ro?'':` <button class="btn btn-primary btn-sm" onclick="addAulaHoje('${a.id}')">+ Hoje</button>
+            <button class="btn btn-ghost btn-sm" onclick="addAula('${a.id}')">➕ data</button>
+            ${qtd>0?`<button class="btn btn-ghost btn-sm" onclick="zerarPresencasAluno('${a.id}')" style="color:var(--red)" title="Zerar presenças deste aluno">↺</button>`:''}`}
+          </div>
         </div>
         ${valorAula > 0 ? `
         <div style="padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:11px;color:var(--text3)">Total a cobrar no próx. mês</span>
           <span style="font-size:20px;font-weight:700;color:var(--accent);font-family:'Bebas Neue';letter-spacing:1px">${fmt(total)}</span>
         </div>` : ''}
-        ${datas.length > 0 ? `
+        ${_presViewMode[a.id]==='calendario' ? renderCalendario(a) : (datas.length > 0 ? `
         <div style="max-height:160px;overflow-y:auto">
           ${datas.map(d => `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;border-bottom:1px solid rgba(42,42,42,0.4)">
@@ -4167,7 +4170,7 @@ function renderRegistroAulas(list) {
               ${valorAula > 0 ? `<span style="font-size:11px;color:var(--text3)">${fmt(valorAula)}</span>` : ''}
               ${ro?'':`<button class="btn btn-danger btn-sm" onclick="removeAula('${a.id}','${d}',0)" style="padding:2px 6px;font-size:10px">✕</button>`}
             </div>`).join('')}
-        </div>` : `<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Nenhuma aula registrada</div>`}
+        </div>` : `<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Nenhuma aula registrada</div>`)}
       </div>`;
     }
   };
@@ -4207,6 +4210,104 @@ function renderRegistroAulas(list) {
 }
 
 function setPersonalTab(t){personalTab=t;renderPersonal(getMonthData());}
+
+window.togglePresView = function(id) {
+  _presViewMode[id] = (_presViewMode[id] === 'calendario') ? 'lista' : 'calendario';
+  setAlunosTab('presencial');
+};
+
+window.toggleAulaData = function(alunoId, data) {
+  if (isReadOnly()) return;
+  const md = getMonthData();
+  const a = md.personal.presencial.find(x => x.id === alunoId);
+  if (!a) return;
+  if (!a.aulasDatas) a.aulasDatas = [];
+  const idx = a.aulasDatas.indexOf(data);
+  if (idx >= 0) {
+    a.aulasDatas.splice(idx, 1);
+  } else {
+    a.aulasDatas.push(data);
+  }
+  saveData();
+  setAlunosTab('presencial');
+};
+
+function renderCalendario(a) {
+  const datas = new Set(a.aulasDatas || []);
+  const ro = isReadOnly();
+
+  // Foco: mês da aula mais recente ou mês atual
+  let focusYear, focusMonth;
+  if ((a.aulasDatas || []).length > 0) {
+    const sorted = [...a.aulasDatas].sort();
+    const last = sorted[sorted.length - 1];
+    const parts = last.split('-');
+    focusYear  = parseInt(parts[0]);
+    focusMonth = parseInt(parts[1]) - 1; // 0-indexed
+  } else {
+    const now = new Date();
+    focusYear  = now.getFullYear();
+    focusMonth = now.getMonth();
+  }
+
+  const firstDay = new Date(focusYear, focusMonth, 1);
+  const lastDay  = new Date(focusYear, focusMonth + 1, 0);
+
+  // Início: segunda-feira da semana que contém o 1º do mês
+  const startDate = new Date(firstDay);
+  const dow1 = startDate.getDay(); // 0=Dom
+  startDate.setDate(startDate.getDate() - (dow1 === 0 ? 6 : dow1 - 1));
+
+  // Fim: domingo da semana que contém o último dia do mês
+  const endDate = new Date(lastDay);
+  const dowL = endDate.getDay();
+  endDate.setDate(endDate.getDate() + (dowL === 0 ? 0 : 7 - dowL));
+
+  const dayNames = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const mesNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  const todayIso = new Date().toISOString().split('T')[0];
+
+  // Gerar semanas
+  const weeks = [];
+  const cur = new Date(startDate);
+  while (cur <= endDate) {
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      week.push(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    weeks.push(week);
+  }
+
+  const weeksHtml = weeks.map(week => {
+    const cells = week.map(day => {
+      const iso       = day.toISOString().split('T')[0];
+      const isFocus   = day.getMonth() === focusMonth;
+      const isTreino  = datas.has(iso);
+      const isToday   = iso === todayIso;
+      const opacity   = isFocus ? '1' : '0.4';
+      const bg        = isTreino ? (isFocus ? 'var(--accent)' : 'rgba(232,68,30,0.5)') : (isToday ? 'rgba(53,200,241,0.18)' : 'transparent');
+      const color     = isTreino ? '#000' : (isToday ? 'var(--accent3)' : 'var(--text2)');
+      const fw        = isTreino ? '700' : '400';
+      const border    = isToday && !isTreino ? '1px solid var(--accent3)' : 'none';
+      const cursor    = !ro ? 'pointer' : 'default';
+      const click     = !ro ? `onclick="toggleAulaData('${a.id}','${iso}')"` : '';
+      return `<td style="text-align:center;padding:2px 1px"><div ${click} style="width:26px;height:26px;border-radius:50%;background:${bg};color:${color};font-weight:${fw};font-size:11px;display:flex;align-items:center;justify-content:center;margin:0 auto;opacity:${opacity};border:${border};cursor:${cursor};transition:background 0.15s">${day.getDate()}</div></td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  return `<div style="padding:10px 14px 12px">
+    <div style="text-align:center;font-size:10px;font-weight:700;color:var(--text3);margin-bottom:8px;letter-spacing:0.5px">${mesNomes[focusMonth].toUpperCase()} ${focusYear}</div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>${dayNames.map(d=>`<th style="font-size:9px;color:var(--text3);text-align:center;padding:3px 0;font-weight:600">${d}</th>`).join('')}</tr></thead>
+      <tbody>${weeksHtml}</tbody>
+    </table>
+    ${datas.size > 0 ? `<div style="margin-top:8px;font-size:10px;color:var(--text3);text-align:center">${datas.size} dia(s) treinado(s) neste mês</div>` : ''}
+  </div>`;
+}
 
 function resetarPresencas() {
   if (!confirm('Zerar todas as presenças do mês?')) return;
