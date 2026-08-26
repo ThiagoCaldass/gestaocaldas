@@ -424,6 +424,9 @@ app.post('/send', async (req, res) => {
           console.log(`[${i+1}/${contatos.length}] ${nome} — ⚠️  sem WhatsApp`);
           job.results.push({ nome, status: 'sem_whatsapp' });
         } else {
+          // presenceSubscribe + delay evita "mensagem indisponível" por sessão E2E incompleta
+          try { await sock.presenceSubscribe(jid); } catch {}
+          await dormir(1000);
           await sock.sendMessage(jid, { text: msg });
           try { await sock.sendPresenceUpdate('unavailable'); } catch {}
           console.log(`[${i+1}/${contatos.length}] ${nome} — ✅ enviado`);
