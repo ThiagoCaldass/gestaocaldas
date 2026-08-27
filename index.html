@@ -351,7 +351,8 @@
   .quick-add-row input[type="number"] { max-width: 130px; flex: 0 0 130px; }
   .quick-add-row .btn { flex-shrink: 0; align-self: stretch; font-size: 14px; padding: 9px 18px; }
   .quick-add-cats {
-    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+    display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; margin-top: 8px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
   }
   .quick-cat {
     padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
@@ -543,7 +544,7 @@
 
       <div class="nav-section">Trabalho</div>
       <div class="nav-item" data-page="alunos" onclick="navigate('alunos');closeSidebar()"><span class="icon">◯</span> Alunos</div>
-      <div class="nav-item" data-page="whatsapp" onclick="navigate('whatsapp');closeSidebar()"><span class="icon">📲</span> WhatsApp</div>
+      <div class="nav-item" data-page="whatsapp" onclick="navigate('whatsapp');closeSidebar()"><span class="icon">📲</span> WhatsApp<span id="wa-nav-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--text3);margin-left:6px;vertical-align:middle;transition:background .3s"></span></div>
       <div class="nav-section">Social Media</div>
       <div class="nav-item" data-page="brand" onclick="navigate('brand');closeSidebar()"><span class="icon">◉</span> Identidade Visual</div>
       <div class="nav-section">Análise</div>
@@ -3153,6 +3154,17 @@ function renderAlunos(md) {
       <button class="tab ${alunosTab==='presencial'?'active':''}" onclick="setAlunosTab('presencial')">Presencial (${md.personal.presencial.length})</button>
     </div>
 
+    <!-- BUSCA -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div style="position:relative;flex:1">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px;pointer-events:none">🔍</span>
+        <input id="alunos-search-input" type="search" placeholder="Buscar aluno..." value="${_alunosSearch}"
+          oninput="buscarAluno(this.value)"
+          style="width:100%;padding:8px 10px 8px 34px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'Barlow Condensed';letter-spacing:0.3px;box-sizing:border-box">
+      </div>
+      <button id="alunos-search-clear" onclick="limparBuscaAluno()" style="padding:6px 10px;border:1px solid var(--border);background:var(--surface2);border-radius:6px;cursor:pointer;color:var(--text3);font-size:12px;white-space:nowrap;display:${_alunosSearch?'block':'none'}">✕ Limpar</button>
+    </div>
+
     <!-- CONTEÚDO DA ABA -->
     <div id="alunosTabContent">
       ${alunosTab==='todos'      ? renderTodosContent(md) :
@@ -3164,8 +3176,33 @@ function renderAlunos(md) {
   reapplyAllSorts();
 }
 
+window.buscarAluno = function(val) {
+  _alunosSearch = val;
+  // Mostrar/ocultar botão Limpar
+  const limparBtn = document.getElementById('alunos-search-clear');
+  if (limparBtn) limparBtn.style.display = val ? 'block' : 'none';
+  // Re-renderizar só o conteúdo da aba
+  const el = document.getElementById('alunosTabContent');
+  if (!el) return;
+  const md = getMonthData();
+  el.innerHTML =
+    alunosTab==='todos'      ? renderTodosContent(md) :
+    alunosTab==='calistenia' ? renderCalisteniaContent(md) :
+    alunosTab==='online'     ? renderPersonalContent(md,'online') :
+                               renderPersonalContent(md,'presencial');
+  reapplyAllSorts();
+};
+
+window.limparBuscaAluno = function() {
+  _alunosSearch = '';
+  const inp = document.getElementById('alunos-search-input');
+  if (inp) inp.value = '';
+  buscarAluno('');
+};
+
 function setAlunosTab(tab) {
   alunosTab = tab;
+  _alunosSearch = ''; // limpa busca ao trocar de aba
   if (tab==='online'||tab==='presencial') personalTab = tab;
   if (tab!=='todos') { _todosSort = null; _todosFilters.clear(); } // reset ao sair da aba Todos
   const md = getMonthData();
@@ -3201,11 +3238,12 @@ function renderTodosContent(md) {
   const tPres   = pres.filter(a=>!a.pausado).reduce((s,a)=>s+(a.valor||0),0);
 
   // Lista unificada com tipo e valor normalizado
+  const _sq = _alunosSearch.toLowerCase().trim();
   const allStudents = [
     ...caliCalc.map(a=>({...a, _tipo:'cali',   _valor:a.valorFinal})),
     ...online.map(a=>  ({...a, _tipo:'online',  _valor:a.valor||0})),
     ...pres.map(a=>    ({...a, _tipo:'pres',    _valor:a.valor||0})),
-  ];
+  ].filter(a => !_sq || a.nome.toLowerCase().includes(_sq));
 
   // ── Filtros ativos ─────────────────────────────────────────────────
   const _h0f = new Date(); _h0f.setHours(0,0,0,0);
@@ -3436,8 +3474,15 @@ function renderTodosContent(md) {
       <td style="cursor:pointer" onclick="${editFn}"><span class="mono">${a.pausado?'—':fmt(a._valor)}</span></td>
       ${renovCell}
       ${treinoCell}
-      <td style="${ro?'':'cursor:pointer'}" onclick="${toggleFn}">
-        ${a.pausado?`<span class="badge badge-yellow">Pause</span>`:`<span class="badge ${a.pago?'badge-green':'badge-red'}">${a.pago?'OK':'Pend'}</span>`}
+      <td>
+        ${a.pausado
+          ? `<span class="badge badge-yellow" style="cursor:pointer" onclick="${toggleFn}" title="Reativar">Pause</span>`
+          : a.pago
+            ? `<span class="badge badge-green" style="cursor:pointer" onclick="${toggleFn}" title="Desmarcar pago">OK</span>`
+            : ro
+              ? `<span class="badge badge-red">Pend</span>`
+              : `<button onclick="${toggleFn}" style="background:rgba(34,197,94,0.12);border:1.5px solid rgba(34,197,94,0.5);border-radius:5px;color:#22c55e;font-size:11px;font-weight:700;padding:2px 7px;cursor:pointer;font-family:'Barlow Condensed';letter-spacing:0.3px;white-space:nowrap" title="Marcar como pago">✓ Pagar</button>`
+        }
       </td>
       <td><div style="display:flex;gap:2px">
         <button class="btn btn-ghost btn-sm" onclick="${fichaFn}" style="padding:3px 6px" title="Ficha">ℹ</button>
@@ -3625,7 +3670,8 @@ function deleteSelectedTodos() {
 
 function renderCalisteniaContent(md) {
   const ro = isReadOnly();
-  const lista = calcValoresCali(md.calistenia);
+  const _sq = _alunosSearch.toLowerCase().trim();
+  const lista = calcValoresCali(md.calistenia).filter(a => !_sq || a.nome.toLowerCase().includes(_sq));
   const familias = {};
   lista.forEach(a => { if (a.familiaId) { if (!familias[a.familiaId]) familias[a.familiaId]=[]; familias[a.familiaId].push(a.nome); }});
   const tCali = lista.filter(a=>!a.pausado).reduce((s,a)=>s+a.valorFinal,0);
@@ -3909,12 +3955,14 @@ let _todosSort = null;          // { col, dir, type } ou null
 let _todosGroupOpen = {};       // { cali: bool, online: bool, pres: bool }
 let _todosFilters = new Set();  // filtros ativos: 'nao-pago'|'treino-venc'|'pausado'|'cali'|'online'|'pres'
 let _presViewMode = {};         // { [alunoId]: 'lista'|'calendario' }
+let _alunosSearch = '';         // busca de aluno por nome (cross-tab)
 function renderPersonal(md) { renderAlunos(md); }
 function renderPersonalContent(md, tab) {
   const ro = isReadOnly();
   personalTab = tab;
   const online=md.personal.online, pres=md.personal.presencial;
-  const list = tab==='online' ? online : pres;
+  const _sq2 = _alunosSearch.toLowerCase().trim();
+  const list = (tab==='online' ? online : pres).filter(a => !_sq2 || a.nome.toLowerCase().includes(_sq2));
   const tOl=online.filter(a=>!a.pausado).reduce((a,b)=>a+b.valor,0);
   const tPr=pres.filter(a=>!a.pausado).reduce((a,b)=>a+b.valor,0);
   const hoje0=new Date();hoje0.setHours(0,0,0,0);
@@ -6848,6 +6896,8 @@ window.abrirModalWhatsApp = function(preSelIds) {
           <span id="wa-srv-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>
           <span id="wa-srv-label">Verificando...</span>
         </div>
+        <!-- Captação toggle no modal -->
+        <button id="wa-modal-captacao-btn" onclick="waModalToggleCaptacao(this)" style="font-size:11px;font-weight:600;padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:pointer;font-family:'Barlow Condensed';letter-spacing:0.3px;flex-shrink:0" title="Ativar/pausar captação automática">🤖 Captação: …</button>
       </div>
 
       <!-- QR CODE (aparece só quando servidor aguarda scan) -->
@@ -7060,8 +7110,13 @@ window.waVerificarServidor = async function() {
   try {
     const r = await fetch(getWaServer() + '/status', { signal: AbortSignal.timeout(7000) });
     if (!r.ok) throw new Error('erro');
-    const { status, qr } = await r.json();
+    const data2 = await r.json();
+    const { status, qr } = data2;
     _waStatusFails = 0; // reset debounce
+
+    // Atualiza captação no modal se disponível
+    const mCapBtn = document.getElementById('wa-modal-captacao-btn');
+    if (mCapBtn && data2.captacaoAtiva !== undefined) _atualizarBtnCaptacaoModal(mCapBtn, data2.captacaoAtiva);
 
     if (status === 'conectado') {
       dot.style.background   = '#22c55e';
@@ -7440,11 +7495,19 @@ async function wapPollStatus() {
     // Atualiza botão captação
     const cbtn = document.getElementById('wap-captacao-btn');
     if (cbtn && data.captacaoAtiva !== undefined) _atualizarBtnCaptacao(cbtn, data.captacaoAtiva);
+    // Atualiza dot da sidebar
+    const navDot = document.getElementById('wa-nav-dot');
+    if (navDot) navDot.style.background = (data.status === 'conectado') ? '#22c55e' : '#ef4444';
+    // Atualiza captação no modal de envio (se aberto)
+    const modalCapBtn = document.getElementById('wa-modal-captacao-btn');
+    if (modalCapBtn && data.captacaoAtiva !== undefined) _atualizarBtnCaptacaoModal(modalCapBtn, data.captacaoAtiva);
   } catch {
     _waPageStatusFails++;
     if (_waPageStatusFails < 3) return;
     _waServerStatus = 'offline';
     if (dot) { dot.style.background = '#ef4444'; label.textContent = '🔴 Offline'; }
+    const navDot = document.getElementById('wa-nav-dot');
+    if (navDot) navDot.style.background = '#ef4444';
   }
 }
 
@@ -7489,6 +7552,28 @@ function _atualizarBtnCaptacao(btn, on) {
   btn.style.background  = on ? 'rgba(53,200,241,0.1)' : 'rgba(232,32,10,0.1)';
   btn.style.color       = on ? 'var(--accent3)' : 'var(--red)';
 }
+
+function _atualizarBtnCaptacaoModal(btn, on) {
+  btn.textContent       = `🤖 Captação: ${on ? 'ON' : 'OFF'}`;
+  btn.style.borderColor = on ? 'rgba(53,200,241,0.4)' : 'rgba(232,32,10,0.4)';
+  btn.style.background  = on ? 'rgba(53,200,241,0.1)' : 'rgba(232,32,10,0.1)';
+  btn.style.color       = on ? 'var(--accent3)' : 'var(--red)';
+}
+
+window.waModalToggleCaptacao = async function(btn) {
+  try {
+    const r = await fetch(getWaServer() + '/captacao/toggle', { method: 'POST', signal: AbortSignal.timeout(5000) });
+    if (!r.ok) throw new Error('erro');
+    const { captacaoAtiva } = await r.json();
+    _atualizarBtnCaptacaoModal(btn, captacaoAtiva);
+    // Sincroniza botão da página WA se estiver aberta
+    const cbtn = document.getElementById('wap-captacao-btn');
+    if (cbtn) _atualizarBtnCaptacao(cbtn, captacaoAtiva);
+  } catch {
+    btn.textContent = '⚠️ Erro';
+    setTimeout(() => { btn.textContent = '🤖 Captação: ?'; }, 2000);
+  }
+};
 
 // ── Categorias CRUD ─────────────────────────────────────────────────
 
@@ -9181,6 +9266,35 @@ Regras:
   document.getElementById('aiSend').disabled = false;
   document.getElementById('aiInput').focus();
 }
+
+// ── Swipe horizontal para trocar mês (mobile) ──────────────────────────────
+(function() {
+  let _txS = 0, _tyS = 0, _swOk = true;
+  document.addEventListener('touchstart', e => {
+    _txS  = e.touches[0].clientX;
+    _tyS  = e.touches[0].clientY;
+    _swOk = true;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!_swOk) return;
+    // Se movimento vertical domina, cancelar
+    if (Math.abs(e.touches[0].clientY - _tyS) > Math.abs(e.touches[0].clientX - _txS) + 10) _swOk = false;
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (!_swOk) return;
+    const dx = e.changedTouches[0].clientX - _txS;
+    const dy = Math.abs(e.changedTouches[0].clientY - _tyS);
+    if (dy > 40 || Math.abs(dx) < 70) return; // muita vertical ou swipe curto
+    // Checar se o toque começou em elemento com scroll horizontal ativo
+    let el = e.target;
+    while (el && el !== document.body) {
+      const cs = getComputedStyle(el);
+      if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 4) return;
+      el = el.parentElement;
+    }
+    stepMonth(dx < 0 ? 1 : -1);
+  }, { passive: true });
+})();
 
 
 </script>
