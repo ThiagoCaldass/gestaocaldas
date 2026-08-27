@@ -2886,16 +2886,29 @@ function renderBalancoOriginal(md) {
 
 let _extratoSel = new Map(); // id → valor
 
+function _extratoUpdateCb(id) {
+  const row = document.querySelector(`.extrato-row-sel[data-eid="${id}"]`);
+  if (!row) return;
+  const sel = _extratoSel.has(id);
+  row.style.background = sel ? 'rgba(232,32,10,0.07)' : 'transparent';
+  const box = row.querySelector('.ecb-box');
+  if (box) {
+    box.style.background   = sel ? 'var(--red)' : 'transparent';
+    box.style.borderColor  = sel ? 'var(--red)' : 'rgba(255,255,255,0.18)';
+    const chk = box.querySelector('.ecb-chk');
+    if (chk) chk.style.opacity = sel ? '1' : '0';
+  }
+}
+
 window.atualizarExtratoSelBar = function() {
   const bar = document.getElementById('extrato-sel-bar');
   if (!bar) return;
   if (_extratoSel.size === 0) {
     bar.style.display = 'none';
-    // limpar highlights
     document.querySelectorAll('.extrato-row-sel').forEach(r => {
       r.style.background = 'transparent';
-      const cb = r.querySelector('input[type=checkbox]');
-      if (cb) cb.checked = false;
+      const box = r.querySelector('.ecb-box');
+      if (box) { box.style.background='transparent'; box.style.borderColor='rgba(255,255,255,0.18)'; const chk=box.querySelector('.ecb-chk'); if(chk) chk.style.opacity='0'; }
     });
     return;
   }
@@ -2908,19 +2921,9 @@ window.atualizarExtratoSelBar = function() {
 };
 
 window.toggleExtratoSel = function(id, valor) {
-  if (_extratoSel.has(id)) {
-    _extratoSel.delete(id);
-  } else {
-    _extratoSel.set(id, valor);
-  }
-  // Atualizar visual da linha sem re-renderizar tudo
-  const row = document.querySelector(`.extrato-row-sel[data-eid="${id}"]`);
-  if (row) {
-    const sel = _extratoSel.has(id);
-    row.style.background = sel ? 'rgba(232,32,10,0.07)' : 'transparent';
-    const cb = row.querySelector('input[type=checkbox]');
-    if (cb) cb.checked = sel;
-  }
+  if (_extratoSel.has(id)) _extratoSel.delete(id);
+  else _extratoSel.set(id, valor);
+  _extratoUpdateCb(id);
   atualizarExtratoSelBar();
 };
 
@@ -2983,8 +2986,8 @@ function renderExtrato(md) {
       const tsLabel  = l.ts ? new Date(l.ts).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '—';
       const canSel   = !l.isGanho && l.id;
       const chkHtml  = canSel
-        ? `<input type="checkbox" onclick="event.stopPropagation();toggleExtratoSel('${l.id}',${l.valor})" style="flex-shrink:0;cursor:pointer;accent-color:var(--red);width:14px;height:14px;margin:0">`
-        : `<div style="width:14px;flex-shrink:0"></div>`;
+        ? `<div class="ecb-box" style="width:12px;height:12px;border-radius:3px;border:1.5px solid rgba(255,255,255,0.18);background:transparent;flex-shrink:0;transition:background 0.15s,border-color 0.15s;display:flex;align-items:center;justify-content:center"><svg class="ecb-chk" width="8" height="6" viewBox="0 0 8 6" style="opacity:0;transition:opacity 0.12s;overflow:visible"><polyline points="1,3 3,5 7,1" style="stroke:#fff;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round"/></svg></div>`
+        : `<div style="width:12px;flex-shrink:0"></div>`;
       const rowAttrs = canSel
         ? `class="extrato-row-sel" data-eid="${l.id}" onclick="toggleExtratoSel('${l.id}',${l.valor})" style="cursor:pointer;`
         : `style="`;
