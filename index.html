@@ -8211,9 +8211,12 @@ window.dashGetLayout = function() {
     } catch(e) {}
     if (!_dashLayout) _dashLayout = DASH_DEFAULT_LAYOUT.map(w => ({...w}));
   }
+  // Injeta widgets novos respeitando a visibilidade padrão do DASH_DEFAULT_LAYOUT
   Object.keys(DASH_DEFS).forEach(id => {
-    if (!_dashLayout.find(w => w.id===id))
-      _dashLayout.push({id, span:DASH_DEFS[id].defaultSpan, visible:false});
+    if (!_dashLayout.find(w => w.id===id)) {
+      const def = DASH_DEFAULT_LAYOUT.find(w => w.id===id);
+      _dashLayout.push({id, span:DASH_DEFS[id].defaultSpan, visible: def ? !!def.visible : false});
+    }
   });
   return _dashLayout;
 };
@@ -8236,6 +8239,13 @@ window.loadDashboardLayout = async function() {
       const rows = await res.json();
       if (rows.length && rows[0].data?.widgets) {
         const remote = rows[0].data.widgets;
+        // Injeta widgets novos (não presentes no layout salvo) com visibilidade padrão
+        Object.keys(DASH_DEFS).forEach(id => {
+          if (!remote.find(w => w.id===id)) {
+            const def = DASH_DEFAULT_LAYOUT.find(w => w.id===id);
+            remote.push({id, span:DASH_DEFS[id].defaultSpan, visible: def ? !!def.visible : false});
+          }
+        });
         if (JSON.stringify(remote) !== JSON.stringify(_dashLayout)) {
           _dashLayout = remote;
           if (typeof currentPage !== 'undefined' && currentPage === 'dashboard') renderDashboard();
