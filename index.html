@@ -2035,7 +2035,7 @@ function renderDashboard(md) {
       <span style="font-size:11px;color:var(--text3)">${alunosCali+alunosOnline+alunosPres} alunos ativos</span>
     </div>
 
-    ${renderQuickAdd('dashboard')}
+    ${renderWidgetHoje()}
     ${renderLembretesDashboard()}
 
     <!-- EXPECTATIVA vs REALIDADE -->
@@ -2345,6 +2345,101 @@ function renderPieChart(title, slices) {
 
 // ==================== QUICK ADD GASTO ====================
 
+// ── Widget Hoje (Dashboard) ───────────────────────────────────────────────────
+let _widgetHojeTab = 'gasto'; // persiste entre re-renders
+
+function renderWidgetHoje() {
+  const md = getMonthData();
+  const today = new Date().toISOString().split('T')[0];
+  const presAlunos = (md.personal?.presencial || [])
+    .filter(a => !a.pausado)
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
+  const presOpts = presAlunos.length
+    ? presAlunos.map(a => {
+        const temHoje = (a.aulasDatas || []).includes(today);
+        return `<option value="${a.id}">${a.nome}${temHoje ? ' ✓' : ''}</option>`;
+      }).join('')
+    : '<option value="">Nenhum aluno presencial ativo</option>';
+
+  const tabOn  = `flex:1;padding:7px;border:none;border-radius:6px;font-size:13px;font-family:'Barlow Condensed';font-weight:600;cursor:pointer;transition:all 0.15s;background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.3)`;
+  const tabOff = `flex:1;padding:7px;border:none;border-radius:6px;font-size:13px;font-family:'Barlow Condensed';font-weight:600;cursor:pointer;transition:all 0.15s;background:transparent;color:var(--text2)`;
+  const isGasto = _widgetHojeTab === 'gasto';
+
+  return `<div id="widget-hoje-wrap" style="margin-bottom:4px">
+    <!-- Seletor de modo -->
+    <div style="display:flex;gap:4px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px">
+      <button id="wh-tab-gasto"   onclick="widgetHojeSetTab('gasto')"   style="${isGasto ? tabOn : tabOff}">💳 Gasto</button>
+      <button id="wh-tab-presenca" onclick="widgetHojeSetTab('presenca')" style="${isGasto ? tabOff : tabOn}">📍 Presença</button>
+    </div>
+
+    <!-- Painel Gasto -->
+    <div id="wh-panel-gasto" style="${isGasto ? '' : 'display:none'}">
+      ${renderQuickAdd('dashboard')}
+    </div>
+
+    <!-- Painel Presença -->
+    <div id="wh-panel-presenca" style="${isGasto ? 'display:none' : ''}">
+      <div class="quick-add">
+        <div class="quick-add-title">Registrar Presença</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="wh-pres-select" style="flex:1;font-size:14px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Barlow Condensed'">
+            ${presOpts}
+          </select>
+          <button onclick="widgetHojeAddAula()" ${!presAlunos.length ? 'disabled' : ''}
+            style="padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-family:'Barlow Condensed';font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;opacity:${presAlunos.length ? 1 : 0.4}">
+            ➕ Aula
+          </button>
+        </div>
+        <div id="wh-pres-feedback" style="margin-top:8px;font-size:11px;min-height:16px;color:var(--text3)"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+window.widgetHojeSetTab = function(tab) {
+  _widgetHojeTab = tab;
+  const isGasto = tab === 'gasto';
+  const tabOn  = `flex:1;padding:7px;border:none;border-radius:6px;font-size:13px;font-family:'Barlow Condensed';font-weight:600;cursor:pointer;transition:all 0.15s;background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.3)`;
+  const tabOff = `flex:1;padding:7px;border:none;border-radius:6px;font-size:13px;font-family:'Barlow Condensed';font-weight:600;cursor:pointer;transition:all 0.15s;background:transparent;color:var(--text2)`;
+  document.getElementById('wh-tab-gasto').style.cssText    = isGasto ? tabOn : tabOff;
+  document.getElementById('wh-tab-presenca').style.cssText = isGasto ? tabOff : tabOn;
+  document.getElementById('wh-panel-gasto').style.display    = isGasto ? '' : 'none';
+  document.getElementById('wh-panel-presenca').style.display = isGasto ? 'none' : '';
+};
+
+window.widgetHojeAddAula = function() {
+  const sel = document.getElementById('wh-pres-select');
+  if (!sel || !sel.value) return;
+  const alunoId = sel.value;
+  const today = new Date().toISOString().split('T')[0];
+  const md = getMonthData();
+  const a = md.personal.presencial.find(x => String(x.id) === String(alunoId));
+  if (!a) return;
+
+  if (!a.aulasDatas) a.aulasDatas = [];
+  const fb = document.getElementById('wh-pres-feedback');
+
+  if (a.aulasDatas.includes(today)) {
+    if (fb) { fb.textContent = `${a.nome} já tem aula registrada hoje`; fb.style.color = 'var(--text3)'; }
+    return;
+  }
+
+  a.aulasDatas.push(today);
+  saveData();
+
+  // Atualiza o texto da option para mostrar ✓
+  const opt = sel.options[sel.selectedIndex];
+  if (opt && !opt.text.includes(' ✓')) opt.text += ' ✓';
+
+  if (fb) {
+    fb.textContent = `✓ Aula de ${a.nome} registrada`;
+    fb.style.color = 'var(--green)';
+    setTimeout(() => { if (fb) fb.textContent = ''; }, 3000);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 function renderQuickAdd(onSave) {
   const md = getMonthData();
   const today = new Date().toISOString().split('T')[0];
@@ -8081,7 +8176,7 @@ document.addEventListener('visibilitychange', () => {
 // ── Widget Registry ────────────────────────────────────────────
 window.DASH_DEFS = {
   lembretes:  {label:'Lembretes',          defaultSpan:6 },
-  quickadd:   {label:'Registrar Gasto',    defaultSpan:6 },
+  quickadd:   {label:'Gasto / Presença',   defaultSpan:6 },
   saldo:      {label:'Saldo Real',         defaultSpan:8 },
   recpago:    {label:'Recebido / Pago',    defaultSpan:4 },
   alunos:     {label:'Alunos & Alertas',   defaultSpan:4 },
@@ -8581,7 +8676,7 @@ renderDashboard = (function(_orig) {
 
     const W = {
       lembretes: () => renderLembretesDashboard(),
-      quickadd:  () => renderQuickAdd('dashboard'),
+      quickadd:  () => renderWidgetHoje(),
 
       saldo: () => '<div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid '
         +saldoColor+';border-radius:var(--radius);padding:12px 16px;cursor:pointer;height:100%;box-sizing:border-box" onclick="navigate(\'financas\')">'
