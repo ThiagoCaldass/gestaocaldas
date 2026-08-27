@@ -8176,7 +8176,8 @@ document.addEventListener('visibilitychange', () => {
 // ── Widget Registry ────────────────────────────────────────────
 window.DASH_DEFS = {
   lembretes:  {label:'Lembretes',          defaultSpan:6 },
-  quickadd:   {label:'Gasto / Presença',   defaultSpan:6 },
+  hoje:       {label:'Gasto / Presença',   defaultSpan:6 },
+  quickadd:   {label:'Registrar Gasto',    defaultSpan:6 },
   saldo:      {label:'Saldo Real',         defaultSpan:8 },
   recpago:    {label:'Recebido / Pago',    defaultSpan:4 },
   alunos:     {label:'Alunos & Alertas',   defaultSpan:4 },
@@ -8187,7 +8188,8 @@ window.DASH_DEFS = {
 
 window.DASH_DEFAULT_LAYOUT = [
   {id:'lembretes', span:6,  visible:true},
-  {id:'quickadd',  span:6,  visible:true},
+  {id:'hoje',      span:6,  visible:true},
+  {id:'quickadd',  span:6,  visible:false},
   {id:'saldo',     span:8,  visible:true},
   {id:'recpago',   span:4,  visible:true},
   {id:'alunos',    span:4,  visible:true},
@@ -8676,7 +8678,8 @@ renderDashboard = (function(_orig) {
 
     const W = {
       lembretes: () => renderLembretesDashboard(),
-      quickadd:  () => renderWidgetHoje(),
+      hoje:      () => renderWidgetHoje(),
+      quickadd:  () => renderQuickAdd('dashboard'),
 
       saldo: () => '<div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid '
         +saldoColor+';border-radius:var(--radius);padding:12px 16px;cursor:pointer;height:100%;box-sizing:border-box" onclick="navigate(\'financas\')">'
