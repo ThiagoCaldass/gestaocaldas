@@ -91,6 +91,18 @@
   .sync-dot.error { background: var(--red); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
+  /* ── Toast ─────────────────────────────────────────────────────── */
+  #toast-container { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; }
+  .toast { display:flex; align-items:center; gap:10px; padding:9px 16px; border-radius:10px; font-size:13px; font-family:'Barlow Condensed'; font-weight:500; letter-spacing:0.3px; background:var(--surface); border:1px solid var(--border); color:var(--text); box-shadow:0 4px 16px rgba(0,0,0,0.4); pointer-events:all; animation:toastIn .2s ease; min-width:180px; max-width:320px; }
+  .toast.toast-success { border-color:rgba(34,197,94,0.4); background:rgba(34,197,94,0.1); color:var(--green); }
+  .toast.toast-warning { border-color:rgba(241,193,53,0.4); background:rgba(241,193,53,0.08); color:#f1c135; }
+  .toast.toast-error   { border-color:rgba(232,32,10,0.4);  background:rgba(232,32,10,0.08);  color:var(--red); }
+  .toast-undo { margin-left:auto; padding:2px 10px; border:1px solid currentColor; border-radius:5px; background:transparent; color:inherit; cursor:pointer; font-size:11px; font-family:'Barlow Condensed'; font-weight:700; letter-spacing:0.5px; flex-shrink:0; }
+  @keyframes toastIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ── Badge sidebar ──────────────────────────────────────────────── */
+  .alunos-badge { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px; background:var(--red); color:#fff; border-radius:8px; font-size:10px; font-family:'Barlow Condensed'; font-weight:700; margin-left:6px; line-height:1; }
+
   .nav { flex: 1; padding: 16px 0; overflow-y: auto; }
   .nav-section { padding: 8px 24px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); font-weight: 500; }
   .nav-item {
@@ -510,6 +522,7 @@
 </style>
 </head>
 <body>
+<div id="toast-container"></div>
 
 <!-- LOADING -->
 <div class="loading-screen" id="loadingScreen">
@@ -543,7 +556,7 @@
       <div class="nav-item" data-page="financas" onclick="navigate('financas');closeSidebar()"><span class="icon">◈</span> Finanças</div>
 
       <div class="nav-section">Trabalho</div>
-      <div class="nav-item" data-page="alunos" onclick="navigate('alunos');closeSidebar()"><span class="icon">◯</span> Alunos</div>
+      <div class="nav-item" data-page="alunos" onclick="navigate('alunos');closeSidebar()"><span class="icon">◯</span> Alunos<span id="alunos-badge" class="alunos-badge" style="display:none"></span></div>
       <div class="nav-item" data-page="whatsapp" onclick="navigate('whatsapp');closeSidebar()"><span class="icon">📲</span> WhatsApp<span id="wa-nav-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--text3);margin-left:6px;vertical-align:middle;transition:background .3s"></span></div>
       <div class="nav-section">Social Media</div>
       <div class="nav-item" data-page="brand" onclick="navigate('brand');closeSidebar()"><span class="icon">◉</span> Identidade Visual</div>
@@ -908,7 +921,37 @@ function setSyncStatus(state, label) {
   lbl.textContent = label;
 }
 
-// Flush pendente imediatamente (sem debounce) — usado ao ocultar o app
+// ── Toast ──────────────────────────────────────────────────────────────────
+let _toastTimers = [];
+window.showToast = function(msg, type='', ms=3000, undoLabel='', onUndo=null) {
+  const c = document.getElementById('toast-container');
+  if (!c) return;
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' toast-'+type : '');
+  el.innerHTML = `<span style="flex:1">${msg}</span>`
+    + (onUndo ? `<button class="toast-undo" onclick="this.closest('.toast')._onUndo()">${undoLabel||'Desfazer'}</button>` : '');
+  if (onUndo) el._onUndo = () => { onUndo(); el.remove(); };
+  c.appendChild(el);
+  const t = setTimeout(() => el.remove(), ms);
+  _toastTimers.push(t);
+};
+
+// ── Badge alunos pendentes na sidebar ───────────────────────────────────────
+window.updateAlunosBadge = function() {
+  const badge = document.getElementById('alunos-badge');
+  if (!badge) return;
+  const md = getMonthData();
+  const caliCalc = calcValoresCali(md.calistenia || []);
+  const n = [
+    ...caliCalc.filter(a => !a.pago && !a.pausado),
+    ...(md.personal?.online || []).filter(a => !a.pago && !a.pausado),
+    ...(md.personal?.presencial || []).filter(a => !a.pago && !a.pausado),
+  ].length;
+  if (n > 0) { badge.textContent = n; badge.style.display = 'inline-flex'; }
+  else { badge.style.display = 'none'; }
+};
+
+// ── Flush pendente imediatamente (sem debounce) — usado ao ocultar o app
 async function flushSave() {
   if (!syncTimeout) return;
   clearTimeout(syncTimeout);
@@ -938,6 +981,7 @@ function saveData() {
       await sbUpsert(k, cachedData[k]);
       dirtyKeys.delete(k);
       setSyncStatus('synced', 'Sincronizado');
+      updateAlunosBadge();
       // Notifica Telegram sobre alteração manual
       const md = cachedData[k];
       const tG  = (md?.balanco?.ganhos||[]).reduce((a,b)=>a+b.valor,0);
@@ -2720,6 +2764,15 @@ function renderBalancoOriginal(md) {
       <div class="stat-card red"><div class="stat-label">Gastos Pagos</div><div class="stat-value stat-red">${fmt(pGt)}</div><div class="stat-sub">Previsto ${fmt(tGt)} · 🔁 ${md.balanco.gastos.filter(g=>g.persistente).length} fixos</div></div>
       <div class="stat-card accent"><div class="stat-label">Saldo Real</div><div class="stat-value stat-green">${fmt(rG-pGt)}</div><div class="stat-sub">Projetado ${fmt(tG-tGt)}</div></div>
     </div>
+    <!-- Rodapé fixo de totais -->
+    <div style="position:sticky;bottom:0;z-index:10;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 16px;margin-bottom:12px;display:flex;gap:16px;justify-content:space-between;align-items:center;box-shadow:0 -2px 8px rgba(0,0,0,0.3)">
+      <div style="display:flex;gap:4px;align-items:baseline"><span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-right:4px">Ganhos</span><span class="mono" style="color:var(--green);font-size:15px;font-family:'Barlow Condensed'">${fmt(rG)}</span><span style="font-size:10px;color:var(--text3)">/ ${fmt(tG)}</span></div>
+      <div style="width:1px;height:20px;background:var(--border)"></div>
+      <div style="display:flex;gap:4px;align-items:baseline"><span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-right:4px">Gastos</span><span class="mono" style="color:var(--red);font-size:15px;font-family:'Barlow Condensed'">${fmt(pGt)}</span><span style="font-size:10px;color:var(--text3)">/ ${fmt(tGt)}</span></div>
+      <div style="width:1px;height:20px;background:var(--border)"></div>
+      <div style="display:flex;gap:4px;align-items:baseline"><span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-right:4px">Saldo</span><span class="mono" style="color:${rG-pGt>=0?'var(--green)':'var(--red)'};font-size:15px;font-weight:700;font-family:'Barlow Condensed'">${fmt(rG-pGt)}</span></div>
+    </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="two-col">
       <div>
         <div class="section-header"><div class="section-title">GANHOS</div>${ro?'':'<button class="btn btn-ghost btn-sm" onclick="openAddGanho()">+</button>'}</div>
@@ -2932,8 +2985,8 @@ function toggleGanho(id){if(guardReadOnly())return;const md=getMonthData();const
 function toggleGasto(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(g)g.pago=!g.pago;saveData();setFinancasTab('balanco');}
 function setGanhoStatus(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(g&&g.recebido!==val){g.recebido=val;saveData();setFinancasTab('balanco');}}
 function setGastoPago(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(g&&g.pago!==val){g.pago=val;saveData();setFinancasTab('balanco');}}
-function removeGanho(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.balanco.ganhos=md.balanco.ganhos.filter(x=>x.id!==id);saveData();setFinancasTab('balanco');}
-function removeGasto(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.balanco.gastos=md.balanco.gastos.filter(x=>x.id!==id);saveData();setFinancasTab('balanco');}
+function removeGanho(id){if(guardReadOnly())return;const md=getMonthData();const bk=JSON.parse(JSON.stringify(md.balanco));const item=md.balanco.ganhos.find(x=>x.id===id);md.balanco.ganhos=md.balanco.ganhos.filter(x=>x.id!==id);saveData();setFinancasTab('balanco');showToast(`Ganho "${item?.nome||'item'}" removido`,'warning',5000,'Desfazer',()=>{md.balanco=bk;saveData();setFinancasTab('balanco');});}
+function removeGasto(id){if(guardReadOnly())return;const md=getMonthData();const bk=JSON.parse(JSON.stringify(md.balanco));const item=md.balanco.gastos.find(x=>x.id===id);md.balanco.gastos=md.balanco.gastos.filter(x=>x.id!==id);saveData();setFinancasTab('balanco');showToast(`Gasto "${item?.nome||'item'}" removido`,'warning',5000,'Desfazer',()=>{md.balanco=bk;saveData();setFinancasTab('balanco');});}
 
 function editGanho(id){
   if(guardReadOnly())return;
@@ -3659,7 +3712,7 @@ function renderTodosContent(md) {
     + (fOnline.length ? renderGroupHdr('Online',    'var(--green)',   fOnline, 'online') + (open('online') ? fOnline.map(renderTodosRow).join('') : '') : '')
     + (fPres.length   ? renderGroupHdr('Presencial','var(--accent3)', fPres,   'pres')   + (open('pres')   ? fPres.map(renderTodosRow).join('')   : '') : '')
     + (!fCali.length && !fOnline.length && !fPres.length
-        ? `<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text3);font-size:13px">Nenhum aluno encontrado com os filtros ativos</td></tr>` : '');
+        ? `<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text3);font-size:13px">${_sq ? `🔍 Nenhum resultado para "<strong>${_sq}</strong>"` : 'Nenhum aluno encontrado com os filtros ativos'}</td></tr>` : '');
   }
 
   return `<div>
@@ -3700,6 +3753,7 @@ window.sortTodos = function(col, type='str') {
   const cur = _todosSort;
   const dir = cur?.col===col ? -cur.dir : 1;
   _todosSort = { col, dir, type };
+  try { localStorage.setItem('gestor_todos_sort', JSON.stringify(_todosSort)); } catch(e) {}
   const md = getMonthData();
   const el = document.getElementById('alunosTabContent');
   if (el) el.innerHTML = renderTodosContent(md);
@@ -3723,6 +3777,7 @@ window.toggleTodosFilter = function(key) {
 window.limparTodosFiltros = function() {
   _todosFilters.clear();
   _todosSort = null;
+  try { localStorage.removeItem('gestor_todos_sort'); } catch(e) {}
   const md = getMonthData();
   const el = document.getElementById('alunosTabContent');
   if (el) el.innerHTML = renderTodosContent(md);
@@ -3783,7 +3838,7 @@ function renderCalisteniaContent(md) {
         <th style="width:12%" data-col="pago" onclick="sortTable('tblCali','pago','bool')">Status</th>
         <th style="width:10%">Ações</th>
       </tr></thead>
-      <tbody>${lista.map(a=>{
+      <tbody>${lista.length===0&&_sq?`<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--text3);font-size:13px">🔍 Nenhum resultado para "<strong>${_sq}</strong>"</td></tr>`:lista.map(a=>{
         const isFam = !!a.familiaId;
         const famNomes = isFam ? familias[a.familiaId].filter(n=>n!==a.nome) : [];
         const p=a.nome.trim().split(' ');
@@ -3863,7 +3918,7 @@ function deleteSelectedPersonal(){
 }
 function toggleCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a)a.pago=!a.pago;syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);}
 function togglePausadoCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a){a.pausado=!a.pausado;if(a.pausado)a.pago=false;}saveData();setAlunosTab(alunosTab);}
-function removeCali(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.calistenia=md.calistenia.filter(x=>x.id!==id);saveData();setAlunosTab(alunosTab);}
+function removeCali(id){if(guardReadOnly())return;const md=getMonthData();const bk=JSON.parse(JSON.stringify(md.calistenia));const item=md.calistenia.find(x=>x.id===id);md.calistenia=md.calistenia.filter(x=>x.id!==id);saveData();setAlunosTab(alunosTab);showToast(`"${item?.nome||'Aluno'}" removido`,'warning',5000,'Desfazer',()=>{md.calistenia=bk;saveData();setAlunosTab(alunosTab);});}
 
 function openAddCali(){
   const md=getMonthData();
@@ -4046,7 +4101,7 @@ function getPlanos() { return globalPlanos; }
 // ==================== PERSONAL ====================
 let personalTab='online';
 let alunosTab='todos';
-let _todosSort = null;          // { col, dir, type } ou null
+let _todosSort = (() => { try { const s = localStorage.getItem('gestor_todos_sort'); return s ? JSON.parse(s) : null; } catch(e) { return null; } })(); // { col, dir, type } ou null
 let _todosGroupOpen = {};       // { cali: bool, online: bool, pres: bool }
 let _todosFilters = new Set();  // filtros ativos: 'nao-pago'|'treino-venc'|'pausado'|'cali'|'online'|'pres'
 let _presViewMode = {};         // { [alunoId]: 'lista'|'calendario' }
@@ -4082,7 +4137,7 @@ function renderPersonalContent(md, tab) {
         <th style="width:8%" data-col="pago" onclick="sortTable('tblPersonal','pago','bool')">Status</th>
         <th style="width:10%"></th>
       </tr></thead>
-      <tbody>${list.map(a=>{
+      <tbody>${list.length===0&&_sq2?`<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--text3);font-size:13px">🔍 Nenhum resultado para "<strong>${_sq2}</strong>"</td></tr>`:list.map(a=>{
         const h0=new Date();h0.setHours(0,0,0,0);
         const pAD=a.proxAtt?new Date(a.proxAtt):null;
         const dpV=pAD?Math.floor((pAD-h0)/86400000):null;
@@ -4158,7 +4213,7 @@ function renderPersonalContent(md, tab) {
                   <div style="height:3px;border-radius:2px;background:${cor};width:${Math.min(100,pct)}%"></div>
                 </div>
               </div>`;
-            })():`<span style="color:var(--text3);font-size:11px">${(a.aulasDatas||[]).length} aulas</span>`}
+            })():(()=>{const n=(a.aulasDatas||[]).length;return `<span style="font-family:'Barlow Condensed';font-size:15px;font-weight:700;color:${n>0?'var(--accent)':'var(--text3)'}">${n}</span><span style="font-size:10px;color:var(--text3);margin-left:2px">aula${n!==1?'s':''}</span>`;})()}
           </td>
           ${(tab==='online'||tab==='presencial')?`<td style="${ro?'':'cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
             ${a.pausado?'—':aV?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(a.proxAtt)} !</span>`:aP?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(a.proxAtt)}</span>`:a7?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(a.proxAtt)}</span>`:a.proxAtt?`<span style="color:var(--text2);font-size:12px">${fmtDate(a.proxAtt)}</span>`:`<span style="color:var(--text3);font-size:11px">Definir</span>`}
@@ -4638,7 +4693,7 @@ function saveValorPersonal(id, isPres) {
 
 function togglePersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a)a.pago=!a.pago;syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);}
 function togglePausadoPersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a){a.pausado=!a.pausado;if(a.pausado)a.pago=false;}saveData();setAlunosTab(alunosTab);}
-function removePersonal(id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.personal.online=md.personal.online.filter(x=>x.id!==id);md.personal.presencial=md.personal.presencial.filter(x=>x.id!==id);saveData();setAlunosTab(alunosTab);}
+function removePersonal(id){if(guardReadOnly())return;const md=getMonthData();const bkO=JSON.parse(JSON.stringify(md.personal.online));const bkP=JSON.parse(JSON.stringify(md.personal.presencial));const item=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);md.personal.online=md.personal.online.filter(x=>x.id!==id);md.personal.presencial=md.personal.presencial.filter(x=>x.id!==id);saveData();setAlunosTab(alunosTab);showToast(`"${item?.nome||'Aluno'}" removido`,'warning',5000,'Desfazer',()=>{md.personal.online=bkO;md.personal.presencial=bkP;saveData();setAlunosTab(alunosTab);});}
 function toggleMsgSemana(id){const md=getMonthData();const a=md.personal.online.find(x=>x.id===id);if(!a)return;a.msgSemana=!a.msgSemana;saveData();setAlunosTab('online');}
 function desmarcarTodosMsg(){const md=getMonthData();md.personal.online.forEach(a=>{a.msgSemana=false;});saveData();setAlunosTab('online');}
 // ── Inline cell edit helpers ──
@@ -5738,7 +5793,7 @@ function saveEditCC(bank, type, id) {
   saveData(); closeModal(); setFinancasTab('cartao');
 }
 
-function removeCC(bank,type,id){if(guardReadOnly())return;if(!confirm('Remover?'))return;const md=getMonthData();md.cartao[bank][type]=md.cartao[bank][type].filter(x=>x.id!==id);saveData();setFinancasTab('cartao');}
+function removeCC(bank,type,id){if(guardReadOnly())return;const md=getMonthData();const bk=JSON.parse(JSON.stringify(md.cartao[bank][type]));const item=md.cartao[bank][type].find(x=>x.id===id);md.cartao[bank][type]=md.cartao[bank][type].filter(x=>x.id!==id);saveData();setFinancasTab('cartao');showToast(`"${item?.titulo||item?.nome||'Item'}" removido`,'warning',5000,'Desfazer',()=>{md.cartao[bank][type]=bk;saveData();setFinancasTab('cartao');});}
 
 function openAddCC(bank,type){
   const isP=type==='parcelada', isA=type==='assinatura';
@@ -6875,6 +6930,7 @@ async function setMonth(m,y){
   document.getElementById('monthOverlay').classList.remove('open');
   updateLockUI();
   await navigate(currentPage);
+  updateAlunosBadge();
 }
 function closeMonthOutside(e){if(e.target===document.getElementById('monthOverlay'))document.getElementById('monthOverlay').classList.remove('open');}
 
@@ -8854,6 +8910,7 @@ renderDashboard = (function(_orig) {
     // Carrega meses anteriores do ano em background para o gráfico anual
     loadYearData().then(() => { if (window.renderDashboard) renderDashboard(); }).catch(()=>{});
     document.getElementById('loadingMsg').textContent='Pronto!';
+    updateAlunosBadge();
   } catch(e) {
     console.error('Init error:', e);
   } finally {
@@ -9413,6 +9470,23 @@ Regras:
     stepMonth(dx < 0 ? 1 : -1);
   }, { passive: true });
 })();
+
+// ── Atalhos de teclado ────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement?.tagName;
+  const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  if (isInput) return;
+
+  // ← → : navegar mês
+  if (e.key === 'ArrowLeft'  && !e.metaKey && !e.ctrlKey) { e.preventDefault(); stepMonth(-1); return; }
+  if (e.key === 'ArrowRight' && !e.metaKey && !e.ctrlKey) { e.preventDefault(); stepMonth(1);  return; }
+
+  // Cmd/Ctrl + F : abrir busca de alunos (se na página alunos)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+    const inp = document.getElementById('alunos-search-input');
+    if (inp) { e.preventDefault(); inp.focus(); inp.select(); }
+  }
+});
 
 
 </script>
