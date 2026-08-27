@@ -2865,8 +2865,15 @@ function renderBalancoOriginal(md) {
       <div class="section-title">EXTRATO</div>
       <span style="font-size:11px;color:var(--text3)">${md.balanco.ganhos.length+md.balanco.gastos.length} movimentações</span>
     </div>
-    <div class="table-card">
+    <div class="table-card" style="overflow:hidden">
       ${renderExtrato(md)}
+    </div>
+    <div id="extrato-sel-bar" style="display:none;position:sticky;bottom:70px;z-index:50;margin:0 0 8px;background:var(--surface);border:1px solid rgba(232,32,10,0.35);border-radius:10px;padding:10px 16px;display:none;align-items:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,0.4)">
+      <div style="flex:1">
+        <div style="font-size:11px;color:var(--text3)" id="extrato-sel-label">0 selecionados</div>
+        <div style="font-family:'Bebas Neue';font-size:22px;letter-spacing:1px;color:var(--red)" id="extrato-sel-total">R$ 0,00</div>
+      </div>
+      <button onclick="_extratoSel.clear();atualizarExtratoSelBar()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer">Limpar</button>
     </div>
 
   </div>`;
@@ -2877,8 +2884,48 @@ function renderBalancoOriginal(md) {
   reapplyAllSorts();
 }
 
+let _extratoSel = new Map(); // id → valor
+
+window.atualizarExtratoSelBar = function() {
+  const bar = document.getElementById('extrato-sel-bar');
+  if (!bar) return;
+  if (_extratoSel.size === 0) {
+    bar.style.display = 'none';
+    // limpar highlights
+    document.querySelectorAll('.extrato-row-sel').forEach(r => {
+      r.style.background = 'transparent';
+      const cb = r.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = false;
+    });
+    return;
+  }
+  bar.style.display = 'flex';
+  const total = [..._extratoSel.values()].reduce((s,v) => s+v, 0);
+  const lbl = document.getElementById('extrato-sel-label');
+  const tot = document.getElementById('extrato-sel-total');
+  if (lbl) lbl.textContent = `${_extratoSel.size} gasto${_extratoSel.size!==1?'s':''} selecionado${_extratoSel.size!==1?'s':''}`;
+  if (tot) tot.textContent = fmt(total);
+};
+
+window.toggleExtratoSel = function(id, valor) {
+  if (_extratoSel.has(id)) {
+    _extratoSel.delete(id);
+  } else {
+    _extratoSel.set(id, valor);
+  }
+  // Atualizar visual da linha sem re-renderizar tudo
+  const row = document.querySelector(`.extrato-row-sel[data-eid="${id}"]`);
+  if (row) {
+    const sel = _extratoSel.has(id);
+    row.style.background = sel ? 'rgba(232,32,10,0.07)' : 'transparent';
+    const cb = row.querySelector('input[type=checkbox]');
+    if (cb) cb.checked = sel;
+  }
+  atualizarExtratoSelBar();
+};
+
 function renderExtrato(md) {
-  // Build flat list of extrato entries from items + their historico
+  _extratoSel.clear(); // reset seleção ao re-renderizar
   const linhas = [];
 
   const addLinhas = (itens, tipo) => {
@@ -2889,35 +2936,17 @@ function renderExtrato(md) {
       const cat = item.categoria || tipo;
       const catLabel = cat.charAt(0).toUpperCase() + cat.slice(1);
 
-      // Original entry
       linhas.push({
-        ts: item.ts || 0,
-        cor,
-        nome: item.nome,
-        detalhe: null,
-        catLabel,
-        status,
-        isGanho,
-        valor: item.valor,
-        sinal: isGanho ? '+' : '−',
-        isSoma: false,
-        totalApos: null
+        ts: item.ts || 0, id: item.id,
+        cor, nome: item.nome, detalhe: null, catLabel, status, isGanho,
+        valor: item.valor, sinal: isGanho ? '+' : '−', isSoma: false
       });
 
-      // Soma entries from historico
-      (item.historico || []).forEach(h => {
+      (item.historico || []).forEach((h, hi) => {
         linhas.push({
-          ts: h.ts || 0,
-          cor,
-          nome: `↳ Soma em "${item.nome}"`,
-          detalhe: `Total após: ${fmt(item.valor)}`,
-          catLabel,
-          status,
-          isGanho,
-          valor: h.delta,
-          sinal: isGanho ? '+' : '+',
-          isSoma: true,
-          totalApos: item.valor
+          ts: h.ts || 0, id: `${item.id}_s${hi}`,
+          cor, nome: `↳ Soma em "${item.nome}"`, detalhe: `Total após: ${fmt(item.valor)}`,
+          catLabel, status, isGanho, valor: h.delta, sinal: '+', isSoma: true
         });
       });
     });
@@ -2929,22 +2958,61 @@ function renderExtrato(md) {
 
   if (linhas.length === 0) return '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Nenhuma movimentação registrada</div>';
 
-  return linhas.map(l => {
-    const tsLabel = l.ts
-      ? new Date(l.ts).toLocaleDateString('pt-BR', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})
-      : '—';
-    return `<div style="display:flex;align-items:center;gap:12px;padding:${l.isSoma?'8px':'11px'} 16px ${l.isSoma?'8px 28px':'11px 16px'};border-bottom:1px solid rgba(42,42,42,${l.isSoma?'0.3':'0.5'});background:${l.isSoma?'rgba(255,255,255,0.015)':'transparent'}">
-      <div style="width:${l.isSoma?'5px':'8px'};height:${l.isSoma?'5px':'8px'};border-radius:50%;background:${l.isSoma?'rgba(255,255,255,0.2)':l.cor};flex-shrink:0;${l.isSoma?'border:1px solid '+l.cor:''}"></div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:${l.isSoma?'12px':'13px'};font-weight:${l.isSoma?'400':'500'};color:${l.isSoma?'var(--text2)':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.nome}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <span>${tsLabel}</span>
-          ${!l.isSoma?`<span class="badge badge-gray" style="padding:1px 6px;font-size:10px">${l.catLabel}</span>`:''}
-          ${!l.isSoma?`<span class="badge ${l.status?'badge-green':'badge-yellow'}" style="padding:1px 6px;font-size:10px">${l.status?(l.isGanho?'Recebido':'Pago'):'Pendente'}</span>`:''}
-          ${l.detalhe?`<span style="color:var(--text3)">${l.detalhe}</span>`:''}
+  // Agrupamento por dia
+  const todayStr     = new Date().toDateString();
+  const yesterdayStr = new Date(Date.now() - 86400000).toDateString();
+  function dayLabel(ts) {
+    if (!ts) return 'Sem data';
+    const d  = new Date(ts);
+    const ds = d.toDateString();
+    if (ds === todayStr)     return 'Hoje';
+    if (ds === yesterdayStr) return 'Ontem';
+    return d.toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'short'});
+  }
+
+  const groups = [];
+  let curDay = null;
+  for (const l of linhas) {
+    const dl = dayLabel(l.ts);
+    if (dl !== curDay) { groups.push({day: dl, items: []}); curDay = dl; }
+    groups[groups.length-1].items.push(l);
+  }
+
+  return groups.map(g => {
+    const rows = g.items.map(l => {
+      const tsLabel  = l.ts ? new Date(l.ts).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '—';
+      const canSel   = !l.isGanho && l.id;
+      const chkHtml  = canSel
+        ? `<input type="checkbox" onclick="event.stopPropagation();toggleExtratoSel('${l.id}',${l.valor})" style="flex-shrink:0;cursor:pointer;accent-color:var(--red);width:14px;height:14px;margin:0">`
+        : `<div style="width:14px;flex-shrink:0"></div>`;
+      const rowAttrs = canSel
+        ? `class="extrato-row-sel" data-eid="${l.id}" onclick="toggleExtratoSel('${l.id}',${l.valor})" style="cursor:pointer;`
+        : `style="`;
+      return `<div ${rowAttrs}display:flex;align-items:center;gap:10px;padding:${l.isSoma?'8px':'11px'} 16px ${l.isSoma?'8px 28px':'11px 16px'};border-bottom:1px solid rgba(42,42,42,${l.isSoma?'0.3':'0.5'});background:${l.isSoma?'rgba(255,255,255,0.015)':'transparent'};transition:background 0.1s">
+        ${chkHtml}
+        <div style="width:${l.isSoma?'5px':'8px'};height:${l.isSoma?'5px':'8px'};border-radius:50%;background:${l.isSoma?'rgba(255,255,255,0.2)':l.cor};flex-shrink:0;${l.isSoma?'border:1px solid '+l.cor:''}"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:${l.isSoma?'12px':'13px'};font-weight:${l.isSoma?'400':'500'};color:${l.isSoma?'var(--text2)':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.nome}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <span>${tsLabel}</span>
+            ${!l.isSoma?`<span class="badge badge-gray" style="padding:1px 6px;font-size:10px">${l.catLabel}</span>`:''}
+            ${!l.isSoma?`<span class="badge ${l.status?'badge-green':'badge-yellow'}" style="padding:1px 6px;font-size:10px">${l.status?(l.isGanho?'Recebido':'Pago'):'Pendente'}</span>`:''}
+            ${l.detalhe?`<span>${l.detalhe}</span>`:''}
+          </div>
         </div>
+        <div style="font-family:'Bebas Neue';font-size:${l.isSoma?'15px':'18px'};letter-spacing:1px;color:${l.cor};flex-shrink:0;opacity:${l.isSoma?'0.8':'1'}">${l.sinal}${fmt(l.valor)}</div>
+      </div>`;
+    }).join('');
+
+    // Soma do dia (gastos apenas)
+    const somaGastosDia = g.items.filter(l => !l.isSoma && !l.isGanho).reduce((s,l) => s+l.valor, 0);
+    const somaLabel = somaGastosDia > 0 ? `<span style="font-family:'Bebas Neue';letter-spacing:0.5px;color:var(--red);font-size:12px">−${fmt(somaGastosDia)}</span>` : '';
+
+    return `<div>
+      <div style="padding:5px 16px;display:flex;align-items:center;justify-content:space-between;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:0.5px;background:var(--surface2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1">
+        <span>${g.day.toUpperCase()}</span>${somaLabel}
       </div>
-      <div style="font-family:'Bebas Neue';font-size:${l.isSoma?'15px':'18px'};letter-spacing:1px;color:${l.isSoma?l.cor:l.cor};flex-shrink:0;opacity:${l.isSoma?'0.8':'1'}">${l.sinal}${fmt(l.valor)}</div>
+      ${rows}
     </div>`;
   }).join('');
 }
