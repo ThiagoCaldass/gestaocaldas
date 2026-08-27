@@ -3617,6 +3617,7 @@ function renderTodosContent(md) {
       ${ro?'<td></td>':`<td style="padding:4px 6px;width:32px"><input type="checkbox" class="row-select" data-id="${a.id}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblTodos')" title="Selecionar"></div></td>`}
       <td style="overflow:hidden" title="${a.nome}">
         <span style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;cursor:pointer;${a.pausado?'text-decoration:line-through;color:var(--text3)':''}" onclick="${editFn}">${nAbrev}</span>
+        ${a.obs?`<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${a.obs.slice(0,50)}</div>`:''}
       </td>
       <td>${tipoBadge}</td>
       <td style="cursor:pointer" onclick="${editFn}"><span class="mono">${a.pausado?'—':fmt(a._valor)}</span></td>
@@ -3848,6 +3849,7 @@ function renderCalisteniaContent(md) {
           <td style="overflow:hidden" title="${a.nome}">
             <span style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;cursor:pointer;${a.pausado?'text-decoration:line-through;color:var(--text3)':''}" onclick="editCellCali('${a.id}','Nome','${a.nome}')">${nAbrev}</span>
             ${isFam?`<span style="font-size:10px;color:var(--accent3)">+ ${famNomes[0]||''}</span>`:''}
+            ${a.obs?`<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${a.obs.slice(0,50)}</div>`:''}
           </td>
           <td style="cursor:pointer" onclick="editCellCali('${a.id}','Valor','${a.valorBase}')" title="Editar valor">
             <span class="mono">${a.pausado?'—':fmt(a.valorFinal)}</span>
@@ -4105,6 +4107,7 @@ let _todosSort = (() => { try { const s = localStorage.getItem('gestor_todos_sor
 let _todosGroupOpen = {};       // { cali: bool, online: bool, pres: bool }
 let _todosFilters = new Set();  // filtros ativos: 'nao-pago'|'treino-venc'|'pausado'|'cali'|'online'|'pres'
 let _presViewMode = {};         // { [alunoId]: 'lista'|'calendario' }
+let _presCalMes   = {};         // { [alunoId]: {year, month} } — mês visível no calendário
 let _alunosSearch = '';         // busca de aluno por nome (cross-tab)
 function renderPersonal(md) { renderAlunos(md); }
 function renderPersonalContent(md, tab) {
@@ -4191,6 +4194,7 @@ function renderPersonalContent(md, tab) {
           ${ro?'<td></td>':`<td style="padding:4px 6px;width:32px"><input type="checkbox" class="row-select" data-id="${a.id}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblPersonal')" title="Selecionar"></div></td>`}
           <td style="overflow:hidden" title="${a.nome}">
             <span style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;cursor:pointer;${a.pausado?'text-decoration:line-through;color:var(--text3)':''}" onclick="editCellPersonal('${a.id}','Nome','${a.nome}')">${nAbrev}</span>
+            ${a.obs?`<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${a.obs.slice(0,50)}</div>`:''}
           </td>
           <td style="cursor:pointer" onclick="editCellPersonal('${a.id}','Valor','${a.valor}')">
             <span class="mono">${a.pausado?'—':fmt(a.valor)}</span>
@@ -4431,12 +4435,15 @@ window.toggleAulaData = function(alunoId, data) {
 };
 
 function renderCalendario(a) {
-  const datas = new Set(a.aulasDatas || []);
+  const todasDatas = new Set(a.aulasDatas || []);
   const ro = isReadOnly();
 
-  // Foco: mês da aula mais recente ou mês atual
+  // Foco: estado salvo ou mês da aula mais recente ou mês atual
   let focusYear, focusMonth;
-  if ((a.aulasDatas || []).length > 0) {
+  if (_presCalMes[a.id]) {
+    focusYear  = _presCalMes[a.id].year;
+    focusMonth = _presCalMes[a.id].month;
+  } else if ((a.aulasDatas || []).length > 0) {
     const sorted = [...a.aulasDatas].sort();
     const last = sorted[sorted.length - 1];
     const parts = last.split('-');
@@ -4453,7 +4460,7 @@ function renderCalendario(a) {
 
   // Início: segunda-feira da semana que contém o 1º do mês
   const startDate = new Date(firstDay);
-  const dow1 = startDate.getDay(); // 0=Dom
+  const dow1 = startDate.getDay();
   startDate.setDate(startDate.getDate() - (dow1 === 0 ? 6 : dow1 - 1));
 
   // Fim: domingo da semana que contém o último dia do mês
@@ -4466,6 +4473,19 @@ function renderCalendario(a) {
                     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
   const todayIso = new Date().toISOString().split('T')[0];
+
+  // Aulas no mês visível
+  const aulasNoMes = (a.aulasDatas || []).filter(d => {
+    const [y, m] = d.split('-').map(Number);
+    return y === focusYear && m === focusMonth + 1;
+  }).length;
+
+  // Meses com aulas (para saber se há navegação disponível)
+  const mesesComAulas = new Set((a.aulasDatas || []).map(d => d.slice(0, 7)));
+  const mesesOrdenados = [...mesesComAulas].sort();
+  const chaveAtual = `${focusYear}-${String(focusMonth + 1).padStart(2, '0')}`;
+  const temAnterior = mesesOrdenados.some(m => m < chaveAtual);
+  const temProximo  = mesesOrdenados.some(m => m > chaveAtual);
 
   // Gerar semanas
   const weeks = [];
@@ -4481,31 +4501,68 @@ function renderCalendario(a) {
 
   const weeksHtml = weeks.map(week => {
     const cells = week.map(day => {
-      const iso       = day.toISOString().split('T')[0];
-      const isFocus   = day.getMonth() === focusMonth;
-      const isTreino  = datas.has(iso);
-      const isToday   = iso === todayIso;
-      const opacity   = isFocus ? '1' : '0.4';
-      const bg        = isTreino ? (isFocus ? 'var(--accent)' : 'rgba(232,68,30,0.5)') : (isToday ? 'rgba(53,200,241,0.18)' : 'transparent');
-      const color     = isTreino ? '#000' : (isToday ? 'var(--accent3)' : 'var(--text2)');
-      const fw        = isTreino ? '700' : '400';
-      const border    = isToday && !isTreino ? '1px solid var(--accent3)' : 'none';
-      const cursor    = !ro ? 'pointer' : 'default';
-      const click     = !ro ? `onclick="toggleAulaData('${a.id}','${iso}')"` : '';
+      const iso      = day.toISOString().split('T')[0];
+      const isFocus  = day.getMonth() === focusMonth;
+      const isTreino = todasDatas.has(iso);
+      const isToday  = iso === todayIso;
+      const opacity  = isFocus ? '1' : '0.4';
+      const bg       = isTreino ? (isFocus ? 'var(--accent)' : 'rgba(232,68,30,0.5)') : (isToday ? 'rgba(53,200,241,0.18)' : 'transparent');
+      const color    = isTreino ? '#000' : (isToday ? 'var(--accent3)' : 'var(--text2)');
+      const fw       = isTreino ? '700' : '400';
+      const border   = isToday && !isTreino ? '1px solid var(--accent3)' : 'none';
+      const cursor   = !ro ? 'pointer' : 'default';
+      const click    = !ro ? `onclick="toggleAulaData('${a.id}','${iso}')"` : '';
       return `<td style="text-align:center;padding:2px 1px"><div ${click} style="width:26px;height:26px;border-radius:50%;background:${bg};color:${color};font-weight:${fw};font-size:11px;display:flex;align-items:center;justify-content:center;margin:0 auto;opacity:${opacity};border:${border};cursor:${cursor};transition:background 0.15s">${day.getDate()}</div></td>`;
     }).join('');
     return `<tr>${cells}</tr>`;
   }).join('');
 
+  const btnStyle = (ativo) => `background:none;border:none;color:${ativo?'var(--text2)':'var(--text3)'};cursor:${ativo?'pointer':'default'};font-size:14px;padding:0 8px;line-height:1;opacity:${ativo?'1':'0.3'}`;
+
   return `<div style="padding:10px 14px 12px">
-    <div style="text-align:center;font-size:10px;font-weight:700;color:var(--text3);margin-bottom:8px;letter-spacing:0.5px">${mesNomes[focusMonth].toUpperCase()} ${focusYear}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <button onclick="navCalendario('${a.id}',-1)" style="${btnStyle(temAnterior)}" title="Mês anterior" ${temAnterior?'':'disabled'}>◀</button>
+      <span style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:0.5px">${mesNomes[focusMonth].toUpperCase()} ${focusYear}</span>
+      <button onclick="navCalendario('${a.id}',1)" style="${btnStyle(temProximo)}" title="Próximo mês" ${temProximo?'':'disabled'}>▶</button>
+    </div>
     <table style="width:100%;border-collapse:collapse">
       <thead><tr>${dayNames.map(d=>`<th style="font-size:9px;color:var(--text3);text-align:center;padding:3px 0;font-weight:600">${d}</th>`).join('')}</tr></thead>
       <tbody>${weeksHtml}</tbody>
     </table>
-    ${datas.size > 0 ? `<div style="margin-top:8px;font-size:10px;color:var(--text3);text-align:center">${datas.size} dia(s) treinado(s) neste mês</div>` : ''}
+    ${aulasNoMes > 0 ? `<div style="margin-top:8px;font-size:10px;color:var(--text3);text-align:center">${aulasNoMes} aula${aulasNoMes!==1?'s':''} neste mês${todasDatas.size!==aulasNoMes?` · ${todasDatas.size} no total`:''}</div>` : (todasDatas.size > 0 ? `<div style="margin-top:8px;font-size:10px;color:var(--text3);text-align:center">Nenhuma aula neste mês · ${todasDatas.size} no total</div>` : '')}
   </div>`;
 }
+
+window.navCalendario = function(id, dir) {
+  const md = getMonthData();
+  const a = md.personal.presencial.find(x => x.id === id);
+  if (!a) return;
+
+  // Estado atual
+  let year, month;
+  if (_presCalMes[id]) {
+    year  = _presCalMes[id].year;
+    month = _presCalMes[id].month;
+  } else if ((a.aulasDatas || []).length > 0) {
+    const sorted = [...a.aulasDatas].sort();
+    const last = sorted[sorted.length - 1];
+    const parts = last.split('-');
+    year  = parseInt(parts[0]);
+    month = parseInt(parts[1]) - 1;
+  } else {
+    const now = new Date();
+    year  = now.getFullYear();
+    month = now.getMonth();
+  }
+
+  // Avançar/recuar
+  month += dir;
+  if (month > 11) { month = 0;  year++; }
+  if (month < 0)  { month = 11; year--; }
+
+  _presCalMes[id] = { year, month };
+  setAlunosTab('presencial');
+};
 
 function resetarPresencas() {
   if (!confirm('Zerar todas as presenças do mês?')) return;
