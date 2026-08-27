@@ -6896,8 +6896,8 @@ window.abrirModalWhatsApp = function(preSelIds) {
           <span id="wa-srv-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>
           <span id="wa-srv-label">Verificando...</span>
         </div>
-        <!-- Captação toggle no modal -->
-        <button id="wa-modal-captacao-btn" onclick="waModalToggleCaptacao(this)" style="font-size:11px;font-weight:600;padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:pointer;font-family:'Barlow Condensed';letter-spacing:0.3px;flex-shrink:0" title="Ativar/pausar captação automática">🤖 Captação: …</button>
+        <!-- Conectar/Pausar WA no modal -->
+        <button id="wa-modal-pause-btn" onclick="waModalTogglePause()" style="font-size:11px;font-weight:600;padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:pointer;font-family:'Barlow Condensed';letter-spacing:0.3px;flex-shrink:0" title="Pausar/retomar o servidor WhatsApp">⏸ Pausar</button>
       </div>
 
       <!-- QR CODE (aparece só quando servidor aguarda scan) -->
@@ -7114,9 +7114,9 @@ window.waVerificarServidor = async function() {
     const { status, qr } = data2;
     _waStatusFails = 0; // reset debounce
 
-    // Atualiza captação no modal se disponível
-    const mCapBtn = document.getElementById('wa-modal-captacao-btn');
-    if (mCapBtn && data2.captacaoAtiva !== undefined) _atualizarBtnCaptacaoModal(mCapBtn, data2.captacaoAtiva);
+    // Atualiza botão pausar/retomar no modal
+    const mPauseBtnV = document.getElementById('wa-modal-pause-btn');
+    if (mPauseBtnV) _atualizarBtnPauseModal(mPauseBtnV, status === 'pausado');
 
     if (status === 'conectado') {
       dot.style.background   = '#22c55e';
@@ -7498,9 +7498,9 @@ async function wapPollStatus() {
     // Atualiza dot da sidebar
     const navDot = document.getElementById('wa-nav-dot');
     if (navDot) navDot.style.background = (data.status === 'conectado') ? '#22c55e' : '#ef4444';
-    // Atualiza captação no modal de envio (se aberto)
-    const modalCapBtn = document.getElementById('wa-modal-captacao-btn');
-    if (modalCapBtn && data.captacaoAtiva !== undefined) _atualizarBtnCaptacaoModal(modalCapBtn, data.captacaoAtiva);
+    // Atualiza botão pausar/retomar no modal de envio (se aberto)
+    const mPauseBtn = document.getElementById('wa-modal-pause-btn');
+    if (mPauseBtn) _atualizarBtnPauseModal(mPauseBtn, pausado);
   } catch {
     _waPageStatusFails++;
     if (_waPageStatusFails < 3) return;
@@ -7553,25 +7553,35 @@ function _atualizarBtnCaptacao(btn, on) {
   btn.style.color       = on ? 'var(--accent3)' : 'var(--red)';
 }
 
-function _atualizarBtnCaptacaoModal(btn, on) {
-  btn.textContent       = `🤖 Captação: ${on ? 'ON' : 'OFF'}`;
-  btn.style.borderColor = on ? 'rgba(53,200,241,0.4)' : 'rgba(232,32,10,0.4)';
-  btn.style.background  = on ? 'rgba(53,200,241,0.1)' : 'rgba(232,32,10,0.1)';
-  btn.style.color       = on ? 'var(--accent3)' : 'var(--red)';
+function _atualizarBtnPauseModal(btn, pausado) {
+  if (pausado) {
+    btn.textContent       = '▶ Retomar';
+    btn.style.borderColor = 'rgba(34,197,94,0.5)';
+    btn.style.background  = 'rgba(34,197,94,0.1)';
+    btn.style.color       = '#22c55e';
+  } else {
+    btn.textContent       = '⏸ Pausar';
+    btn.style.borderColor = '';
+    btn.style.background  = 'var(--surface2)';
+    btn.style.color       = 'var(--text2)';
+  }
 }
 
-window.waModalToggleCaptacao = async function(btn) {
+window.waModalTogglePause = async function() {
+  const btn = document.getElementById('wa-modal-pause-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '.5'; }
+  const isPaused = _waServerStatus === 'pausado';
   try {
-    const r = await fetch(getWaServer() + '/captacao/toggle', { method: 'POST', signal: AbortSignal.timeout(5000) });
-    if (!r.ok) throw new Error('erro');
-    const { captacaoAtiva } = await r.json();
-    _atualizarBtnCaptacaoModal(btn, captacaoAtiva);
-    // Sincroniza botão da página WA se estiver aberta
-    const cbtn = document.getElementById('wap-captacao-btn');
-    if (cbtn) _atualizarBtnCaptacao(cbtn, captacaoAtiva);
-  } catch {
-    btn.textContent = '⚠️ Erro';
-    setTimeout(() => { btn.textContent = '🤖 Captação: ?'; }, 2000);
+    await fetch(getWaServer() + (isPaused ? '/resume' : '/pause'), {
+      method: 'POST', signal: AbortSignal.timeout(10000)
+    });
+    // Força atualização dos dois status (modal + página WA)
+    await waVerificarServidor();
+    await wapPollStatus();
+  } catch(e) {
+    alert('Erro ao ' + (isPaused ? 'retomar' : 'pausar') + ': ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
   }
 };
 
