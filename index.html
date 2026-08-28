@@ -8868,7 +8868,7 @@ renderDashboard = (function(_orig) {
     const saldoVsExp  = expSaldo - realSaldo;
     const saldoColor  = realSaldo >= 0 ? 'var(--green)' : 'var(--red)';
 
-    const MOB = {quickadd:'', saldo:'', alunos:'', chart:''}; // sem order fixo — usa ordem do DOM
+    const MOB = {hoje:'', quickadd:'', saldo:'', alunos:'', chart:''}; // sem order fixo — usa ordem do DOM
 
     const W = {
       lembretes: () => renderLembretesDashboard(),
