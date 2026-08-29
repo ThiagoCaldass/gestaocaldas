@@ -95,7 +95,7 @@ async function enviarMsg(jid, texto) {
   if (!sock || waStatus !== 'conectado') return;
   // Estabelece sessão E2E antes de enviar — evita "Aguardando mensagem" no destinatário
   try { await sock.assertSessions([jid], true); } catch {}
-  await new Promise(r => setTimeout(r, 1500));
+  await new Promise(r => setTimeout(r, 4000));
   await sock.sendMessage(jid, { text: texto });
   try { await sock.sendPresenceUpdate('unavailable'); } catch {}
 }
@@ -431,10 +431,10 @@ app.post('/send', async (req, res) => {
           } else {
             // Estabelece sessão E2E antes de enviar — evita "Aguardando mensagem" no destinatário
             try { await sock.presenceSubscribe(jid); } catch {}
-            await dormir(500);
+            await dormir(1000);
             // assertSessions força a troca de chaves antes do sendMessage
             try { await sock.assertSessions([jid], true); } catch {}
-            await dormir(2500); // aguarda sessão estabilizar (importante no Render)
+            await dormir(5000); // aguarda sessão E2E estabilizar (importante no Render)
             await sock.sendMessage(jid, { text: msg });
             try { await sock.sendPresenceUpdate('unavailable'); } catch {}
             console.log(`[${i+1}/${contatos.length}] ${nome} — ✅ enviado`);
