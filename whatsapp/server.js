@@ -93,6 +93,9 @@ function agendarLembrete(jid) {
 
 async function enviarMsg(jid, texto) {
   if (!sock || waStatus !== 'conectado') return;
+  // Estabelece sessão E2E antes de enviar — evita "Aguardando mensagem" no destinatário
+  try { await sock.assertSessions([jid], true); } catch {}
+  await new Promise(r => setTimeout(r, 1500));
   await sock.sendMessage(jid, { text: texto });
   try { await sock.sendPresenceUpdate('unavailable'); } catch {}
 }
@@ -426,9 +429,12 @@ app.post('/send', async (req, res) => {
             console.log(`[${i+1}/${contatos.length}] ${nome} — ⚠️  sem WhatsApp`);
             job.results.push({ nome, status: 'sem_whatsapp' });
           } else {
-            // presenceSubscribe + delay evita "mensagem indisponível" por sessão E2E incompleta
+            // Estabelece sessão E2E antes de enviar — evita "Aguardando mensagem" no destinatário
             try { await sock.presenceSubscribe(jid); } catch {}
-            await dormir(1000);
+            await dormir(500);
+            // assertSessions força a troca de chaves antes do sendMessage
+            try { await sock.assertSessions([jid], true); } catch {}
+            await dormir(2500); // aguarda sessão estabilizar (importante no Render)
             await sock.sendMessage(jid, { text: msg });
             try { await sock.sendPresenceUpdate('unavailable'); } catch {}
             console.log(`[${i+1}/${contatos.length}] ${nome} — ✅ enviado`);
