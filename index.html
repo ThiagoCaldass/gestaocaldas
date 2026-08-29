@@ -7472,18 +7472,26 @@ window.waEnviar = async function() {
     if (log) log.innerHTML += `<span style="color:var(--text3)">📋 ${total} mensagens na fila...</span>\n`;
 
     // Poll /send-status
+    let pollTicks = 0;
+    const MAX_POLL_TICKS = 300; // 300 × 1.5s = 7.5 min timeout
     const poll = setInterval(async () => {
+      pollTicks++;
       try {
-        const sr = await fetch(getWaServer() + '/send-status');
-        const { results, done, total: tot } = await sr.json();
+        const sr = await fetch(getWaServer() + '/send-status', { signal: AbortSignal.timeout(8000) });
+        const { results, done, total: tot, running } = await sr.json();
         if (!log) { clearInterval(poll); return; }
 
         // Reconstrói log
-        log.innerHTML = results.map((r,i) => {
-          const ico = r.status==='enviado' ? '✅' : r.status==='sem_whatsapp' ? '⚠️' : '❌';
-          const cor = r.status==='enviado' ? 'var(--green)' : r.status==='sem_whatsapp' ? '#f59e0b' : 'var(--red)';
-          return `<span style="color:${cor}">${ico} [${i+1}/${tot}] ${r.nome} — ${r.status}${r.erro ? ': '+r.erro : ''}</span>`;
-        }).join('\n') || '<span style="color:var(--text3)">Aguardando...</span>';
+        if (results.length > 0) {
+          log.innerHTML = results.map((r,i) => {
+            const ico = r.status==='enviado' ? '✅' : r.status==='sem_whatsapp' ? '⚠️' : '❌';
+            const cor = r.status==='enviado' ? 'var(--green)' : r.status==='sem_whatsapp' ? '#f59e0b' : 'var(--red)';
+            return `<span style="color:${cor}">${ico} [${i+1}/${tot}] ${r.nome} — ${r.status}${r.erro ? ': '+r.erro : ''}</span>`;
+          }).join('\n');
+        } else {
+          const dots = '.'.repeat((pollTicks % 3) + 1);
+          log.innerHTML = `<span style="color:var(--text3)">⏳ Processando${dots} (0 de ${tot})</span>`;
+        }
         log.scrollTop = log.scrollHeight;
 
         if (logFooter) logFooter.textContent = `${results.length} de ${tot} processados`;
@@ -7495,10 +7503,24 @@ window.waEnviar = async function() {
           const erros    = results.filter(r=>r.status==='erro').length;
           if (logFooter) logFooter.innerHTML = `<strong>✔️ Concluído:</strong> ${enviados} enviados · ${semWa} sem WhatsApp · ${erros} erros`;
           if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '✔️ Concluído'; }
+        } else if (!running && results.length === 0 && tot === 0) {
+          // Servidor reiniciou (Render.com) — job perdido
+          clearInterval(poll);
+          if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ Servidor reiniciou durante o envio. Tente novamente.</span>`;
+          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Tentar novamente'; }
+          if (body) body.style.display = 'grid';
+          if (logArea) logArea.style.display = 'none';
+        } else if (pollTicks >= MAX_POLL_TICKS) {
+          clearInterval(poll);
+          if (log) log.innerHTML += `\n<span style="color:var(--red)">⏱️ Timeout — servidor demorou demais. Verifique o terminal.</span>`;
+          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Tentar novamente'; }
         }
       } catch(e) {
-        clearInterval(poll);
-        if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ Erro ao consultar status: ${e.message}</span>`;
+        if (pollTicks >= 3) { // ignora falhas isoladas
+          clearInterval(poll);
+          if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ Erro ao consultar status: ${e.message}</span>`;
+          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Tentar novamente'; }
+        }
       }
     }, 1500);
 
@@ -8025,17 +8047,24 @@ window.wapEnviar = async function() {
     });
     if (!r.ok) throw new Error((await r.json()).erro || 'Erro');
 
+    let wapPollTicks = 0;
     const poll = setInterval(async () => {
+      wapPollTicks++;
       try {
-        const { results, done, total } = await (await fetch(getWaServer() + '/send-status')).json();
+        const { results, done, total, running } = await (await fetch(getWaServer() + '/send-status', { signal: AbortSignal.timeout(8000) })).json();
         const inner = document.getElementById('wap-page-log-inner');
         const footer = document.getElementById('wap-page-log-footer');
         if (!inner) { clearInterval(poll); return; }
-        inner.innerHTML = results.map((r,i) => {
-          const ico = r.status==='enviado'?'✅':r.status==='sem_whatsapp'?'⚠️':'❌';
-          const cor = r.status==='enviado'?'var(--green)':r.status==='sem_whatsapp'?'#f59e0b':'var(--red)';
-          return `<span style="color:${cor}">${ico} [${i+1}/${total}] ${r.nome} — ${r.status}</span>`;
-        }).join('\n') || 'Aguardando...';
+        if (results.length > 0) {
+          inner.innerHTML = results.map((r,i) => {
+            const ico = r.status==='enviado'?'✅':r.status==='sem_whatsapp'?'⚠️':'❌';
+            const cor = r.status==='enviado'?'var(--green)':r.status==='sem_whatsapp'?'#f59e0b':'var(--red)';
+            return `<span style="color:${cor}">${ico} [${i+1}/${total}] ${r.nome} — ${r.status}</span>`;
+          }).join('\n');
+        } else {
+          const dots = '.'.repeat((wapPollTicks % 3) + 1);
+          inner.textContent = `⏳ Processando${dots} (0 de ${total})`;
+        }
         inner.scrollTop = inner.scrollHeight;
         if (footer) footer.textContent = `${results.length} de ${total} processados`;
         if (done) {
@@ -8043,8 +8072,16 @@ window.wapEnviar = async function() {
           const env = results.filter(r=>r.status==='enviado').length;
           if (footer) footer.innerHTML = `<strong>✔️ Concluído: ${env} enviados · ${results.length-env} outros</strong>`;
           if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '✔️ Concluído'; }
+        } else if (!running && results.length === 0 && total === 0) {
+          clearInterval(poll);
+          if (inner) inner.textContent = '❌ Servidor reiniciou. Tente novamente.';
+          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Enviar'; }
+        } else if (wapPollTicks >= 300) {
+          clearInterval(poll);
+          if (inner) inner.textContent += '\n⏱️ Timeout — servidor demorou demais.';
+          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Enviar'; }
         }
-      } catch { clearInterval(poll); }
+      } catch { if (wapPollTicks >= 3) clearInterval(poll); }
     }, 1500);
   } catch(e) {
     const isNet = e.name === 'TypeError' || e.name === 'AbortError';

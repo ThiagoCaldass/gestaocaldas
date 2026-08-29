@@ -411,41 +411,48 @@ app.post('/send', async (req, res) => {
 
   (async () => {
     const dormir = ms => new Promise(r => setTimeout(r, ms));
-    for (let i = 0; i < contatos.length; i++) {
-      const { nome, telefone } = contatos[i];
-      const tel = (telefone || '').replace(/\D/g, '');
-      const num = tel.startsWith('55') ? tel : '55' + tel;
-      const jid = num + '@s.whatsapp.net';
-      const msg = mensagens[Math.floor(Math.random() * mensagens.length)].replace(/\{nome\}/g, nome);
+    try {
+      for (let i = 0; i < contatos.length; i++) {
+        const { nome, telefone } = contatos[i];
+        const tel = (telefone || '').replace(/\D/g, '');
+        const num = tel.startsWith('55') ? tel : '55' + tel;
+        const jid = num + '@s.whatsapp.net';
+        const msg = mensagens[Math.floor(Math.random() * mensagens.length)].replace(/\{nome\}/g, nome);
 
-      try {
-        const [info] = await sock.onWhatsApp(num);
-        if (!info?.exists) {
-          console.log(`[${i+1}/${contatos.length}] ${nome} — ⚠️  sem WhatsApp`);
-          job.results.push({ nome, status: 'sem_whatsapp' });
-        } else {
-          // presenceSubscribe + delay evita "mensagem indisponível" por sessão E2E incompleta
-          try { await sock.presenceSubscribe(jid); } catch {}
-          await dormir(1000);
-          await sock.sendMessage(jid, { text: msg });
-          try { await sock.sendPresenceUpdate('unavailable'); } catch {}
-          console.log(`[${i+1}/${contatos.length}] ${nome} — ✅ enviado`);
-          job.results.push({ nome, status: 'enviado' });
+        try {
+          const res2 = await sock.onWhatsApp(num);
+          const info = Array.isArray(res2) ? res2[0] : res2;
+          if (!info?.exists) {
+            console.log(`[${i+1}/${contatos.length}] ${nome} — ⚠️  sem WhatsApp`);
+            job.results.push({ nome, status: 'sem_whatsapp' });
+          } else {
+            // presenceSubscribe + delay evita "mensagem indisponível" por sessão E2E incompleta
+            try { await sock.presenceSubscribe(jid); } catch {}
+            await dormir(1000);
+            await sock.sendMessage(jid, { text: msg });
+            try { await sock.sendPresenceUpdate('unavailable'); } catch {}
+            console.log(`[${i+1}/${contatos.length}] ${nome} — ✅ enviado`);
+            job.results.push({ nome, status: 'enviado' });
+          }
+        } catch (e) {
+          console.log(`[${i+1}/${contatos.length}] ${nome} — ❌ ${e.message}`);
+          job.results.push({ nome, status: 'erro', erro: e.message });
         }
-      } catch (e) {
-        console.log(`[${i+1}/${contatos.length}] ${nome} — ❌ ${e.message}`);
-        job.results.push({ nome, status: 'erro', erro: e.message });
-      }
 
-      if (i < contatos.length - 1) {
-        const s = Math.floor(Math.random() * (intervaloMax - intervaloMin + 1)) + intervaloMin;
-        console.log(`   ⏳ aguardando ${s}s...`);
-        await dormir(s * 1000);
+        if (i < contatos.length - 1) {
+          const s = Math.floor(Math.random() * (intervaloMax - intervaloMin + 1)) + intervaloMin;
+          console.log(`   ⏳ aguardando ${s}s...`);
+          await dormir(s * 1000);
+        }
       }
+    } catch (e) {
+      console.error('❌ Erro inesperado no loop de envio:', e.message);
+      job.results.push({ nome: '—', status: 'erro', erro: 'Erro interno: ' + e.message });
+    } finally {
+      job.running = false;
+      job.done = true;
+      console.log('\n✔️  Envio concluído.\n');
     }
-    job.running = false;
-    job.done = true;
-    console.log('\n✔️  Envio concluído.\n');
   })();
 });
 
