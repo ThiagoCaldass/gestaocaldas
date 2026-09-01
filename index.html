@@ -2500,6 +2500,19 @@ function renderWidgetFluxo() {
     return (n && n >= 1 && n <= 31) ? n : null;
   }
 
+  // ── Totais autoritativos (mesma fórmula do widget Saldo Real) ──
+  const CATS_ESPELHO = ['calistenia','personal'];
+  const caliCalc    = calcValoresCali(md.calistenia || []);
+  const expCali     = caliCalc.reduce((s,a) => s + a.valorFinal, 0);
+  const expPersonal = [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
+    .filter(a => !a.pausado).reduce((s,a) => s + (a.valor||0), 0);
+  const expResto    = (md.balanco?.ganhos||[])
+    .filter(g => !CATS_ESPELHO.includes((g.categoria||'avulso').toLowerCase()))
+    .reduce((s,g) => s + (g.valor||0), 0);
+  const expGanhos   = expCali + expPersonal + expResto;
+  const expGastos   = (md.balanco?.gastos||[]).reduce((s,g) => s + (g.valor||0), 0);
+  const expSaldoFim = expGanhos - expGastos;
+
   // Mapas: dia → [{nome, valor, feito}]
   const entradas = {};
   const saidas   = {};
@@ -2510,29 +2523,25 @@ function renderWidgetFluxo() {
     map[dia].push({ nome, valor, feito: !!feito });
   }
 
-  // Alunos calistenia (todos — pagos e pendentes)
-  calcValoresCali(md.calistenia || []).filter(a => !a.pausado).forEach(a => {
-    // Pago com timestamp real → usa o dia real do pagamento; pendente → usa diaAcerto
-    const dia = a.pago && a.tsPago ? new Date(a.tsPago).getDate() : parseDia(a.diaAcerto);
+  // Alunos calistenia (incluindo pausados, para bater com expCali)
+  caliCalc.forEach(a => {
+    const dia = a.pago && a.tsPago ? new Date(a.tsPago).getDate() : parseDia(a.diaAcerto) || 1;
     addEv(entradas, dia, a.nome, a.valorFinal, a.pago);
   });
 
-  // Alunos personal (todos)
+  // Alunos personal (não pausados, igual expPersonal)
   [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
     .filter(a => !a.pausado)
     .forEach(a => {
-      const dia = a.pago && a.tsPago ? new Date(a.tsPago).getDate() : parseDia(a.diaAcerto);
+      const dia = a.pago && a.tsPago ? new Date(a.tsPago).getDate() : parseDia(a.diaAcerto) || 1;
       addEv(entradas, dia, a.nome, a.valor||0, a.pago);
     });
 
-  // Ganhos do balanço — cada transação no seu próprio dia (exceto espelhos de calistenia/personal)
-  const CATS_TABELA = ['calistenia','personal'];
-  (md.balanco?.ganhos||[]).filter(g => !CATS_TABELA.includes((g.categoria||'').toLowerCase())).forEach(g => {
+  // Ganhos do balanço — cada transação no seu próprio dia (exceto espelhos)
+  (md.balanco?.ganhos||[]).filter(g => !CATS_ESPELHO.includes((g.categoria||'avulso').toLowerCase())).forEach(g => {
     const somas = (g.historico||[]).filter(h => h.tipo === 'soma');
     const totalSomas = somas.reduce((s,h) => s + (h.delta||0), 0);
     const valorBase = (g.valor||0) - totalSomas;
-
-    // Lançamento base
     let diaBase;
     if (g.recebido) {
       diaBase = (g.ts ? new Date(g.ts).getDate() : null) || parseDia(g.diaAcerto) || 1;
@@ -2540,11 +2549,8 @@ function renderWidgetFluxo() {
       diaBase = parseDia(g.diaAcerto) || (g.ts ? new Date(g.ts).getDate() : null) || 1;
     }
     if (valorBase > 0) addEv(entradas, diaBase, g.nome, valorBase, g.recebido);
-
-    // Cada soma no seu próprio dia
     somas.forEach(h => {
-      const diaSoma = (h.ts ? new Date(h.ts).getDate() : null) || diaBase;
-      addEv(entradas, diaSoma, g.nome, h.delta||0, g.recebido);
+      addEv(entradas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta||0, g.recebido);
     });
   });
 
@@ -2553,22 +2559,26 @@ function renderWidgetFluxo() {
     const somas = (g.historico||[]).filter(h => h.tipo === 'soma');
     const totalSomas = somas.reduce((s,h) => s + (h.delta||0), 0);
     const valorBase = (g.valor||0) - totalSomas;
-
-    // Lançamento base
     let diaBase;
     if (g.tipoGasto === 'conta' && g.diaVencimento && !g.pago) {
-      diaBase = g.diaVencimento; // conta pendente → usa vencimento
+      diaBase = g.diaVencimento;
     } else {
       diaBase = (g.ts ? new Date(g.ts).getDate() : null) || 1;
     }
     if (valorBase > 0) addEv(saidas, diaBase, g.nome, valorBase, g.pago);
-
-    // Cada soma no seu próprio dia
     somas.forEach(h => {
-      const diaSoma = (h.ts ? new Date(h.ts).getDate() : null) || diaBase;
-      addEv(saidas, diaSoma, g.nome, h.delta||0, g.pago);
+      addEv(saidas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta||0, g.pago);
     });
   });
+
+  // Ajuste no dia 1 para garantir que o total bate com expSaldo
+  // (cobre qualquer discrepância residual de dados sem ts/diaAcerto)
+  const chartEnt = Object.values(entradas).flat().reduce((s,x)=>s+x.valor,0);
+  const chartSai = Object.values(saidas).flat().reduce((s,x)=>s+x.valor,0);
+  const ajEnt = expGanhos - chartEnt;
+  const ajSai = expGastos - chartSai;
+  if (ajEnt > 0.01) { if (!entradas[1]) entradas[1]=[]; entradas[1].push({nome:'Outros',valor:ajEnt,feito:false}); }
+  if (ajSai > 0.01) { if (!saidas[1])   saidas[1]  =[]; saidas[1].push({nome:'Outros',valor:ajSai,feito:false}); }
 
   // Saldo acumulado dia a dia
   let acc = 0;
@@ -2605,7 +2615,7 @@ function renderWidgetFluxo() {
   const ptsAll  = dias.map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
   const ptsArea = `${xOf(1)},${y0} ${ptsAll} ${xOf(daysInMonth)},${y0}`;
 
-  const lineColor = vals[vals.length-1] >= 0 ? 'var(--green)' : 'var(--red)';
+  const lineColor = expSaldoFim >= 0 ? 'var(--green)' : 'var(--red)';
   const gradFill  = minV < -0.01 ? 'url(#fluxo-grad-neg)' : 'url(#fluxo-grad-pos)';
 
   const gridLines = minV < 0 && maxV > 0
@@ -2666,17 +2676,13 @@ function renderWidgetFluxo() {
     </div>`;
   }).join('');
 
-  const totalEnt  = dias.reduce((s,d)=>s+d.ent,0);
-  const totalSai  = dias.reduce((s,d)=>s+d.sai,0);
-  const saldoFinal = vals[vals.length-1];
-
   return `<div class="dg-w">
     <div class="dg-wh">
       Fluxo do Mês
       <div style="display:flex;gap:12px;align-items:center">
-        <span style="font-size:11px;color:var(--green);font-family:'Barlow Condensed'">↑ ${fmt(totalEnt)}</span>
-        <span style="font-size:11px;color:var(--red);font-family:'Barlow Condensed'">↓ ${fmt(totalSai)}</span>
-        <span style="font-size:11px;color:${saldoFinal>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed';font-weight:700">= ${fmt(saldoFinal)}</span>
+        <span style="font-size:11px;color:var(--green);font-family:'Barlow Condensed'">↑ ${fmt(expGanhos)}</span>
+        <span style="font-size:11px;color:var(--red);font-family:'Barlow Condensed'">↓ ${fmt(expGastos)}</span>
+        <span style="font-size:11px;color:${expSaldoFim>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed';font-weight:700">= ${fmt(expSaldoFim)}</span>
       </div>
     </div>
     <div style="padding:10px 16px 4px">${svg}</div>
