@@ -562,6 +562,7 @@
       <div class="nav-item" data-page="brand" onclick="navigate('brand');closeSidebar()"><span class="icon">◉</span> Identidade Visual</div>
       <div class="nav-section">Análise</div>
       <div class="nav-item" data-page="historico" onclick="navigate('historico');closeSidebar()"><span class="icon">◷</span> Histórico</div>
+      <div class="nav-item" data-page="fluxo" onclick="navigate('fluxo');closeSidebar()"><span class="icon">📈</span> Fluxo do Mês</div>
     </div>
     <div class="sidebar-footer">
       <div class="month-badge" onclick="openMonthPicker()">
@@ -1498,7 +1499,7 @@ async function navigate(page) {
 
   const titles = {
     dashboard:'DASHBOARD', balanco:'BALANÇO', cartao:'CARTÃO',
-    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO', whatsapp:'WHATSAPP'
+    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO', whatsapp:'WHATSAPP', fluxo:'FLUXO DO MÊS'
   };
   document.getElementById('topbarMonthNav').style.display = (page === 'historico' || page === 'whatsapp') ? 'none' : 'flex';
   document.getElementById('pageTitle').textContent = titles[page]||page.toUpperCase();
@@ -1526,6 +1527,7 @@ async function navigate(page) {
     case 'treino':       renderTreino(); break;
     case 'brand':        renderBrand(); break;
     case 'historico':    await renderHistorico(); break;
+    case 'fluxo':        await renderFluxoPage(); break;
     case 'whatsapp':     renderWhatsApp(); break;
   }
 }
@@ -2484,7 +2486,43 @@ window.widgetHojeAddAula = function() {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-function renderWidgetFluxo() {
+// ── Hover global para o gráfico de fluxo ──────────────────────────────────
+window._fluxoDiasMap = {}; // svgId → dias[]
+
+window.fluxoHover = function(event, sid) {
+  const wrap = document.getElementById('fw-' + sid);
+  const dias = window._fluxoDiasMap[sid];
+  if (!wrap || !dias) return;
+  const bb   = wrap.getBoundingClientRect();
+  const relX = Math.max(0, Math.min(1, (event.clientX - bb.left) / bb.width));
+  const VW = 500, PAD = 6;
+  const dim = dias.length;
+  const dayF = (relX * VW - PAD) / (VW - PAD * 2) * dim;
+  const day  = Math.max(1, Math.min(dim, Math.round(dayF)));
+  const d    = dias[day - 1];
+  if (!d) return;
+  const xPct = (PAD + (day / dim) * (VW - PAD * 2)) / VW * 100;
+  const vl   = document.getElementById('fvl-' + sid);
+  const tip  = document.getElementById('ftp-' + sid);
+  if (vl)  { vl.style.display = 'block'; vl.style.left = xPct + '%'; }
+  if (tip) {
+    const col = d.acc >= 0 ? 'var(--green)' : 'var(--red)';
+    tip.style.display = 'block';
+    tip.style.left  = xPct > 65 ? 'auto' : xPct + '%';
+    tip.style.right = xPct > 65 ? (100 - xPct) + '%' : 'auto';
+    tip.innerHTML   = `<span style="color:var(--text3);font-size:10px">Dia ${day}</span><br>`
+                    + `<span style="font-family:'Bebas Neue';font-size:18px;color:${col}">${d.acc>=0?'+':''}${fmt(d.acc)}</span>`;
+  }
+};
+window.fluxoHoverOut = function(sid) {
+  const vl  = document.getElementById('fvl-' + sid);
+  const tip = document.getElementById('ftp-' + sid);
+  if (vl)  vl.style.display  = 'none';
+  if (tip) tip.style.display = 'none';
+};
+
+// ── Lógica compartilhada de dados do Fluxo ─────────────────────────────────
+function _buildFluxoData() {
   const md  = getMonthData();
   const now = new Date();
   const ano = currentMonth.y, mes = currentMonth.m;
@@ -2500,7 +2538,6 @@ function renderWidgetFluxo() {
     return (n && n >= 1 && n <= 31) ? n : null;
   }
 
-  // ── Totais autoritativos (mesma fórmula do widget Saldo Real) ──
   const CATS_ESPELHO = ['calistenia','personal'];
   const caliCalc    = calcValoresCali(md.calistenia || []);
   const expCali     = caliCalc.reduce((s,a) => s + a.valorFinal, 0);
@@ -2513,140 +2550,109 @@ function renderWidgetFluxo() {
   const expGastos   = (md.balanco?.gastos||[]).reduce((s,g) => s + (g.valor||0), 0);
   const expSaldoFim = expGanhos - expGastos;
 
-  // Mapas: dia → [{nome, valor, feito}]
-  const entradas = {};
-  const saidas   = {};
-
+  const entradas = {}, saidas = {};
   function addEv(map, dia, nome, valor, feito) {
     if (!dia || valor <= 0) return;
-    // Clamp ao mês atual — ts de outro mês pode dar dia fora do range (ex: dia 31 em setembro)
     const d = Math.min(Math.max(1, dia), daysInMonth);
     if (!map[d]) map[d] = [];
     map[d].push({ nome, valor, feito: !!feito });
   }
 
-  // Alunos calistenia (incluindo pausados, para bater com expCali)
   caliCalc.forEach(a => {
     const dia = a.pago && a.tsPago ? new Date(a.tsPago).getDate() : parseDia(a.diaAcerto) || 1;
     addEv(entradas, dia, a.nome, a.valorFinal, a.pago);
   });
-
-  // Alunos personal (não pausados, igual expPersonal)
   [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
     .filter(a => !a.pausado)
     .forEach(a => {
       const dia = a.pago && a.tsPago ? new Date(a.tsPago).getDate() : parseDia(a.diaAcerto) || 1;
       addEv(entradas, dia, a.nome, a.valor||0, a.pago);
     });
-
-  // Ganhos do balanço — cada transação no seu próprio dia (exceto espelhos)
   (md.balanco?.ganhos||[]).filter(g => !CATS_ESPELHO.includes((g.categoria||'avulso').toLowerCase())).forEach(g => {
-    // Só somas positivas distribuem por dia; somas negativas (correções) já estão em g.valor
     const posSomas = (g.historico||[]).filter(h => h.tipo === 'soma' && (h.delta||0) > 0);
     const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
     const valorBase = Math.max(0, (g.valor||0) - posTot);
-    let diaBase;
-    if (g.recebido) {
-      diaBase = (g.ts ? new Date(g.ts).getDate() : null) || parseDia(g.diaAcerto) || 1;
-    } else {
-      diaBase = parseDia(g.diaAcerto) || (g.ts ? new Date(g.ts).getDate() : null) || 1;
-    }
+    let diaBase = g.recebido
+      ? (g.ts ? new Date(g.ts).getDate() : null) || parseDia(g.diaAcerto) || 1
+      : parseDia(g.diaAcerto) || (g.ts ? new Date(g.ts).getDate() : null) || 1;
     if (valorBase > 0) addEv(entradas, diaBase, g.nome, valorBase, g.recebido);
-    posSomas.forEach(h => {
-      addEv(entradas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta, g.recebido);
-    });
+    posSomas.forEach(h => addEv(entradas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta, g.recebido));
   });
-
-  // Gastos do balanço — cada transação no seu próprio dia
   (md.balanco?.gastos||[]).forEach(g => {
     const posSomas = (g.historico||[]).filter(h => h.tipo === 'soma' && (h.delta||0) > 0);
     const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
     const valorBase = Math.max(0, (g.valor||0) - posTot);
-    let diaBase;
-    if (g.tipoGasto === 'conta' && g.diaVencimento && !g.pago) {
-      diaBase = g.diaVencimento;
-    } else {
-      diaBase = (g.ts ? new Date(g.ts).getDate() : null) || 1;
-    }
+    let diaBase = (g.tipoGasto === 'conta' && g.diaVencimento && !g.pago)
+      ? g.diaVencimento
+      : (g.ts ? new Date(g.ts).getDate() : null) || 1;
     if (valorBase > 0) addEv(saidas, diaBase, g.nome, valorBase, g.pago);
-    posSomas.forEach(h => {
-      addEv(saidas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta, g.pago);
-    });
+    posSomas.forEach(h => addEv(saidas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta, g.pago));
   });
 
-  // Ajuste no dia 1 para garantir que o NET bate com expSaldoFim
-  // (cobre qualquer discrepância residual de dados)
   const chartNet = Object.values(entradas).flat().reduce((s,x)=>s+x.valor,0)
                  - Object.values(saidas).flat().reduce((s,x)=>s+x.valor,0);
   const ajNet = expSaldoFim - chartNet;
-  if (ajNet > 0.01)  { if (!entradas[1]) entradas[1]=[]; entradas[1].push({nome:'Outros',valor: ajNet,feito:false}); }
+  if (ajNet >  0.01) { if (!entradas[1]) entradas[1]=[]; entradas[1].push({nome:'Outros',valor: ajNet,feito:false}); }
   if (ajNet < -0.01) { if (!saidas[1])   saidas[1]  =[]; saidas[1].push({nome:'Outros',valor:-ajNet,feito:false}); }
 
-  // Saldo acumulado dia a dia
   let acc = 0;
-  const dias = Array.from({length: daysInMonth}, (_, i) => {
+  const dias = Array.from({length: daysInMonth}, (_,i) => {
     const d   = i + 1;
     const ent = (entradas[d]||[]).reduce((s,x)=>s+x.valor,0);
     const sai = (saidas[d]||[]).reduce((s,x)=>s+x.valor,0);
     acc += ent - sai;
-    return {
-      d, ent, sai, acc,
-      ev: [
-        ...(entradas[d]||[]).map(x=>({...x,tipo:'e'})),
-        ...(saidas[d]||[]).map(x=>({...x,tipo:'s'}))
-      ]
-    };
+    return { d, ent, sai, acc, ev: [...(entradas[d]||[]).map(x=>({...x,tipo:'e'})), ...(saidas[d]||[]).map(x=>({...x,tipo:'s'}))] };
   });
 
+  return { dias, expGanhos, expGastos, expSaldoFim, todayDay, daysInMonth };
+}
+
+// ── Renderiza SVG + wrapper com hover ──────────────────────────────────────
+function _renderFluxoSvg(dias, todayDay, daysInMonth, expSaldoFim, sid, H) {
   const vals  = dias.map(d => d.acc);
   const minV  = Math.min(0, ...vals);
   const maxV  = Math.max(0, ...vals);
   const range = maxV - minV || 1;
-
   const idxMax = vals.indexOf(Math.max(...vals));
   const idxMin = vals.indexOf(Math.min(...vals));
-
-  // SVG — linha sólida até hoje, tracejada daqui pra frente
-  const W = 500, H = 90, PAD = 6;
-  const xOf = d => PAD + (d / daysInMonth) * (W - PAD*2);
+  const VW = 500, PAD = 6;
+  const xOf = d => PAD + (d / daysInMonth) * (VW - PAD*2);
   const yOf = v => PAD + (1 - (v - minV) / range) * (H - PAD*2);
-  const y0  = yOf(0);
-
-  const ptsReal = dias.filter(d => !todayDay || d.d <= todayDay).map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
-  const ptsPrev = dias.filter(d => todayDay && d.d >= todayDay).map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
-  const ptsAll  = dias.map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
-  const ptsArea = `${xOf(1)},${y0} ${ptsAll} ${xOf(daysInMonth)},${y0}`;
+  const y0   = yOf(0);
 
   const lineColor = expSaldoFim >= 0 ? 'var(--green)' : 'var(--red)';
-  const gradFill  = minV < -0.01 ? 'url(#fluxo-grad-neg)' : 'url(#fluxo-grad-pos)';
+  const gradFill  = minV < -0.01 ? 'url(#fg-neg)' : 'url(#fg-pos)';
+
+  const ptsAll  = dias.map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
+  const ptsReal = dias.filter(d => !todayDay || d.d <= todayDay).map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
+  const ptsPrev = dias.filter(d => todayDay && d.d >= todayDay).map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
+  const ptsArea = `${xOf(1)},${y0} ${ptsAll} ${xOf(daysInMonth)},${y0}`;
 
   const gridLines = minV < 0 && maxV > 0
-    ? `<line x1="${PAD}" y1="${y0}" x2="${W-PAD}" y2="${y0}" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="3,3"/>`
+    ? `<line x1="${PAD}" y1="${y0}" x2="${VW-PAD}" y2="${y0}" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="3,3"/>`
     : '';
-
   const todayLine = todayDay
-    ? `<line x1="${xOf(todayDay)}" y1="${PAD}" x2="${xOf(todayDay)}" y2="${H-PAD}" stroke="rgba(53,200,241,0.5)" stroke-width="1.5" stroke-dasharray="4,3"/>
+    ? `<line x1="${xOf(todayDay)}" y1="${PAD}" x2="${xOf(todayDay)}" y2="${H-PAD}" stroke="rgba(53,200,241,0.45)" stroke-width="1.5" stroke-dasharray="4,3"/>
        <text x="${xOf(todayDay)}" y="${PAD-1}" text-anchor="middle" font-size="7" fill="var(--accent3)" font-family="Barlow Condensed">HOJE</text>`
     : '';
-
-  const labelMax = maxV > 0 ? `<circle cx="${xOf(idxMax+1)}" cy="${yOf(vals[idxMax])}" r="3" fill="var(--green)"/>
-    <text x="${xOf(idxMax+1)}" y="${yOf(vals[idxMax])-5}" text-anchor="middle" font-size="7.5" font-weight="700" fill="var(--green)" font-family="Barlow Condensed">+${fmt(vals[idxMax])}</text>` : '';
-  const labelMin = minV < -0.01 ? `<circle cx="${xOf(idxMin+1)}" cy="${yOf(vals[idxMin])}" r="3" fill="var(--red)"/>
-    <text x="${xOf(idxMin+1)}" y="${yOf(vals[idxMin])+13}" text-anchor="middle" font-size="7.5" font-weight="700" fill="var(--red)" font-family="Barlow Condensed">${fmt(vals[idxMin])}</text>` : '';
-
+  const labelMax = maxV > 0
+    ? `<circle cx="${xOf(idxMax+1)}" cy="${yOf(vals[idxMax])}" r="3" fill="var(--green)"/>
+       <text x="${xOf(idxMax+1)}" y="${yOf(vals[idxMax])-5}" text-anchor="middle" font-size="7.5" font-weight="700" fill="var(--green)" font-family="Barlow Condensed">+${fmt(vals[idxMax])}</text>` : '';
+  const labelMin = minV < -0.01
+    ? `<circle cx="${xOf(idxMin+1)}" cy="${yOf(vals[idxMin])}" r="3" fill="var(--red)"/>
+       <text x="${xOf(idxMin+1)}" y="${yOf(vals[idxMin])+13}" text-anchor="middle" font-size="7.5" font-weight="700" fill="var(--red)" font-family="Barlow Condensed">${fmt(vals[idxMin])}</text>` : '';
   const dayTicks = dias.filter(d => d.ev.length > 0).map(d => {
-    const hasEnt = d.ent > 0, hasSai = d.sai > 0;
-    const col = hasEnt && hasSai ? '#f1c135' : hasEnt ? 'var(--green)' : 'var(--red)';
-    const isPast = todayDay && d.d < todayDay;
-    return `<text x="${xOf(d.d)}" y="${H}" text-anchor="middle" font-size="7" fill="${col}" font-family="Barlow Condensed" font-weight="600" opacity="${isPast?'1':'0.7'}">${d.d}</text>`;
+    const col = d.ent > 0 && d.sai > 0 ? '#f1c135' : d.ent > 0 ? 'var(--green)' : 'var(--red)';
+    const op  = todayDay && d.d < todayDay ? '1' : '0.7';
+    return `<text x="${xOf(d.d)}" y="${H}" text-anchor="middle" font-size="7" fill="${col}" font-family="Barlow Condensed" font-weight="600" opacity="${op}">${d.d}</text>`;
   }).join('');
 
-  const svg = `<svg viewBox="0 0 ${W} ${H+4}" style="width:100%;display:block;overflow:visible">
+  const svg = `<svg viewBox="0 0 ${VW} ${H+4}" style="width:100%;display:block;overflow:visible">
     <defs>
-      <linearGradient id="fluxo-grad-pos" x1="0" y1="0" x2="0" y2="1">
+      <linearGradient id="fg-pos" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="rgba(34,197,94,0.3)"/><stop offset="100%" stop-color="rgba(34,197,94,0.02)"/>
       </linearGradient>
-      <linearGradient id="fluxo-grad-neg" x1="0" y1="0" x2="0" y2="1">
+      <linearGradient id="fg-neg" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="rgba(232,32,10,0.02)"/><stop offset="100%" stop-color="rgba(232,32,10,0.25)"/>
       </linearGradient>
     </defs>
@@ -2657,27 +2663,41 @@ function renderWidgetFluxo() {
     ${dayTicks}${todayLine}${labelMax}${labelMin}
   </svg>`;
 
-  // Lista de eventos
+  // Wrapper com overlay de hover
+  return `<div id="fw-${sid}" style="position:relative;cursor:crosshair">
+    ${svg}
+    <div style="position:absolute;inset:0" onmousemove="fluxoHover(event,'${sid}')" onmouseleave="fluxoHoverOut('${sid}')"></div>
+    <div id="fvl-${sid}" style="display:none;position:absolute;top:0;bottom:4px;width:1px;background:rgba(255,255,255,0.25);pointer-events:none"></div>
+    <div id="ftp-${sid}" style="display:none;position:absolute;top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;pointer-events:none;white-space:nowrap;font-size:11px;line-height:1.4"></div>
+  </div>`;
+}
+
+// ── Lista de eventos por dia ────────────────────────────────────────────────
+function _renderFluxoLista(dias, todayDay, maxH) {
   const diasAtivos = dias.filter(d => d.ev.length > 0);
-  const listaHtml = diasAtivos.map(d => {
+  if (!diasAtivos.length) return `<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">Nenhum evento registrado neste mês</div>`;
+  const html = diasAtivos.map(d => {
     const isPast = todayDay && d.d < todayDay;
-    const itens = d.ev.map(e => {
-      const cor = e.tipo==='e' ? 'var(--green)' : 'var(--red)';
-      const icon = e.feito ? (e.tipo==='e' ? '✓' : '✓') : (e.tipo==='e' ? '↑' : '↓');
-      const op = e.feito ? '1' : '0.6';
-      return `<span style="color:${cor};opacity:${op}" title="${e.feito?'Realizado':'Previsto'}">
-        ${icon} ${e.nome.split(' ')[0]} <span class="mono" style="font-size:11px">${fmt(e.valor)}</span>
-      </span>`;
+    const delta  = d.ent - d.sai;
+    const dCol   = delta >= 0 ? 'var(--green)' : 'var(--red)';
+    const itens  = d.ev.map(e => {
+      const cor  = e.tipo==='e' ? 'var(--green)' : 'var(--red)';
+      const icon = e.feito ? '✓' : (e.tipo==='e' ? '↑' : '↓');
+      return `<span style="color:${cor};opacity:${e.feito?'1':'0.6'}" title="${e.feito?'Realizado':'Previsto'}">${icon} ${e.nome.split(' ')[0]} <span class="mono" style="font-size:11px">${fmt(e.valor)}</span></span>`;
     }).join('');
-    const delta = d.ent - d.sai;
-    const deltaColor = delta >= 0 ? 'var(--green)' : 'var(--red)';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);opacity:${isPast?'0.6':'1'}">
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);opacity:${isPast?'0.55':'1'}">
       <div style="font-family:'Bebas Neue';font-size:18px;color:${isPast?'var(--text3)':'var(--text2)'};width:24px;text-align:center;flex-shrink:0">${d.d}</div>
       <div style="flex:1;display:flex;flex-wrap:wrap;gap:6px;font-size:12px">${itens}</div>
-      <div style="font-family:'Barlow Condensed';font-size:13px;font-weight:700;color:${deltaColor};flex-shrink:0">${delta>=0?'+':''}${fmt(delta)}</div>
+      <div style="font-family:'Barlow Condensed';font-size:13px;font-weight:700;color:${dCol};flex-shrink:0">${delta>=0?'+':''}${fmt(delta)}</div>
     </div>`;
   }).join('');
+  return `<div style="padding:0 16px 10px;max-height:${maxH};overflow-y:auto">${html}</div>`;
+}
 
+function renderWidgetFluxo() {
+  const { dias, expGanhos, expGastos, expSaldoFim, todayDay, daysInMonth } = _buildFluxoData();
+  window._fluxoDiasMap['w'] = dias;
+  const svgWrap = _renderFluxoSvg(dias, todayDay, daysInMonth, expSaldoFim, 'w', 90);
   return `<div class="dg-w">
     <div class="dg-wh">
       Fluxo do Mês
@@ -2687,11 +2707,44 @@ function renderWidgetFluxo() {
         <span style="font-size:11px;color:${expSaldoFim>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed';font-weight:700">= ${fmt(expSaldoFim)}</span>
       </div>
     </div>
-    <div style="padding:10px 16px 4px">${svg}</div>
-    ${diasAtivos.length
-      ? `<div style="padding:0 16px 10px;max-height:180px;overflow-y:auto">${listaHtml}</div>`
-      : `<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">Nenhum evento registrado neste mês</div>`}
+    <div style="padding:10px 16px 4px">${svgWrap}</div>
+    ${_renderFluxoLista(dias, todayDay, '180px')}
   </div>`;
+}
+
+// ── Página dedicada: Fluxo do Mês ──────────────────────────────────────────
+async function renderFluxoPage() {
+  const { dias, expGanhos, expGastos, expSaldoFim, todayDay, daysInMonth } = _buildFluxoData();
+  window._fluxoDiasMap['p'] = dias;
+  const svgWrap = _renderFluxoSvg(dias, todayDay, daysInMonth, expSaldoFim, 'p', 180);
+  const saldoCol = expSaldoFim >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('content').innerHTML = `
+    <div style="max-width:700px;margin:0 auto;padding:0 0 32px">
+      <div style="background:var(--surface);border-radius:12px;overflow:hidden;border:1px solid var(--border)">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div style="font-family:'Bebas Neue';font-size:22px;letter-spacing:1px">Fluxo do Mês</div>
+          <div style="display:flex;gap:16px;align-items:center">
+            <div style="text-align:center">
+              <div style="font-size:10px;color:var(--text3);font-family:'Barlow Condensed';text-transform:uppercase">Ganhos</div>
+              <div style="font-family:'Barlow Condensed';font-size:18px;font-weight:700;color:var(--green)">+${fmt(expGanhos)}</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:10px;color:var(--text3);font-family:'Barlow Condensed';text-transform:uppercase">Gastos</div>
+              <div style="font-family:'Barlow Condensed';font-size:18px;font-weight:700;color:var(--red)">-${fmt(expGastos)}</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:10px;color:var(--text3);font-family:'Barlow Condensed';text-transform:uppercase">Saldo Final</div>
+              <div style="font-family:'Bebas Neue';font-size:24px;color:${saldoCol}">${expSaldoFim>=0?'+':''}${fmt(expSaldoFim)}</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:16px 20px 8px">${svgWrap}</div>
+        <div style="padding:0 4px 4px">
+          <div style="padding:8px 16px;font-size:10px;color:var(--text3);font-family:'Barlow Condensed';text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)">Eventos do Mês</div>
+          ${_renderFluxoLista(dias, todayDay, 'none')}
+        </div>
+      </div>
+    </div>`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
