@@ -2528,7 +2528,12 @@ function renderWidgetFluxo() {
 
   // Gastos não pagos
   (md.balanco?.gastos||[]).filter(g => !g.pago).forEach(g => {
-    const dia = parseDia(g.diaAcerto) || (g.ts ? new Date(g.ts).getDate() : null);
+    let dia;
+    if (g.tipoGasto === 'conta' && g.diaVencimento) {
+      dia = g.diaVencimento; // data de vencimento da conta
+    } else {
+      dia = g.ts ? new Date(g.ts).getDate() : null; // quando foi lançado (imediato)
+    }
     addEv(saidas, dia, g.nome, g.valor||0);
   });
 
@@ -2997,6 +3002,7 @@ function renderBalancoOriginal(md) {
               <div style="display:flex;align-items:center;gap:5px;min-width:0">
                 <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.nome}</span>
                 ${g.persistente?`<span title="Gasto recorrente" style="font-size:10px;color:var(--accent3);flex-shrink:0">🔁</span>`:''}
+                ${g.tipoGasto==='conta'&&g.diaVencimento?`<span title="Conta — vence dia ${g.diaVencimento}" style="font-size:10px;color:#f1c135;flex-shrink:0;background:rgba(241,193,53,0.12);border-radius:3px;padding:1px 5px">📅 dia ${g.diaVencimento}</span>`:''}
               </div>
             </td>
             <td class="mono">${fmt(g.valor)}</td>
@@ -3284,6 +3290,7 @@ function editGasto(id){
       <div style="font-size:11px;color:var(--text3);margin-top:4px">Deixe em branco para manter o valor atual</div>
     </div>
     <input id="mC" type="hidden" value="${catAuto}">
+    ${_gastoTipoBtns(g.tipoGasto||'imediato', g.diaVencimento||'')}
     <div class="form-group"><label class="form-label">Status</label>
       <select id="mS"><option value="1" ${g.pago?'selected':''}>Pago</option><option value="0" ${!g.pago?'selected':''}>Pendente</option></select>
     </div>
@@ -3313,11 +3320,14 @@ function saveEditGasto(id){
   }
   g.nome=nomeNovo;
   g.valor=baseVal+somaVal;
-  // Re-derive categoria from new nome
   const nL=g.nome.toLowerCase();
   g.categoria=nL.includes('fatura bb')||nL.includes('fatura inter') ? 'cartão de credito' : g.nome.toLowerCase();
   g.pago=document.getElementById('mS').value==='1';
   g.persistente=document.getElementById('mPers')?.value==='1';
+  const tp2 = document.getElementById('mTipoVal')?.value || g.tipoGasto || 'imediato';
+  const dv2 = parseInt(document.getElementById('mDiaVenc')?.value) || null;
+  g.tipoGasto   = tp2;
+  g.diaVencimento = tp2 === 'conta' ? dv2 : null;
   saveData();closeModal();setFinancasTab('balanco');
 }
 
@@ -3349,20 +3359,63 @@ function addGanho(){
   saveData();closeModal();setFinancasTab('balanco');
 }
 
+window.gastoSetTipo = function(tipo) {
+  const btnI = document.getElementById('mTipoImediato');
+  const btnC = document.getElementById('mTipoConta');
+  const divD = document.getElementById('mDiaVencDiv');
+  const inp  = document.getElementById('mTipoVal');
+  if (!btnI || !btnC) return;
+  const on  = 'border:1.5px solid var(--accent);background:rgba(232,32,10,0.1);color:var(--accent);font-weight:700';
+  const off = 'border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-weight:400';
+  if (tipo === 'imediato') {
+    btnI.style.cssText += ';' + on.replace(/var\(--accent\)/g,'var(--red)');
+    btnC.style.cssText = btnC.style.cssText.replace(/border:[^;]+;background:[^;]+;color:[^;]+;font-weight:[^;]+/,'') + ';' + off;
+    if (divD) divD.style.display = 'none';
+  } else {
+    btnC.style.cssText += ';' + on.replace(/var\(--accent\)/g,'var(--accent3)');
+    btnI.style.cssText = btnI.style.cssText.replace(/border:[^;]+;background:[^;]+;color:[^;]+;font-weight:[^;]+/,'') + ';' + off;
+    if (divD) divD.style.display = '';
+  }
+  if (inp) inp.value = tipo;
+};
+
+function _gastoTipoBtns(tipoAtual, diaAtual) {
+  const onI = tipoAtual !== 'conta';
+  const onC = tipoAtual === 'conta';
+  const stOn  = t => `padding:8px 0;border-radius:7px;cursor:pointer;flex:1;font-family:'Barlow Condensed';font-size:13px;border:1.5px solid ${t==='i'?'var(--red)':'var(--accent3)'};background:${t==='i'?'rgba(232,32,10,0.1)':'rgba(53,200,241,0.1)'};color:${t==='i'?'var(--red)':'var(--accent3)'};font-weight:700`;
+  const stOff = `padding:8px 0;border-radius:7px;cursor:pointer;flex:1;font-family:'Barlow Condensed';font-size:13px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-weight:400`;
+  return `
+    <div class="form-group"><label class="form-label">Tipo de gasto</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="mTipoImediato" onclick="gastoSetTipo('imediato')" style="${onI?stOn('i'):stOff}">💸 Imediato</button>
+        <button type="button" id="mTipoConta"    onclick="gastoSetTipo('conta')"    style="${onC?stOn('c'):stOff}">📅 Conta a pagar</button>
+      </div>
+      <input id="mTipoVal" type="hidden" value="${tipoAtual||'imediato'}">
+    </div>
+    <div id="mDiaVencDiv" class="form-group" style="${onC?'':'display:none'}">
+      <label class="form-label">Dia do vencimento</label>
+      <input id="mDiaVenc" type="number" inputmode="numeric" min="1" max="31" placeholder="Ex: 10" value="${diaAtual||''}">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Dia do mês em que esta conta costuma vencer</div>
+    </div>`;
+}
+
 function openAddGasto(){openModal(`<div class="modal-handle"></div><div class="modal-title">NOVO GASTO</div>
-  <div class="form-group"><label class="form-label">Descrição</label><input id="mN" placeholder="Ex: Mercado..."></div>
+  <div class="form-group"><label class="form-label">Descrição</label><input id="mN" placeholder="Ex: Mercado, Aluguel..."></div>
   <div class="form-group"><label class="form-label">Valor (R$)</label><input id="mV" type="number" inputmode="decimal" placeholder="0.00"></div>
+  ${_gastoTipoBtns('imediato', '')}
   <div class="form-group"><label class="form-label">Status</label><select id="mS"><option value="1">Pago</option><option value="0">Pendente</option></select></div>
   <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addGasto()">Adicionar</button></div>`);}
 function addGasto(){
   if(guardReadOnly())return;
   if (!validateRequired('mN','Descrição')) return;
   if (!validateNumber('mV','Valor',0.01)) return;
-  const n=document.getElementById('mN').value.trim();
-  const v=parseFloat(document.getElementById('mV').value);
-  const p=document.getElementById('mS').value==='1';
-  const md=getMonthData();
-  md.balanco.gastos.push({id:uid(),nome:n,valor:v,pago:p,ts:Date.now(),historico:[]});
+  const n  = document.getElementById('mN').value.trim();
+  const v  = parseFloat(document.getElementById('mV').value);
+  const p  = document.getElementById('mS').value==='1';
+  const tp = document.getElementById('mTipoVal')?.value || 'imediato';
+  const dv = parseInt(document.getElementById('mDiaVenc')?.value) || null;
+  const md = getMonthData();
+  md.balanco.gastos.push({id:uid(),nome:n,valor:v,pago:p,tipoGasto:tp,diaVencimento:tp==='conta'?dv:null,ts:Date.now(),historico:[]});
   saveData();closeModal();setFinancasTab('balanco');
 }
 
