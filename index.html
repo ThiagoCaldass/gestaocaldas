@@ -2484,6 +2484,161 @@ window.widgetHojeAddAula = function() {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+function renderWidgetFluxo() {
+  const md  = getMonthData();
+  const now = new Date();
+  const ano = currentMonth.y, mes = currentMonth.m;
+  const daysInMonth = new Date(ano, mes + 1, 0).getDate();
+  const todayDay = (ano === now.getFullYear() && mes === now.getMonth()) ? now.getDate() : null;
+
+  // Parseia diaAcerto → número do dia (1-31)
+  function parseDia(str) {
+    if (!str) return null;
+    const s = String(str).toLowerCase().trim();
+    if (s === 'final' || s === 'último' || s === 'ultimo') return daysInMonth;
+    const m = s.match(/\d+/);
+    const n = m ? parseInt(m[0]) : null;
+    return (n && n >= 1 && n <= 31) ? n : null;
+  }
+
+  // Mapas de eventos por dia
+  const entradas = {}; // dia → [{nome, valor}]
+  const saidas   = {}; // dia → [{nome, valor}]
+
+  function addEv(map, dia, nome, valor) {
+    if (!dia || valor <= 0) return;
+    if (!map[dia]) map[dia] = [];
+    map[dia].push({ nome, valor });
+  }
+
+  // Calistenia pendente
+  calcValoresCali(md.calistenia || []).filter(a => !a.pausado && !a.pago).forEach(a =>
+    addEv(entradas, parseDia(a.diaAcerto), a.nome, a.valorFinal));
+
+  // Personal pendente
+  [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
+    .filter(a => !a.pausado && !a.pago)
+    .forEach(a => addEv(entradas, parseDia(a.diaAcerto), a.nome, a.valor||0));
+
+  // Ganhos não recebidos
+  (md.balanco?.ganhos||[]).filter(g => !g.recebido).forEach(g => {
+    const dia = parseDia(g.diaAcerto) || (g.ts ? new Date(g.ts).getDate() : null);
+    addEv(entradas, dia, g.nome, g.valor||0);
+  });
+
+  // Gastos não pagos
+  (md.balanco?.gastos||[]).filter(g => !g.pago).forEach(g => {
+    const dia = parseDia(g.diaAcerto) || (g.ts ? new Date(g.ts).getDate() : null);
+    addEv(saidas, dia, g.nome, g.valor||0);
+  });
+
+  // Saldo acumulado dia a dia
+  let acc = 0;
+  const dias = Array.from({length: daysInMonth}, (_, i) => {
+    const d   = i + 1;
+    const ent = (entradas[d]||[]).reduce((s,x)=>s+x.valor,0);
+    const sai = (saidas[d]||[]).reduce((s,x)=>s+x.valor,0);
+    acc += ent - sai;
+    return { d, ent, sai, acc, ev: [...(entradas[d]||[]).map(x=>({...x,tipo:'e'})), ...(saidas[d]||[]).map(x=>({...x,tipo:'s'}))] };
+  });
+
+  const vals  = dias.map(d => d.acc);
+  const minV  = Math.min(0, ...vals);
+  const maxV  = Math.max(0, ...vals);
+  const range = maxV - minV || 1;
+
+  // Dias notáveis
+  const idxMax = vals.indexOf(Math.max(...vals));
+  const idxMin = vals.indexOf(Math.min(...vals));
+
+  // SVG sparkline
+  const W = 500, H = 90, PAD = 6;
+  const xOf = d => PAD + (d / daysInMonth) * (W - PAD*2);
+  const yOf = v => PAD + (1 - (v - minV) / range) * (H - PAD*2);
+  const y0  = yOf(0);
+
+  // Área preenchida
+  const pts = dias.map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
+  const ptsArea = `${xOf(1)},${y0} ` + pts + ` ${xOf(daysInMonth)},${y0}`;
+
+  // Linhas de grade (zero e metade)
+  const gridLines = minV < 0 && maxV > 0
+    ? `<line x1="${PAD}" y1="${y0}" x2="${W-PAD}" y2="${y0}" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="3,3"/>`
+    : '';
+
+  // Marcador de hoje
+  const todayLine = todayDay
+    ? `<line x1="${xOf(todayDay)}" y1="${PAD}" x2="${xOf(todayDay)}" y2="${H-PAD}" stroke="rgba(53,200,241,0.5)" stroke-width="1.5" stroke-dasharray="4,3"/>
+       <text x="${xOf(todayDay)}" y="${PAD-1}" text-anchor="middle" font-size="7" fill="var(--accent3)" font-family="Barlow Condensed">HOJE</text>`
+    : '';
+
+  // Marcadores de pico e vale
+  const labelMax = maxV > 0 ? `<circle cx="${xOf(idxMax+1)}" cy="${yOf(vals[idxMax])}" r="3" fill="var(--green)"/>
+    <text x="${xOf(idxMax+1)}" y="${yOf(vals[idxMax])-5}" text-anchor="middle" font-size="7.5" font-weight="700" fill="var(--green)" font-family="Barlow Condensed">+${fmt(vals[idxMax])}</text>` : '';
+  const labelMin = minV < -0.01 ? `<circle cx="${xOf(idxMin+1)}" cy="${yOf(vals[idxMin])}" r="3" fill="var(--red)"/>
+    <text x="${xOf(idxMin+1)}" y="${yOf(vals[idxMin])+13}" text-anchor="middle" font-size="7.5" font-weight="700" fill="var(--red)" font-family="Barlow Condensed">${fmt(vals[idxMin])}</text>` : '';
+
+  // Números de dias com eventos
+  const dayTicks = dias.filter(d => d.ev.length > 0).map(d => {
+    const hasEnt = d.ent > 0, hasSai = d.sai > 0;
+    const col = hasEnt && hasSai ? '#f1c135' : hasEnt ? 'var(--green)' : 'var(--red)';
+    return `<text x="${xOf(d.d)}" y="${H}" text-anchor="middle" font-size="7" fill="${col}" font-family="Barlow Condensed" font-weight="600">${d.d}</text>`;
+  }).join('');
+
+  const svg = `<svg viewBox="0 0 ${W} ${H+4}" style="width:100%;display:block;overflow:visible">
+    <defs>
+      <linearGradient id="fluxo-grad-pos" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="rgba(34,197,94,0.35)"/>
+        <stop offset="100%" stop-color="rgba(34,197,94,0.03)"/>
+      </linearGradient>
+      <linearGradient id="fluxo-grad-neg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="rgba(232,32,10,0.03)"/>
+        <stop offset="100%" stop-color="rgba(232,32,10,0.3)"/>
+      </linearGradient>
+    </defs>
+    ${gridLines}
+    <polygon points="${ptsArea}" fill="${minV < -0.01 ? 'url(#fluxo-grad-neg)' : 'url(#fluxo-grad-pos)'}" opacity="0.9"/>
+    <polyline points="${pts}" fill="none" stroke="${vals[vals.length-1] >= 0 ? 'var(--green)' : 'var(--red)'}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+    ${dayTicks}
+    ${todayLine}
+    ${labelMax}
+    ${labelMin}
+  </svg>`;
+
+  // Lista de eventos por dia (só dias com atividade)
+  const diasAtivos = dias.filter(d => d.ev.length > 0);
+  const listaHtml = diasAtivos.map(d => {
+    const itens = d.ev.map(e => `<span style="color:${e.tipo==='e'?'var(--green)':'var(--red)'}">
+      ${e.tipo==='e'?'↑':'↓'} ${e.nome.split(' ')[0]} <span class="mono" style="font-size:11px">${fmt(e.valor)}</span>
+    </span>`).join('');
+    const delta = d.ent - d.sai;
+    const deltaColor = delta >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+      <div style="font-family:'Bebas Neue';font-size:18px;color:var(--text3);width:24px;text-align:center;flex-shrink:0">${d.d}</div>
+      <div style="flex:1;display:flex;flex-wrap:wrap;gap:6px;font-size:12px">${itens}</div>
+      <div style="font-family:'Barlow Condensed';font-size:13px;font-weight:700;color:${deltaColor};flex-shrink:0">${delta>=0?'+':''}${fmt(delta)}</div>
+    </div>`;
+  }).join('');
+
+  const totalEnt = dias.reduce((s,d)=>s+d.ent,0);
+  const totalSai = dias.reduce((s,d)=>s+d.sai,0);
+  const saldoFinal = vals[vals.length-1];
+
+  return `<div class="dg-w">
+    <div class="dg-wh">
+      Fluxo do Mês
+      <div style="display:flex;gap:12px;align-items:center">
+        <span style="font-size:11px;color:var(--green);font-family:'Barlow Condensed'">↑ ${fmt(totalEnt)}</span>
+        <span style="font-size:11px;color:var(--red);font-family:'Barlow Condensed'">↓ ${fmt(totalSai)}</span>
+        <span style="font-size:11px;color:${saldoFinal>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed';font-weight:700">= ${fmt(saldoFinal)}</span>
+      </div>
+    </div>
+    <div style="padding:10px 16px 4px">${svg}</div>
+    ${diasAtivos.length ? `<div style="padding:0 16px 10px;max-height:180px;overflow-y:auto">${listaHtml}</div>` : `<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">Nenhum evento com data definida neste mês</div>`}
+  </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 function renderQuickAdd(onSave) {
   const md = getMonthData();
   const today = new Date().toISOString().split('T')[0];
@@ -8399,6 +8554,7 @@ window.DASH_DEFS = {
   lembretes:  {label:'Lembretes',          defaultSpan:6 },
   hoje:       {label:'Gasto / Presença',   defaultSpan:6 },
   quickadd:   {label:'Registrar Gasto',    defaultSpan:6 },
+  fluxo:      {label:'Fluxo do Mês',       defaultSpan:12},
   saldo:      {label:'Saldo Real',         defaultSpan:8 },
   recpago:    {label:'Recebido / Pago',    defaultSpan:4 },
   alunos:     {label:'Alunos & Alertas',   defaultSpan:4 },
@@ -8411,6 +8567,7 @@ window.DASH_DEFAULT_LAYOUT = [
   {id:'lembretes', span:6,  visible:true},
   {id:'hoje',      span:6,  visible:true},
   {id:'quickadd',  span:6,  visible:false},
+  {id:'fluxo',     span:12, visible:true},
   {id:'saldo',     span:8,  visible:true},
   {id:'recpago',   span:4,  visible:true},
   {id:'alunos',    span:4,  visible:true},
@@ -8905,12 +9062,13 @@ renderDashboard = (function(_orig) {
     const saldoVsExp  = expSaldo - realSaldo;
     const saldoColor  = realSaldo >= 0 ? 'var(--green)' : 'var(--red)';
 
-    const MOB = {hoje:'', quickadd:'', saldo:'', alunos:'', chart:''}; // sem order fixo — usa ordem do DOM
+    const MOB = {hoje:'', quickadd:'', fluxo:'', saldo:'', alunos:'', chart:''}; // sem order fixo — usa ordem do DOM
 
     const W = {
       lembretes: () => renderLembretesDashboard(),
       hoje:      () => renderWidgetHoje(),
       quickadd:  () => renderQuickAdd('dashboard'),
+      fluxo:     () => renderWidgetFluxo(),
 
       saldo: () => '<div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid '
         +saldoColor+';border-radius:var(--radius);padding:12px 16px;cursor:pointer;height:100%;box-sizing:border-box" onclick="navigate(\'financas\')">'
