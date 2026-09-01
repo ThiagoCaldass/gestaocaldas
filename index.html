@@ -2519,8 +2519,10 @@ function renderWidgetFluxo() {
 
   function addEv(map, dia, nome, valor, feito) {
     if (!dia || valor <= 0) return;
-    if (!map[dia]) map[dia] = [];
-    map[dia].push({ nome, valor, feito: !!feito });
+    // Clamp ao mês atual — ts de outro mês pode dar dia fora do range (ex: dia 31 em setembro)
+    const d = Math.min(Math.max(1, dia), daysInMonth);
+    if (!map[d]) map[d] = [];
+    map[d].push({ nome, valor, feito: !!feito });
   }
 
   // Alunos calistenia (incluindo pausados, para bater com expCali)
@@ -2539,9 +2541,10 @@ function renderWidgetFluxo() {
 
   // Ganhos do balanço — cada transação no seu próprio dia (exceto espelhos)
   (md.balanco?.ganhos||[]).filter(g => !CATS_ESPELHO.includes((g.categoria||'avulso').toLowerCase())).forEach(g => {
-    const somas = (g.historico||[]).filter(h => h.tipo === 'soma');
-    const totalSomas = somas.reduce((s,h) => s + (h.delta||0), 0);
-    const valorBase = (g.valor||0) - totalSomas;
+    // Só somas positivas distribuem por dia; somas negativas (correções) já estão em g.valor
+    const posSomas = (g.historico||[]).filter(h => h.tipo === 'soma' && (h.delta||0) > 0);
+    const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
+    const valorBase = Math.max(0, (g.valor||0) - posTot);
     let diaBase;
     if (g.recebido) {
       diaBase = (g.ts ? new Date(g.ts).getDate() : null) || parseDia(g.diaAcerto) || 1;
@@ -2549,16 +2552,16 @@ function renderWidgetFluxo() {
       diaBase = parseDia(g.diaAcerto) || (g.ts ? new Date(g.ts).getDate() : null) || 1;
     }
     if (valorBase > 0) addEv(entradas, diaBase, g.nome, valorBase, g.recebido);
-    somas.forEach(h => {
-      addEv(entradas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta||0, g.recebido);
+    posSomas.forEach(h => {
+      addEv(entradas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta, g.recebido);
     });
   });
 
   // Gastos do balanço — cada transação no seu próprio dia
   (md.balanco?.gastos||[]).forEach(g => {
-    const somas = (g.historico||[]).filter(h => h.tipo === 'soma');
-    const totalSomas = somas.reduce((s,h) => s + (h.delta||0), 0);
-    const valorBase = (g.valor||0) - totalSomas;
+    const posSomas = (g.historico||[]).filter(h => h.tipo === 'soma' && (h.delta||0) > 0);
+    const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
+    const valorBase = Math.max(0, (g.valor||0) - posTot);
     let diaBase;
     if (g.tipoGasto === 'conta' && g.diaVencimento && !g.pago) {
       diaBase = g.diaVencimento;
@@ -2566,19 +2569,18 @@ function renderWidgetFluxo() {
       diaBase = (g.ts ? new Date(g.ts).getDate() : null) || 1;
     }
     if (valorBase > 0) addEv(saidas, diaBase, g.nome, valorBase, g.pago);
-    somas.forEach(h => {
-      addEv(saidas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta||0, g.pago);
+    posSomas.forEach(h => {
+      addEv(saidas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta, g.pago);
     });
   });
 
-  // Ajuste no dia 1 para garantir que o total bate com expSaldo
-  // (cobre qualquer discrepância residual de dados sem ts/diaAcerto)
-  const chartEnt = Object.values(entradas).flat().reduce((s,x)=>s+x.valor,0);
-  const chartSai = Object.values(saidas).flat().reduce((s,x)=>s+x.valor,0);
-  const ajEnt = expGanhos - chartEnt;
-  const ajSai = expGastos - chartSai;
-  if (ajEnt > 0.01) { if (!entradas[1]) entradas[1]=[]; entradas[1].push({nome:'Outros',valor:ajEnt,feito:false}); }
-  if (ajSai > 0.01) { if (!saidas[1])   saidas[1]  =[]; saidas[1].push({nome:'Outros',valor:ajSai,feito:false}); }
+  // Ajuste no dia 1 para garantir que o NET bate com expSaldoFim
+  // (cobre qualquer discrepância residual de dados)
+  const chartNet = Object.values(entradas).flat().reduce((s,x)=>s+x.valor,0)
+                 - Object.values(saidas).flat().reduce((s,x)=>s+x.valor,0);
+  const ajNet = expSaldoFim - chartNet;
+  if (ajNet > 0.01)  { if (!entradas[1]) entradas[1]=[]; entradas[1].push({nome:'Outros',valor: ajNet,feito:false}); }
+  if (ajNet < -0.01) { if (!saidas[1])   saidas[1]  =[]; saidas[1].push({nome:'Outros',valor:-ajNet,feito:false}); }
 
   // Saldo acumulado dia a dia
   let acc = 0;
