@@ -1,0 +1,9 @@
+# WhatsApp session cache (gerado automaticamente pelo wwebjs)
+whatsapp/.wwebjs_auth/
+whatsapp/.wwebjs_cache/
+
+# Claude worktrees
+.claude/worktrees/
+
+# macOS
+.DS_Store
