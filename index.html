@@ -2491,7 +2491,6 @@ function renderWidgetFluxo() {
   const daysInMonth = new Date(ano, mes + 1, 0).getDate();
   const todayDay = (ano === now.getFullYear() && mes === now.getMonth()) ? now.getDate() : null;
 
-  // Parseia diaAcerto → número do dia (1-31)
   function parseDia(str) {
     if (!str) return null;
     const s = String(str).toLowerCase().trim();
@@ -2501,40 +2500,74 @@ function renderWidgetFluxo() {
     return (n && n >= 1 && n <= 31) ? n : null;
   }
 
-  // Mapas de eventos por dia
-  const entradas = {}; // dia → [{nome, valor}]
-  const saidas   = {}; // dia → [{nome, valor}]
+  // Mapas: dia → [{nome, valor, feito}]
+  const entradas = {};
+  const saidas   = {};
 
-  function addEv(map, dia, nome, valor) {
+  function addEv(map, dia, nome, valor, feito) {
     if (!dia || valor <= 0) return;
     if (!map[dia]) map[dia] = [];
-    map[dia].push({ nome, valor });
+    map[dia].push({ nome, valor, feito: !!feito });
   }
 
-  // Calistenia pendente
-  calcValoresCali(md.calistenia || []).filter(a => !a.pausado && !a.pago).forEach(a =>
-    addEv(entradas, parseDia(a.diaAcerto), a.nome, a.valorFinal));
-
-  // Personal pendente
-  [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
-    .filter(a => !a.pausado && !a.pago)
-    .forEach(a => addEv(entradas, parseDia(a.diaAcerto), a.nome, a.valor||0));
-
-  // Ganhos não recebidos
-  (md.balanco?.ganhos||[]).filter(g => !g.recebido).forEach(g => {
-    const dia = parseDia(g.diaAcerto) || (g.ts ? new Date(g.ts).getDate() : null);
-    addEv(entradas, dia, g.nome, g.valor||0);
+  // Alunos calistenia (todos — pagos e pendentes)
+  calcValoresCali(md.calistenia || []).filter(a => !a.pausado).forEach(a => {
+    // Pago com timestamp real → usa o dia real do pagamento; pendente → usa diaAcerto
+    const dia = a.pago && a.tsPago ? new Date(a.tsPago).getDate() : parseDia(a.diaAcerto);
+    addEv(entradas, dia, a.nome, a.valorFinal, a.pago);
   });
 
-  // Gastos não pagos
-  (md.balanco?.gastos||[]).filter(g => !g.pago).forEach(g => {
-    let dia;
-    if (g.tipoGasto === 'conta' && g.diaVencimento) {
-      dia = g.diaVencimento; // data de vencimento da conta
+  // Alunos personal (todos)
+  [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
+    .filter(a => !a.pausado)
+    .forEach(a => {
+      const dia = a.pago && a.tsPago ? new Date(a.tsPago).getDate() : parseDia(a.diaAcerto);
+      addEv(entradas, dia, a.nome, a.valor||0, a.pago);
+    });
+
+  // Ganhos do balanço — cada transação no seu próprio dia (exceto espelhos de calistenia/personal)
+  const CATS_TABELA = ['calistenia','personal'];
+  (md.balanco?.ganhos||[]).filter(g => !CATS_TABELA.includes((g.categoria||'').toLowerCase())).forEach(g => {
+    const somas = (g.historico||[]).filter(h => h.tipo === 'soma');
+    const totalSomas = somas.reduce((s,h) => s + (h.delta||0), 0);
+    const valorBase = (g.valor||0) - totalSomas;
+
+    // Lançamento base
+    let diaBase;
+    if (g.recebido) {
+      diaBase = (g.ts ? new Date(g.ts).getDate() : null) || parseDia(g.diaAcerto) || 1;
     } else {
-      dia = g.ts ? new Date(g.ts).getDate() : null; // quando foi lançado (imediato)
+      diaBase = parseDia(g.diaAcerto) || (g.ts ? new Date(g.ts).getDate() : null) || 1;
     }
-    addEv(saidas, dia, g.nome, g.valor||0);
+    if (valorBase > 0) addEv(entradas, diaBase, g.nome, valorBase, g.recebido);
+
+    // Cada soma no seu próprio dia
+    somas.forEach(h => {
+      const diaSoma = (h.ts ? new Date(h.ts).getDate() : null) || diaBase;
+      addEv(entradas, diaSoma, g.nome, h.delta||0, g.recebido);
+    });
+  });
+
+  // Gastos do balanço — cada transação no seu próprio dia
+  (md.balanco?.gastos||[]).forEach(g => {
+    const somas = (g.historico||[]).filter(h => h.tipo === 'soma');
+    const totalSomas = somas.reduce((s,h) => s + (h.delta||0), 0);
+    const valorBase = (g.valor||0) - totalSomas;
+
+    // Lançamento base
+    let diaBase;
+    if (g.tipoGasto === 'conta' && g.diaVencimento && !g.pago) {
+      diaBase = g.diaVencimento; // conta pendente → usa vencimento
+    } else {
+      diaBase = (g.ts ? new Date(g.ts).getDate() : null) || 1;
+    }
+    if (valorBase > 0) addEv(saidas, diaBase, g.nome, valorBase, g.pago);
+
+    // Cada soma no seu próprio dia
+    somas.forEach(h => {
+      const diaSoma = (h.ts ? new Date(h.ts).getDate() : null) || diaBase;
+      addEv(saidas, diaSoma, g.nome, h.delta||0, g.pago);
+    });
   });
 
   // Saldo acumulado dia a dia
@@ -2544,7 +2577,13 @@ function renderWidgetFluxo() {
     const ent = (entradas[d]||[]).reduce((s,x)=>s+x.valor,0);
     const sai = (saidas[d]||[]).reduce((s,x)=>s+x.valor,0);
     acc += ent - sai;
-    return { d, ent, sai, acc, ev: [...(entradas[d]||[]).map(x=>({...x,tipo:'e'})), ...(saidas[d]||[]).map(x=>({...x,tipo:'s'}))] };
+    return {
+      d, ent, sai, acc,
+      ev: [
+        ...(entradas[d]||[]).map(x=>({...x,tipo:'e'})),
+        ...(saidas[d]||[]).map(x=>({...x,tipo:'s'}))
+      ]
+    };
   });
 
   const vals  = dias.map(d => d.acc);
@@ -2552,81 +2591,83 @@ function renderWidgetFluxo() {
   const maxV  = Math.max(0, ...vals);
   const range = maxV - minV || 1;
 
-  // Dias notáveis
   const idxMax = vals.indexOf(Math.max(...vals));
   const idxMin = vals.indexOf(Math.min(...vals));
 
-  // SVG sparkline
+  // SVG — linha sólida até hoje, tracejada daqui pra frente
   const W = 500, H = 90, PAD = 6;
   const xOf = d => PAD + (d / daysInMonth) * (W - PAD*2);
   const yOf = v => PAD + (1 - (v - minV) / range) * (H - PAD*2);
   const y0  = yOf(0);
 
-  // Área preenchida
-  const pts = dias.map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
-  const ptsArea = `${xOf(1)},${y0} ` + pts + ` ${xOf(daysInMonth)},${y0}`;
+  const ptsReal = dias.filter(d => !todayDay || d.d <= todayDay).map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
+  const ptsPrev = dias.filter(d => todayDay && d.d >= todayDay).map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
+  const ptsAll  = dias.map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
+  const ptsArea = `${xOf(1)},${y0} ${ptsAll} ${xOf(daysInMonth)},${y0}`;
 
-  // Linhas de grade (zero e metade)
+  const lineColor = vals[vals.length-1] >= 0 ? 'var(--green)' : 'var(--red)';
+  const gradFill  = minV < -0.01 ? 'url(#fluxo-grad-neg)' : 'url(#fluxo-grad-pos)';
+
   const gridLines = minV < 0 && maxV > 0
     ? `<line x1="${PAD}" y1="${y0}" x2="${W-PAD}" y2="${y0}" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="3,3"/>`
     : '';
 
-  // Marcador de hoje
   const todayLine = todayDay
     ? `<line x1="${xOf(todayDay)}" y1="${PAD}" x2="${xOf(todayDay)}" y2="${H-PAD}" stroke="rgba(53,200,241,0.5)" stroke-width="1.5" stroke-dasharray="4,3"/>
        <text x="${xOf(todayDay)}" y="${PAD-1}" text-anchor="middle" font-size="7" fill="var(--accent3)" font-family="Barlow Condensed">HOJE</text>`
     : '';
 
-  // Marcadores de pico e vale
   const labelMax = maxV > 0 ? `<circle cx="${xOf(idxMax+1)}" cy="${yOf(vals[idxMax])}" r="3" fill="var(--green)"/>
     <text x="${xOf(idxMax+1)}" y="${yOf(vals[idxMax])-5}" text-anchor="middle" font-size="7.5" font-weight="700" fill="var(--green)" font-family="Barlow Condensed">+${fmt(vals[idxMax])}</text>` : '';
   const labelMin = minV < -0.01 ? `<circle cx="${xOf(idxMin+1)}" cy="${yOf(vals[idxMin])}" r="3" fill="var(--red)"/>
     <text x="${xOf(idxMin+1)}" y="${yOf(vals[idxMin])+13}" text-anchor="middle" font-size="7.5" font-weight="700" fill="var(--red)" font-family="Barlow Condensed">${fmt(vals[idxMin])}</text>` : '';
 
-  // Números de dias com eventos
   const dayTicks = dias.filter(d => d.ev.length > 0).map(d => {
     const hasEnt = d.ent > 0, hasSai = d.sai > 0;
     const col = hasEnt && hasSai ? '#f1c135' : hasEnt ? 'var(--green)' : 'var(--red)';
-    return `<text x="${xOf(d.d)}" y="${H}" text-anchor="middle" font-size="7" fill="${col}" font-family="Barlow Condensed" font-weight="600">${d.d}</text>`;
+    const isPast = todayDay && d.d < todayDay;
+    return `<text x="${xOf(d.d)}" y="${H}" text-anchor="middle" font-size="7" fill="${col}" font-family="Barlow Condensed" font-weight="600" opacity="${isPast?'1':'0.7'}">${d.d}</text>`;
   }).join('');
 
   const svg = `<svg viewBox="0 0 ${W} ${H+4}" style="width:100%;display:block;overflow:visible">
     <defs>
       <linearGradient id="fluxo-grad-pos" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgba(34,197,94,0.35)"/>
-        <stop offset="100%" stop-color="rgba(34,197,94,0.03)"/>
+        <stop offset="0%" stop-color="rgba(34,197,94,0.3)"/><stop offset="100%" stop-color="rgba(34,197,94,0.02)"/>
       </linearGradient>
       <linearGradient id="fluxo-grad-neg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgba(232,32,10,0.03)"/>
-        <stop offset="100%" stop-color="rgba(232,32,10,0.3)"/>
+        <stop offset="0%" stop-color="rgba(232,32,10,0.02)"/><stop offset="100%" stop-color="rgba(232,32,10,0.25)"/>
       </linearGradient>
     </defs>
     ${gridLines}
-    <polygon points="${ptsArea}" fill="${minV < -0.01 ? 'url(#fluxo-grad-neg)' : 'url(#fluxo-grad-pos)'}" opacity="0.9"/>
-    <polyline points="${pts}" fill="none" stroke="${vals[vals.length-1] >= 0 ? 'var(--green)' : 'var(--red)'}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
-    ${dayTicks}
-    ${todayLine}
-    ${labelMax}
-    ${labelMin}
+    <polygon points="${ptsArea}" fill="${gradFill}" opacity="0.8"/>
+    ${ptsReal ? `<polyline points="${ptsReal}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
+    ${ptsPrev ? `<polyline points="${ptsPrev}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-dasharray="5,3" stroke-linejoin="round" stroke-linecap="round" opacity="0.6"/>` : ''}
+    ${dayTicks}${todayLine}${labelMax}${labelMin}
   </svg>`;
 
-  // Lista de eventos por dia (só dias com atividade)
+  // Lista de eventos
   const diasAtivos = dias.filter(d => d.ev.length > 0);
   const listaHtml = diasAtivos.map(d => {
-    const itens = d.ev.map(e => `<span style="color:${e.tipo==='e'?'var(--green)':'var(--red)'}">
-      ${e.tipo==='e'?'↑':'↓'} ${e.nome.split(' ')[0]} <span class="mono" style="font-size:11px">${fmt(e.valor)}</span>
-    </span>`).join('');
+    const isPast = todayDay && d.d < todayDay;
+    const itens = d.ev.map(e => {
+      const cor = e.tipo==='e' ? 'var(--green)' : 'var(--red)';
+      const icon = e.feito ? (e.tipo==='e' ? '✓' : '✓') : (e.tipo==='e' ? '↑' : '↓');
+      const op = e.feito ? '1' : '0.6';
+      return `<span style="color:${cor};opacity:${op}" title="${e.feito?'Realizado':'Previsto'}">
+        ${icon} ${e.nome.split(' ')[0]} <span class="mono" style="font-size:11px">${fmt(e.valor)}</span>
+      </span>`;
+    }).join('');
     const delta = d.ent - d.sai;
     const deltaColor = delta >= 0 ? 'var(--green)' : 'var(--red)';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
-      <div style="font-family:'Bebas Neue';font-size:18px;color:var(--text3);width:24px;text-align:center;flex-shrink:0">${d.d}</div>
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);opacity:${isPast?'0.6':'1'}">
+      <div style="font-family:'Bebas Neue';font-size:18px;color:${isPast?'var(--text3)':'var(--text2)'};width:24px;text-align:center;flex-shrink:0">${d.d}</div>
       <div style="flex:1;display:flex;flex-wrap:wrap;gap:6px;font-size:12px">${itens}</div>
       <div style="font-family:'Barlow Condensed';font-size:13px;font-weight:700;color:${deltaColor};flex-shrink:0">${delta>=0?'+':''}${fmt(delta)}</div>
     </div>`;
   }).join('');
 
-  const totalEnt = dias.reduce((s,d)=>s+d.ent,0);
-  const totalSai = dias.reduce((s,d)=>s+d.sai,0);
+  const totalEnt  = dias.reduce((s,d)=>s+d.ent,0);
+  const totalSai  = dias.reduce((s,d)=>s+d.sai,0);
   const saldoFinal = vals[vals.length-1];
 
   return `<div class="dg-w">
@@ -2639,7 +2680,9 @@ function renderWidgetFluxo() {
       </div>
     </div>
     <div style="padding:10px 16px 4px">${svg}</div>
-    ${diasAtivos.length ? `<div style="padding:0 16px 10px;max-height:180px;overflow-y:auto">${listaHtml}</div>` : `<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">Nenhum evento com data definida neste mês</div>`}
+    ${diasAtivos.length
+      ? `<div style="padding:0 16px 10px;max-height:180px;overflow-y:auto">${listaHtml}</div>`
+      : `<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">Nenhum evento registrado neste mês</div>`}
   </div>`;
 }
 
@@ -4197,7 +4240,7 @@ function deleteSelectedPersonal(){
   md.personal.presencial=md.personal.presencial.filter(a=>!ids.includes(a.id));
   saveData();setAlunosTab(alunosTab);
 }
-function toggleCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a)a.pago=!a.pago;syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);}
+function toggleCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a){a.pago=!a.pago;if(a.pago)a.tsPago=Date.now();else delete a.tsPago;}syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);}
 function togglePausadoCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a){a.pausado=!a.pausado;if(a.pausado)a.pago=false;}saveData();setAlunosTab(alunosTab);}
 function removeCali(id){if(guardReadOnly())return;const md=getMonthData();const bk=JSON.parse(JSON.stringify(md.calistenia));const item=md.calistenia.find(x=>x.id===id);md.calistenia=md.calistenia.filter(x=>x.id!==id);saveData();setAlunosTab(alunosTab);showToast(`"${item?.nome||'Aluno'}" removido`,'warning',5000,'Desfazer',()=>{md.calistenia=bk;saveData();setAlunosTab(alunosTab);});}
 
@@ -4305,7 +4348,7 @@ function saveEditCali(id, isFam){
   const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(!a)return;
   a.nome=document.getElementById('mN').value.trim();
   a.valorBase=parseFloat(document.getElementById('mB').value)||0;
-  a.pago=document.getElementById('mS').value==='1';
+  const pagoAntes=a.pago;a.pago=document.getElementById('mS').value==='1';if(a.pago&&!pagoAntes)a.tsPago=Date.now();else if(!a.pago)delete a.tsPago;
   if(isFam){
     // Already in family — update desconto for all members
     const novoDesc=parseFloat(document.getElementById('mFD').value)||0;
@@ -5027,7 +5070,7 @@ function saveValorPersonal(id, isPres) {
   saveData(); closeModal(); setAlunosTab(alunosTab);
 }
 
-function togglePersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a)a.pago=!a.pago;syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);}
+function togglePersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a){a.pago=!a.pago;if(a.pago)a.tsPago=Date.now();else delete a.tsPago;}syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);}
 function togglePausadoPersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a){a.pausado=!a.pausado;if(a.pausado)a.pago=false;}saveData();setAlunosTab(alunosTab);}
 function removePersonal(id){if(guardReadOnly())return;const md=getMonthData();const bkO=JSON.parse(JSON.stringify(md.personal.online));const bkP=JSON.parse(JSON.stringify(md.personal.presencial));const item=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);md.personal.online=md.personal.online.filter(x=>x.id!==id);md.personal.presencial=md.personal.presencial.filter(x=>x.id!==id);saveData();setAlunosTab(alunosTab);showToast(`"${item?.nome||'Aluno'}" removido`,'warning',5000,'Desfazer',()=>{md.personal.online=bkO;md.personal.presencial=bkP;saveData();setAlunosTab(alunosTab);});}
 function toggleMsgSemana(id){const md=getMonthData();const a=md.personal.online.find(x=>x.id===id);if(!a)return;a.msgSemana=!a.msgSemana;saveData();setAlunosTab('online');}
@@ -9613,6 +9656,7 @@ function aiExecuteTool(name, input) {
     }
     if (!item) return `✗ Aluno com "${input.nome_parcial}" não encontrado.`;
     item.pago = true;
+    item.tsPago = Date.now();
     syncGanhosFromTables(md);
     saveData();
     return `✓ ${item.nome} (${found_tipo}) marcado como pago`;
