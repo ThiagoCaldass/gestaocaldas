@@ -2557,15 +2557,22 @@ function _buildFluxoData() {
     if (!map[d]) map[d] = [];
     map[d].push({ nome, valor, feito: !!feito });
   }
+  // Converte um timestamp para o dia do mês; se o ts for de outro mês, retorna 1
+  function tsDay(ts) {
+    if (!ts) return null;
+    const d = new Date(ts);
+    if (d.getFullYear() !== ano || d.getMonth() !== mes) return 1;
+    return d.getDate();
+  }
 
   caliCalc.forEach(a => {
-    const dia = a.pago && a.tsPago ? new Date(a.tsPago).getDate() : parseDia(a.diaAcerto) || 1;
+    const dia = a.pago && a.tsPago ? tsDay(a.tsPago) || 1 : parseDia(a.diaAcerto) || 1;
     addEv(entradas, dia, a.nome, a.valorFinal, a.pago);
   });
   [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
     .filter(a => !a.pausado)
     .forEach(a => {
-      const dia = a.pago && a.tsPago ? new Date(a.tsPago).getDate() : parseDia(a.diaAcerto) || 1;
+      const dia = a.pago && a.tsPago ? tsDay(a.tsPago) || 1 : parseDia(a.diaAcerto) || 1;
       addEv(entradas, dia, a.nome, a.valor||0, a.pago);
     });
   (md.balanco?.ganhos||[]).filter(g => !CATS_ESPELHO.includes((g.categoria||'avulso').toLowerCase())).forEach(g => {
@@ -2573,10 +2580,10 @@ function _buildFluxoData() {
     const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
     const valorBase = Math.max(0, (g.valor||0) - posTot);
     let diaBase = g.recebido
-      ? (g.ts ? new Date(g.ts).getDate() : null) || parseDia(g.diaAcerto) || 1
-      : parseDia(g.diaAcerto) || (g.ts ? new Date(g.ts).getDate() : null) || 1;
+      ? tsDay(g.ts) || parseDia(g.diaAcerto) || 1
+      : parseDia(g.diaAcerto) || tsDay(g.ts) || 1;
     if (valorBase > 0) addEv(entradas, diaBase, g.nome, valorBase, g.recebido);
-    posSomas.forEach(h => addEv(entradas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta, g.recebido));
+    posSomas.forEach(h => addEv(entradas, tsDay(h.ts) || diaBase, g.nome, h.delta, g.recebido));
   });
   (md.balanco?.gastos||[]).forEach(g => {
     const posSomas = (g.historico||[]).filter(h => h.tipo === 'soma' && (h.delta||0) > 0);
@@ -2584,9 +2591,9 @@ function _buildFluxoData() {
     const valorBase = Math.max(0, (g.valor||0) - posTot);
     let diaBase = (g.tipoGasto === 'conta' && g.diaVencimento && !g.pago)
       ? g.diaVencimento
-      : (g.ts ? new Date(g.ts).getDate() : null) || 1;
+      : tsDay(g.ts) || 1;
     if (valorBase > 0) addEv(saidas, diaBase, g.nome, valorBase, g.pago);
-    posSomas.forEach(h => addEv(saidas, (h.ts ? new Date(h.ts).getDate() : null) || diaBase, g.nome, h.delta, g.pago));
+    posSomas.forEach(h => addEv(saidas, tsDay(h.ts) || diaBase, g.nome, h.delta, g.pago));
   });
 
   const chartNet = Object.values(entradas).flat().reduce((s,x)=>s+x.valor,0)
