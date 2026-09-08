@@ -5941,8 +5941,8 @@ function saveFechamento(bank) {
 function renderCartao(md){ renderFinancas(md); }
 function renderCartaoOriginal(md){
   const bb=md.cartao.bb, inter=md.cartao.inter;
-  const bbP=bb.parceladas.reduce((a,b)=>a+b.valor,0), bbA=bb.avista.reduce((a,b)=>a+b.valor,0), bbAs=bb.assinaturas.reduce((a,b)=>a+b.valor,0);
-  const inP=inter.parceladas.reduce((a,b)=>a+b.valor,0), inA=inter.avista.reduce((a,b)=>a+b.valor,0), inAs=inter.assinaturas.reduce((a,b)=>a+b.valor,0);
+  const bbP=bb.parceladas.reduce((a,b)=>a+b.valor,0), bbA=bb.avista.reduce((a,b)=>a+b.valor,0), bbAs=bb.assinaturas.filter(a=>!a.pausada).reduce((a,b)=>a+b.valor,0);
+  const inP=inter.parceladas.reduce((a,b)=>a+b.valor,0), inA=inter.avista.reduce((a,b)=>a+b.valor,0), inAs=inter.assinaturas.filter(a=>!a.pausada).reduce((a,b)=>a+b.valor,0);
   const bbT=bbP+bbA+bbAs, inT=inP+inA+inAs;
 
   document.getElementById('topbarActions').innerHTML='';
@@ -6100,7 +6100,7 @@ function renderCartaoOriginal(md){
             <div class="table-header">
               <div class="table-title">🔄 Assinaturas</div>
               <div style="display:flex;align-items:center;gap:8px">
-                <span class="mono" style="font-size:12px;color:var(--red)">${fmt(c.assinaturas.reduce((s,p)=>s+p.valor,0))}</span>
+                <span class="mono" style="font-size:12px;color:var(--red)">${fmt(c.assinaturas.filter(a=>!a.pausada).reduce((s,p)=>s+p.valor,0))}</span>
                 <button class="btn btn-ghost btn-sm" onclick="openAddCC('${bank}','assinatura')">+</button>
               </div>
             </div>
@@ -6113,15 +6113,17 @@ function renderCartaoOriginal(md){
                 <th data-col="valor" onclick="sortTable('tblAss_${bank}','valor','num')">Valor</th>
                 <th></th>
               </tr></thead>
-              <tbody>${c.assinaturas.map(a=>`<tr data-titulo="${a.titulo}" data-dia="${a.dia}" data-valor="${a.valor}">
+              <tbody>${c.assinaturas.map(a=>`<tr data-titulo="${a.titulo}" data-dia="${a.dia}" data-valor="${a.pausada?0:a.valor}" style="${a.pausada?'opacity:0.5':''}">
                 <td style="padding:4px 6px;width:32px"><input type="checkbox" class="row-select" data-id="${a.id}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblAss_${bank}')" data-id="${a.id}" title="Selecionar"></div></td>
                 <td>
-                  <div>${a.titulo}</div>
+                  <div style="${a.pausada?'text-decoration:line-through;color:var(--text3)':''}">${a.titulo}</div>
                   ${a.categoria?`<div style="font-size:10px;color:var(--text3)">${a.categoria}</div>`:''}
+                  ${a.pausada?`<div style="font-size:10px;color:var(--amber);font-weight:600">pausada</div>`:''}
                 </td>
                 <td class="mono hide-mobile" style="color:var(--text3)">${a.dia}</td>
-                <td class="mono">${fmt(a.valor)}</td>
+                <td class="mono" style="${a.pausada?'text-decoration:line-through;color:var(--text3)':''}">${fmt(a.valor)}</td>
                 <td><div style="display:flex;gap:3px;flex-wrap:nowrap">
+                  <button class="btn btn-ghost btn-sm" onclick="togglePausadaCC('${bank}','${a.id}')" style="padding:4px 7px" title="${a.pausada?'Retomar':'Pausar'}">${a.pausada?'▶':'⏸'}</button>
                   <button class="btn btn-ghost btn-sm" onclick="editCC('${bank}','assinaturas','${a.id}')" style="padding:4px 7px">✎</button>
                   <button class="btn btn-danger btn-sm" onclick="removeCC('${bank}','assinaturas','${a.id}')" style="padding:4px 7px">✕</button>
                 </div></td>
@@ -6241,6 +6243,23 @@ function saveEditCC(bank, type, id) {
 }
 
 function removeCC(bank,type,id){if(guardReadOnly())return;const md=getMonthData();const bk=JSON.parse(JSON.stringify(md.cartao[bank][type]));const item=md.cartao[bank][type].find(x=>x.id===id);md.cartao[bank][type]=md.cartao[bank][type].filter(x=>x.id!==id);saveData();setFinancasTab('cartao');showToast(`"${item?.titulo||item?.nome||'Item'}" removido`,'warning',5000,'Desfazer',()=>{md.cartao[bank][type]=bk;saveData();setFinancasTab('cartao');});}
+
+function togglePausadaCC(bank,id){if(guardReadOnly())return;const md=getMonthData();const a=md.cartao[bank].assinaturas.find(x=>x.id===id);if(!a)return;a.pausada=!a.pausada;saveData();setFinancasTab('cartao');showToast(`"${a.titulo}" ${a.pausada?'pausada — valor excluído do total':'retomada'}`,a.pausada?'warning':'success');}
+
+function deleteSelectedCC(bank,type){
+  if(guardReadOnly())return;
+  const tblPrefix={parceladas:'Parc',avista:'Av',assinaturas:'Ass'}[type];
+  const tblId='tbl'+tblPrefix+'_'+bank;
+  const checks=[...document.querySelectorAll(`#${tblId} tbody .row-select-cell.checked`)];
+  if(!checks.length)return;
+  if(!confirm('Excluir '+checks.length+' item(s)?'))return;
+  const ids=new Set(checks.map(c=>c.dataset.id).filter(Boolean));
+  const md=getMonthData();
+  const bk=JSON.parse(JSON.stringify(md.cartao[bank][type]));
+  md.cartao[bank][type]=md.cartao[bank][type].filter(x=>!ids.has(x.id));
+  saveData();setFinancasTab('cartao');
+  showToast(ids.size+' item(s) excluído(s)','warning',5000,'Desfazer',()=>{md.cartao[bank][type]=bk;saveData();setFinancasTab('cartao');});
+}
 
 function openAddCC(bank,type){
   const isP=type==='parcelada', isA=type==='assinatura';
