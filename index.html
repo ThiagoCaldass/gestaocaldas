@@ -3324,8 +3324,8 @@ function deleteSelectedGastos() {
   md.balanco.gastos = md.balanco.gastos.filter(g=>!ids.includes(g.id));
   saveData(); renderBalancoOriginal(md);
 }
-function toggleGanho(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(g)g.recebido=!g.recebido;saveData();setFinancasTab('balanco');}
-function toggleGasto(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(g)g.pago=!g.pago;saveData();setFinancasTab('balanco');}
+function toggleGanho(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(!g)return;g.recebido=!g.recebido;if(g.recebido)g.ts=Date.now();saveData();setFinancasTab('balanco');}
+function toggleGasto(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(!g)return;g.pago=!g.pago;if(g.pago)g.ts=Date.now();saveData();setFinancasTab('balanco');}
 function setGanhoStatus(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(g&&g.recebido!==val){g.recebido=val;saveData();setFinancasTab('balanco');}}
 function setGastoPago(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(g&&g.pago!==val){g.pago=val;saveData();setFinancasTab('balanco');}}
 function removeGanho(id){if(guardReadOnly())return;const md=getMonthData();const bk=JSON.parse(JSON.stringify(md.balanco));const item=md.balanco.ganhos.find(x=>x.id===id);md.balanco.ganhos=md.balanco.ganhos.filter(x=>x.id!==id);saveData();setFinancasTab('balanco');showToast(`Ganho "${item?.nome||'item'}" removido`,'warning',5000,'Desfazer',()=>{md.balanco=bk;saveData();setFinancasTab('balanco');});}
