@@ -2557,11 +2557,14 @@ function _buildFluxoData() {
     if (!map[d]) map[d] = [];
     map[d].push({ nome, valor, feito: !!feito });
   }
-  // Converte um timestamp para o dia do mês; se o ts for de outro mês, retorna 1
+  // Converte um timestamp para o dia do mês.
+  // Retorna null se o ts for de outro mês (não 1 — o chamador decide o fallback).
+  // Retorna 1 explicitamente só para ganhos/gastos já feitos (pago=true)
+  // quando o ts é de outro mês, pois o usuário disse: "registrado antes do mês → dia 1".
   function tsDay(ts) {
     if (!ts) return null;
     const d = new Date(ts);
-    if (d.getFullYear() !== ano || d.getMonth() !== mes) return 1;
+    if (d.getFullYear() !== ano || d.getMonth() !== mes) return null; // outro mês → null
     return d.getDate();
   }
 
@@ -2579,9 +2582,11 @@ function _buildFluxoData() {
     const posSomas = (g.historico||[]).filter(h => h.tipo === 'soma' && (h.delta||0) > 0);
     const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
     const valorBase = Math.max(0, (g.valor||0) - posTot);
+    // Recebido: ts atualizado no clique → dia correto; sem ts no mês → dia 1 (registrado antes)
+    // Pendente: diaAcerto como previsão; sem previsão e ts de outro mês → último dia (ainda vai chegar)
     let diaBase = g.recebido
       ? tsDay(g.ts) || parseDia(g.diaAcerto) || 1
-      : parseDia(g.diaAcerto) || tsDay(g.ts) || 1;
+      : parseDia(g.diaAcerto) || tsDay(g.ts) || daysInMonth;
     if (valorBase > 0) addEv(entradas, diaBase, g.nome, valorBase, g.recebido);
     posSomas.forEach(h => addEv(entradas, tsDay(h.ts) || diaBase, g.nome, h.delta, g.recebido));
   });
@@ -2589,9 +2594,11 @@ function _buildFluxoData() {
     const posSomas = (g.historico||[]).filter(h => h.tipo === 'soma' && (h.delta||0) > 0);
     const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
     const valorBase = Math.max(0, (g.valor||0) - posTot);
-    let diaBase = (g.tipoGasto === 'conta' && g.diaVencimento && !g.pago)
-      ? g.diaVencimento
-      : tsDay(g.ts) || 1;
+    // Pago: ts atualizado no clique → dia correto; sem ts no mês → dia 1 (registrado antes)
+    // Pendente: diaVencimento como previsão; sem previsão e ts de outro mês → último dia
+    let diaBase = g.pago
+      ? tsDay(g.ts) || 1
+      : g.diaVencimento || tsDay(g.ts) || daysInMonth;
     if (valorBase > 0) addEv(saidas, diaBase, g.nome, valorBase, g.pago);
     posSomas.forEach(h => addEv(saidas, tsDay(h.ts) || diaBase, g.nome, h.delta, g.pago));
   });
