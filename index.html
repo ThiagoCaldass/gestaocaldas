@@ -417,7 +417,7 @@
     input, select, textarea { font-size: 16px; padding: 10px 12px; }
 
     /* Modal full width */
-    .modal { border-radius: 20px 20px 0 0; padding: 20px 16px; padding-bottom: calc(20px + var(--safe-bottom)); }
+    .modal { border-radius: 20px 20px 0 0; padding: 20px 16px; padding-bottom: calc(20px + var(--safe-bottom)); max-height: 85vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
     /* CC cards stack */
     .cc-header { flex-direction: column; gap: 10px; }
@@ -2583,10 +2583,14 @@ function _buildFluxoData() {
     const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
     const valorBase = Math.max(0, (g.valor||0) - posTot);
     // Recebido: ts atualizado no clique → dia correto; sem ts no mês → dia 1 (registrado antes)
-    // Pendente: diaAcerto como previsão; sem previsão e ts de outro mês → último dia (ainda vai chegar)
-    let diaBase = g.recebido
-      ? tsDay(g.ts) || parseDia(g.diaAcerto) || 1
-      : parseDia(g.diaAcerto) || tsDay(g.ts) || daysInMonth;
+    // Pendente: diaAcerto como previsão; se já passou do dia previsto → arrasta para hoje; sem previsão → último dia
+    let diaBase;
+    if (g.recebido) {
+      diaBase = tsDay(g.ts) || parseDia(g.diaAcerto) || 1;
+    } else {
+      const diaAcerto = parseDia(g.diaAcerto) || tsDay(g.ts) || daysInMonth;
+      diaBase = (todayDay && diaAcerto < todayDay) ? todayDay : diaAcerto;
+    }
     if (valorBase > 0) addEv(entradas, diaBase, g.nome, valorBase, g.recebido);
     posSomas.forEach(h => addEv(entradas, tsDay(h.ts) || diaBase, g.nome, h.delta, g.recebido));
   });
@@ -2595,10 +2599,14 @@ function _buildFluxoData() {
     const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
     const valorBase = Math.max(0, (g.valor||0) - posTot);
     // Pago: ts atualizado no clique → dia correto; sem ts no mês → dia 1 (registrado antes)
-    // Pendente: diaVencimento como previsão; sem previsão e ts de outro mês → último dia
-    let diaBase = g.pago
-      ? tsDay(g.ts) || 1
-      : g.diaVencimento || tsDay(g.ts) || daysInMonth;
+    // Pendente: diaVencimento como previsão; se já passou do dia previsto → arrasta para hoje; sem previsão → último dia
+    let diaBase;
+    if (g.pago) {
+      diaBase = tsDay(g.ts) || 1;
+    } else {
+      const diaVenc = g.diaVencimento || tsDay(g.ts) || daysInMonth;
+      diaBase = (todayDay && diaVenc < todayDay) ? todayDay : diaVenc;
+    }
     if (valorBase > 0) addEv(saidas, diaBase, g.nome, valorBase, g.pago);
     posSomas.forEach(h => addEv(saidas, tsDay(h.ts) || diaBase, g.nome, h.delta, g.pago));
   });
