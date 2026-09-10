@@ -2569,13 +2569,17 @@ function _buildFluxoData() {
   }
 
   caliCalc.forEach(a => {
-    const dia = a.pago && a.tsPago ? tsDay(a.tsPago) || 1 : parseDia(a.diaAcerto) || 1;
+    let dia;
+    if (a.pago && a.tsPago) { dia = tsDay(a.tsPago) || 1; }
+    else { const d = parseDia(a.diaAcerto) || 1; dia = (todayDay && d < todayDay) ? todayDay : d; }
     addEv(entradas, dia, a.nome, a.valorFinal, a.pago);
   });
   [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
     .filter(a => !a.pausado)
     .forEach(a => {
-      const dia = a.pago && a.tsPago ? tsDay(a.tsPago) || 1 : parseDia(a.diaAcerto) || 1;
+      let dia;
+      if (a.pago && a.tsPago) { dia = tsDay(a.tsPago) || 1; }
+      else { const d = parseDia(a.diaAcerto) || 1; dia = (todayDay && d < todayDay) ? todayDay : d; }
       addEv(entradas, dia, a.nome, a.valor||0, a.pago);
     });
   (md.balanco?.ganhos||[]).filter(g => !CATS_ESPELHO.includes((g.categoria||'avulso').toLowerCase())).forEach(g => {
