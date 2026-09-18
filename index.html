@@ -8035,12 +8035,165 @@ function renderWhatsApp() {
       </div>
       <div id="wap-ar-list">${_renderWapAutoReplies(d)}</div>
     </div>
+
+    <!-- CAPTAÇÃO AUTOMÁTICA -->
+    <div style="border-top:2px solid var(--border)">
+      <div style="padding:12px 16px;display:flex;align-items:center;gap:10px">
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--text3);flex:1">🤖 Captação automática</div>
+        <div style="display:flex;gap:4px">
+          <button onclick="wapCapTab('monitor')" id="wap-cap-tab-monitor" style="font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--accent3);background:rgba(53,200,241,0.15);color:var(--accent3);cursor:pointer;font-weight:600">Monitor</button>
+          <button onclick="wapCapTab('fluxo')" id="wap-cap-tab-fluxo" style="font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer">Configurar fluxo</button>
+        </div>
+      </div>
+
+      <!-- MONITOR -->
+      <div id="wap-cap-monitor" style="padding:0 16px 16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:11px;color:var(--text3)">Conversas em andamento agora</span>
+          <button onclick="wapCarregarConversas()" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text3);cursor:pointer">↻ Atualizar</button>
+        </div>
+        <div id="wap-conversas-list" style="display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:11px;color:var(--text3);padding:12px 0">Carregando...</div>
+        </div>
+      </div>
+
+      <!-- CONFIGURAR FLUXO -->
+      <div id="wap-cap-fluxo" style="display:none;padding:0 16px 16px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px">Use <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{nome}</code> para personalizar com o nome do lead. As mudanças valem para as próximas mensagens.</div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">Número do admin (recebe notificações)</label>
+          <input id="wap-cap-admintel" type="tel" placeholder="5514997115664" style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit">
+        </div>
+        ${[
+          ['boas_vindas','Boas-vindas (1ª mensagem enviada para novos contatos)'],
+          ['etapa2','Etapa 2 — após receber o nome'],
+          ['etapa3','Etapa 3 — pergunta o objetivo'],
+          ['etapa4','Etapa 4 — pergunta histórico'],
+          ['etapa5','Etapa 5 — pergunta dificuldade'],
+          ['etapa6','Etapa 6 — oferece o PDF'],
+          ['etapa7','Etapa 7 — após enviar PDF, propõe call'],
+          ['etapa8','Etapa 8 — pede horário da call'],
+          ['concluido','Concluído — confirmação final'],
+          ['lembrete','Lembrete 24h (com nome)'],
+          ['lembrete_sem_nome','Lembrete 24h (sem nome)'],
+        ].map(([k,label]) => `
+          <div style="margin-bottom:12px">
+            <label style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);font-weight:600">${label}</label>
+            <textarea id="wap-cap-msg-${k}" rows="3" style="width:100%;margin-top:5px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+          </div>`).join('')}
+        <div style="display:flex;gap:8px;align-items:center">
+          <button onclick="wapSalvarCaptacaoConfig()" style="padding:8px 20px;background:var(--accent3);color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;font-family:'Barlow Condensed'">Salvar configuração</button>
+          <span id="wap-cap-save-status" style="font-size:11px;color:var(--text3)"></span>
+        </div>
+      </div>
+    </div>
   `;
 
   // Polling status
   wapPollStatus();
   _waPagePollInterval = setInterval(wapPollStatus, 3000);
   wapAtualizarSelbar();
+
+  // Carrega monitor e config da captação
+  wapCarregarConversas();
+  wapCarregarCaptacaoConfig();
+  setInterval(wapCarregarConversas, 8000);
+}
+
+// ── Captação: tabs ───────────────────────────────────────────────────
+function wapCapTab(tab) {
+  document.getElementById('wap-cap-monitor').style.display = tab === 'monitor' ? 'block' : 'none';
+  document.getElementById('wap-cap-fluxo').style.display   = tab === 'fluxo'   ? 'block' : 'none';
+  const btnM = document.getElementById('wap-cap-tab-monitor');
+  const btnF = document.getElementById('wap-cap-tab-fluxo');
+  if (!btnM || !btnF) return;
+  if (tab === 'monitor') {
+    btnM.style.cssText = 'font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--accent3);background:rgba(53,200,241,0.15);color:var(--accent3);cursor:pointer;font-weight:600';
+    btnF.style.cssText = 'font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer';
+  } else {
+    btnF.style.cssText = 'font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--accent3);background:rgba(53,200,241,0.15);color:var(--accent3);cursor:pointer;font-weight:600';
+    btnM.style.cssText = 'font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer';
+    wapCarregarCaptacaoConfig();
+  }
+}
+
+// ── Captação: monitor de conversas ───────────────────────────────────
+const ETAPA_LABELS = {1:'1 — Aguardando nome',2:'2 — Aguardando confirmação',3:'3 — Aguardando objetivo',4:'4 — Aguardando histórico',5:'5 — Aguardando dificuldade',6:'6 — Aguardando resposta PDF',7:'7 — Aguardando horário call',8:'8 — Concluindo','done':'Concluído'};
+
+async function wapCarregarConversas() {
+  const el = document.getElementById('wap-conversas-list');
+  if (!el) return;
+  try {
+    const r = await fetch(getWaServer() + '/conversas', { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) throw new Error('erro');
+    const { conversas: lista } = await r.json();
+    if (!lista.length) {
+      el.innerHTML = '<div style="font-size:11px;color:var(--text3);padding:12px 0;font-style:italic">Nenhuma conversa ativa no momento</div>';
+      return;
+    }
+    el.innerHTML = lista.map(c => {
+      const mins = Math.round((Date.now() - c.ts) / 60000);
+      const tempo = mins < 60 ? `${mins}min` : `${Math.round(mins/60)}h`;
+      return `
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${c.nome || '(sem nome)'} <span style="font-weight:400;font-size:11px;color:var(--text3)">· ${c.tel}</span></div>
+          <div style="font-size:11px;color:var(--accent3);margin-top:2px">${ETAPA_LABELS[c.etapa] || 'Etapa ' + c.etapa}</div>
+          ${c.objetivo ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Objetivo: ${c.objetivo}</div>` : ''}
+        </div>
+        <div style="font-size:10px;color:var(--text3);flex-shrink:0">${tempo} atrás</div>
+        <a href="https://wa.me/${c.tel}" target="_blank" style="font-size:11px;padding:4px 8px;background:#25D366;color:#fff;border-radius:5px;text-decoration:none;flex-shrink:0">WA</a>
+        <button onclick="wapCancelarConversa('${c.tel}')" title="Cancelar conversa" style="padding:4px 8px;background:transparent;border:1px solid var(--red);border-radius:5px;color:var(--red);cursor:pointer;font-size:11px;flex-shrink:0">✕</button>
+      </div>`;
+    }).join('');
+  } catch {
+    el.innerHTML = '<div style="font-size:11px;color:var(--text3);padding:12px 0">Servidor offline — não foi possível carregar</div>';
+  }
+}
+
+async function wapCancelarConversa(tel) {
+  if (!confirm('Cancelar a conversa com ' + tel + '?')) return;
+  try {
+    await fetch(getWaServer() + '/conversas/' + tel, { method: 'DELETE', signal: AbortSignal.timeout(5000) });
+    wapCarregarConversas();
+  } catch { showToast('Erro ao cancelar conversa', 'error'); }
+}
+
+// ── Captação: configurar fluxo ───────────────────────────────────────
+async function wapCarregarCaptacaoConfig() {
+  try {
+    const r = await fetch(getWaServer() + '/captacao-config', { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return;
+    const cfg = await r.json();
+    const adminEl = document.getElementById('wap-cap-admintel');
+    if (adminEl) adminEl.value = cfg.adminTel || '';
+    const keys = ['boas_vindas','etapa2','etapa3','etapa4','etapa5','etapa6','etapa7','etapa8','concluido','lembrete','lembrete_sem_nome'];
+    keys.forEach(k => {
+      const el = document.getElementById('wap-cap-msg-' + k);
+      if (el && cfg.msgs?.[k] !== undefined) el.value = cfg.msgs[k];
+    });
+  } catch {}
+}
+
+async function wapSalvarCaptacaoConfig() {
+  const status = document.getElementById('wap-cap-save-status');
+  if (status) status.textContent = 'Salvando...';
+  const adminTel = document.getElementById('wap-cap-admintel')?.value || '';
+  const keys = ['boas_vindas','etapa2','etapa3','etapa4','etapa5','etapa6','etapa7','etapa8','concluido','lembrete','lembrete_sem_nome'];
+  const msgs = {};
+  keys.forEach(k => { const el = document.getElementById('wap-cap-msg-' + k); if (el) msgs[k] = el.value; });
+  try {
+    const r = await fetch(getWaServer() + '/captacao-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminTel, msgs }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) throw new Error('erro');
+    if (status) { status.textContent = '✓ Salvo!'; status.style.color = 'var(--green)'; setTimeout(() => { if(status) { status.textContent = ''; status.style.color = ''; } }, 3000); }
+  } catch {
+    if (status) { status.textContent = '✕ Erro ao salvar'; status.style.color = 'var(--red)'; }
+  }
 }
 
 // ── Renders parciais ────────────────────────────────────────────────

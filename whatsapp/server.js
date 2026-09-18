@@ -37,11 +37,48 @@ let isPaused = false;  // desconectado intencionalmente — não reconecta autom
 const AUTH_DIR = path.join(__dirname, 'wa_auth');
 
 // ── Captação automática ───────────────────────────────────────────────
-const ADMIN_JID      = '5514997115664@s.whatsapp.net';
 const PDF_PATH       = process.env.WA_PDF_PATH || '/Users/thiagocaldas/Documents/Profissional/APRESENTAÇÃO.pdf';
 const PDF_URL        = process.env.WA_PDF_URL;   // URL pública — define no Render
 const CONTACTS_FILE  = path.join(AUTH_DIR, 'contacts.json');
+const CAPTACAO_CONFIG_FILE = path.join(__dirname, 'captacao_config.json');
 const TEMPO_LEMBRETE = 24 * 60 * 60 * 1000;      // 24h
+
+const DEFAULT_CAPTACAO_CONFIG = {
+  adminTel: '5514997115664',
+  msgs: {
+    boas_vindas:  'Opa! Seja bem-vindo(a) ao *Team Caldas* 💪\nQual o seu nome, por gentileza?',
+    etapa2: '{nome}, antes de te passar todos os detalhes do acompanhamento, posso te fazer algumas perguntas rápidas pra entender bem como podemos te ajudar no *Team Caldas*? 😊',
+    etapa3: 'Show, {nome}! 🙌\nQual o seu principal objetivo hoje? Pode dar detalhes como metas, números ou até mandar áudio se preferir…',
+    etapa4: 'Massa, {nome}! Isso é exatamente o que trabalhamos no Team Caldas. 💪\n\nPra que eu entenda melhor:\n• Há quanto tempo você vem buscando esse objetivo?\n• O que tem feito até agora pra tentar alcançá-lo?',
+    etapa5: 'Entendi! E o que tem sido mais difícil pra você nessa jornada?\nPode detalhar. 🙏',
+    etapa6: 'Faz todo sentido, {nome}. Muita gente passa por isso.\n\nPosso te enviar um material explicando como a gente vai chegar no seu objetivo nos próximos meses? 📎',
+    etapa7: 'Prontinho, {nome}! Dá uma olhada com atenção. 😊\n\nShoww! Aqui no *Team Caldas* o trabalho é 100% individualizado MESMO.\nPor isso o próximo passo é agendarmos uma chamada rápida (15-20 min) onde entendo melhor o seu caso e te passo um plano de ação personalizado.\n\nTopa?',
+    etapa8: 'Que ótimo! ⏰ Qual o melhor horário pra você ainda hoje ou amanhã?',
+    concluido: 'Perfeito, {nome}! ✅ Thiago vai entrar em contato no horário combinado.\nQualquer dúvida pode falar. Até já! 💪',
+    lembrete: 'Oi, {nome}! 👋 Só passando pra ver se ficou alguma dúvida sobre o *Team Caldas*. Qualquer coisa é só falar! 😊',
+    lembrete_sem_nome: 'Oi! 👋 Só passando pra ver se ficou alguma dúvida sobre o *Team Caldas*. Qualquer coisa é só falar! 😊',
+  }
+};
+
+let captacaoConfig = { ...DEFAULT_CAPTACAO_CONFIG, msgs: { ...DEFAULT_CAPTACAO_CONFIG.msgs } };
+
+function loadCaptacaoConfig() {
+  try {
+    if (fs.existsSync(CAPTACAO_CONFIG_FILE)) {
+      const saved = JSON.parse(fs.readFileSync(CAPTACAO_CONFIG_FILE, 'utf8'));
+      captacaoConfig = { ...DEFAULT_CAPTACAO_CONFIG, ...saved, msgs: { ...DEFAULT_CAPTACAO_CONFIG.msgs, ...(saved.msgs||{}) } };
+      console.log('⚙️  Config captação carregada');
+    }
+  } catch (e) { console.error('❌ loadCaptacaoConfig:', e.message); }
+}
+
+function saveCaptacaoConfig() {
+  try { fs.writeFileSync(CAPTACAO_CONFIG_FILE, JSON.stringify(captacaoConfig, null, 2)); }
+  catch (e) { console.error('❌ saveCaptacaoConfig:', e.message); }
+}
+
+function getAdminJid() { return (captacaoConfig.adminTel || '5514997115664').replace(/\D/g,'') + '@s.whatsapp.net'; }
+function msg(key, nome) { return (captacaoConfig.msgs[key] || '').replace(/\{nome\}/g, nome || ''); }
 
 // Contatos já conhecidos — JIDs que já mandaram mensagem antes.
 // Novos contatos (não conhecidos) disparam o fluxo de captação.
@@ -79,10 +116,8 @@ function agendarLembrete(jid) {
   c.reminderTimer = setTimeout(async () => {
     const conv = conversas.get(jid);
     if (!conv || conv.etapa === 'done') return;
-    const msg = conv.nome
-      ? `Oi, ${conv.nome}! 👋 Só passando pra ver se ficou alguma dúvida sobre o *Team Caldas*. Qualquer coisa é só falar! 😊`
-      : 'Oi! 👋 Só passando pra ver se ficou alguma dúvida sobre o *Team Caldas*. Qualquer coisa é só falar! 😊';
-    try { await enviarMsg(jid, msg); } catch (e) { console.error('❌ Lembrete:', e.message); }
+    const lembrete = conv.nome ? msg('lembrete', conv.nome) : msg('lembrete_sem_nome', '');
+    try { await enviarMsg(jid, lembrete); } catch (e) { console.error('❌ Lembrete:', e.message); }
     // Expira silenciosamente após mais 24h sem resposta
     conv.reminderTimer = setTimeout(() => {
       conversas.delete(jid);
@@ -126,39 +161,39 @@ async function avancarEtapa(jid, c, texto) {
     const primeiro = texto.split(/\s+/)[0];
     c.nome  = primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase();
     c.etapa = 2;
-    await enviarMsg(jid, `${c.nome}, antes de te passar todos os detalhes do acompanhamento, posso te fazer algumas perguntas rápidas pra entender bem como podemos te ajudar no *Team Caldas*? 😊`);
+    await enviarMsg(jid, msg('etapa2', c.nome));
 
   } else if (c.etapa === 2) {
     c.etapa = 3;
-    await enviarMsg(jid, `Show, ${c.nome}! 🙌\nQual o seu principal objetivo hoje? Pode dar detalhes como metas, números ou até mandar áudio se preferir…`);
+    await enviarMsg(jid, msg('etapa3', c.nome));
 
   } else if (c.etapa === 3) {
     c.objetivo = texto; c.etapa = 4;
     await notificarAdmin(`🔔 *Novo lead — Team Caldas*\n👤 ${c.nome}\n📱 ${jid.replace('@s.whatsapp.net','')}\n🎯 Objetivo: "${texto}"`);
-    await enviarMsg(jid, `Massa, ${c.nome}! Isso é exatamente o que trabalhamos no Team Caldas. 💪\n\nPra que eu entenda melhor:\n• Há quanto tempo você vem buscando esse objetivo?\n• O que tem feito até agora pra tentar alcançá-lo?`);
+    await enviarMsg(jid, msg('etapa4', c.nome));
 
   } else if (c.etapa === 4) {
     c.historico = texto; c.etapa = 5;
-    await enviarMsg(jid, `Entendi! E o que tem sido mais difícil pra você nessa jornada?\nPode detalhar. 🙏`);
+    await enviarMsg(jid, msg('etapa5', c.nome));
 
   } else if (c.etapa === 5) {
     c.dificuldade = texto; c.etapa = 6;
     await notificarAdmin(`🔔 *Atualização — ${c.nome}*\n😓 Dificuldade: "${texto}"`);
-    await enviarMsg(jid, `Faz todo sentido, ${c.nome}. Muita gente passa por isso.\n\nPosso te enviar um material explicando como a gente vai chegar no seu objetivo nos próximos meses? 📎`);
+    await enviarMsg(jid, msg('etapa6', c.nome));
 
   } else if (c.etapa === 6) {
     c.etapa = 7;
     await enviarPDF(jid);
     await new Promise(r => setTimeout(r, 2000));
-    await enviarMsg(jid, `Prontinho, ${c.nome}! Dá uma olhada com atenção. 😊\n\nShoww! Aqui no *Team Caldas* o trabalho é 100% individualizado MESMO.\nPor isso o próximo passo é agendarmos uma chamada rápida (15-20 min) onde entendo melhor o seu caso e te passo um plano de ação personalizado.\n\nTopa?`);
+    await enviarMsg(jid, msg('etapa7', c.nome));
 
   } else if (c.etapa === 7) {
     c.etapa = 8;
-    await enviarMsg(jid, `Que ótimo! ⏰ Qual o melhor horário pra você ainda hoje ou amanhã?`);
+    await enviarMsg(jid, msg('etapa8', c.nome));
 
   } else if (c.etapa === 8) {
     c.horario = texto; c.etapa = 'done';
-    await enviarMsg(jid, `Perfeito, ${c.nome}! ✅ Thiago vai entrar em contato no horário combinado.\nQualquer dúvida pode falar. Até já! 💪`);
+    await enviarMsg(jid, msg('concluido', c.nome));
     await notificarAdmin(`✅ *Lead qualificado — Team Caldas*\n\n👤 Nome: ${c.nome}\n📱 wa.me/${jid.replace('@s.whatsapp.net','')}\n🎯 Objetivo: "${c.objetivo}"\n📖 Histórico: "${c.historico}"\n😓 Dificuldade: "${c.dificuldade}"\n⏰ Horário solicitado: "${texto}"`);
     console.log(`✅ Fluxo concluído: ${c.nome} (${jid})`);
     setTimeout(() => conversas.delete(jid), 60000);
@@ -167,7 +202,7 @@ async function avancarEtapa(jid, c, texto) {
 
 async function processarFluxo(jid, textoRaw, pushName) {
   if (!sock || waStatus !== 'conectado') return;
-  if (jid === ADMIN_JID) return;
+  if (jid === getAdminJid()) return;
 
   const texto = textoRaw.trim();
   const conv   = conversas.get(jid);
@@ -203,7 +238,7 @@ async function processarFluxo(jid, textoRaw, pushName) {
     // antes de enviar — evita "mensagem indisponível" no destinatário
     try { await sock.presenceSubscribe(jid); } catch {}
     await new Promise(r => setTimeout(r, 1500));
-    await enviarMsg(jid, `Opa! Seja bem-vindo(a) ao *Team Caldas* 💪\nQual o seu nome, por gentileza?`);
+    await enviarMsg(jid, msg('boas_vindas', ''));
     agendarLembrete(jid);
     console.log(`🎯 Fluxo iniciado (novo contato): ${jid}`);
   }
@@ -278,6 +313,7 @@ async function initClient() {
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 
   loadConhecidos();
+  loadCaptacaoConfig();
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 
@@ -490,6 +526,15 @@ app.get('/conversas', (req, res) => {
   res.json({ total: lista.length, conversas: lista });
 });
 
+// Cancela conversa ativa de um número específico
+app.delete('/conversas/:tel', (req, res) => {
+  const jid = req.params.tel.replace(/\D/g,'') + '@s.whatsapp.net';
+  cancelarLembrete(jid);
+  conversas.delete(jid);
+  console.log(`🚫 Conversa cancelada manualmente: ${jid}`);
+  res.json({ ok: true });
+});
+
 // Remove um número dos conhecidos (útil para testar o fluxo novamente)
 app.delete('/contatos/:tel', (req, res) => {
   const jid = req.params.tel.replace(/\D/g,'') + '@s.whatsapp.net';
@@ -498,6 +543,17 @@ app.delete('/contatos/:tel', (req, res) => {
   saveConhecidos();
   console.log(`🗑️  Contato removido dos conhecidos: ${jid}`);
   res.json({ ok: true });
+});
+
+// Config da captação — GET retorna, POST salva
+app.get('/captacao-config', (req, res) => res.json(captacaoConfig));
+app.post('/captacao-config', (req, res) => {
+  const { adminTel, msgs } = req.body;
+  if (adminTel) captacaoConfig.adminTel = adminTel.replace(/\D/g,'');
+  if (msgs && typeof msgs === 'object') captacaoConfig.msgs = { ...captacaoConfig.msgs, ...msgs };
+  saveCaptacaoConfig();
+  console.log('⚙️  Config captação atualizada');
+  res.json({ ok: true, config: captacaoConfig });
 });
 
 app.get('/autoreplies', (req, res) => res.json({ regras: autoReplies }));
