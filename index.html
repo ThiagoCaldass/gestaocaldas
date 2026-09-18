@@ -8069,8 +8069,8 @@ function renderWhatsApp() {
 
         <div style="margin-bottom:12px">
           <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">Palavras-chave que disparam o fluxo (não-contatos)</label>
-          <input id="wap-cap-palavras" type="text" placeholder="oi, olá, info, treino, personal" style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;box-sizing:border-box">
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">Separadas por vírgula. Deixe em branco para disparar em qualquer mensagem.</div>
+          <input id="wap-cap-palavras" type="text" placeholder="oi, olá, quero+treino, info+personal" style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;box-sizing:border-box">
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Separe alternativas por vírgula. Use <code style="background:var(--surface3);padding:1px 4px;border-radius:3px">+</code> para exigir múltiplas palavras na mesma mensagem (ex: <code style="background:var(--surface3);padding:1px 4px;border-radius:3px">quero+treino</code>). Vazio = dispara em qualquer mensagem.</div>
         </div>
         <div style="margin-bottom:12px">
           <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">Número do admin (recebe notificações)</label>
@@ -8286,7 +8286,7 @@ async function wapCarregarCaptacaoConfig() {
     const cfg = await r.json();
     const v = id => document.getElementById(id);
     if (v('wap-cap-admintel')) v('wap-cap-admintel').value = cfg.adminTel || '';
-    if (v('wap-cap-palavras')) v('wap-cap-palavras').value = (cfg.palavras_chave || []).join(', ');
+    if (v('wap-cap-palavras')) v('wap-cap-palavras').value = (cfg.palavras_chave || []).map(p => Array.isArray(p) ? p.join('+') : p).join(', ');
     if (v('wap-cap-boas-vindas')) v('wap-cap-boas-vindas').value = cfg.boas_vindas || '';
     if (v('wap-cap-lembrete')) v('wap-cap-lembrete').value = cfg.lembrete || '';
     if (v('wap-cap-lembrete-sem-nome')) v('wap-cap-lembrete-sem-nome').value = cfg.lembrete_sem_nome || '';
@@ -8306,7 +8306,10 @@ async function wapSalvarCaptacaoConfig() {
   const lembrete = v('wap-cap-lembrete');
   const lembrete_sem_nome = v('wap-cap-lembrete-sem-nome');
   const palavras_raw = v('wap-cap-palavras');
-  const palavras_chave = palavras_raw.split(',').map(p => p.trim()).filter(Boolean);
+  const palavras_chave = palavras_raw.split(',').map(p => p.trim()).filter(Boolean).map(p => {
+    const parts = p.split('+').map(w => w.trim()).filter(Boolean);
+    return parts.length > 1 ? parts : parts[0];
+  });
   try {
     const r = await fetch(getWaServer() + '/captacao-config', {
       method: 'POST',

@@ -331,7 +331,11 @@ async function processarFluxo(jid, textoRaw, pushName) {
   if (isNovo && captacaoAtiva) {
     const palavras = captacaoConfig.palavras_chave;
     const textoLow = texto.toLowerCase();
-    const dispara = !palavras?.length || palavras.some(p => textoLow.includes(p.toLowerCase()));
+    // Cada entrada pode ser string ("oi") ou array (["quero","treino"] = AND).
+    // Entre entradas é OR. Lista vazia = dispara sempre.
+    const dispara = !palavras?.length || palavras.some(p =>
+      Array.isArray(p) ? p.every(w => textoLow.includes(w.toLowerCase())) : textoLow.includes(p.toLowerCase())
+    );
     if (!dispara) return;
     conversas.set(jid, { etapa: 1, nome: pushName || '', ts: Date.now() });
     try { await sock.presenceSubscribe(jid); } catch {}
