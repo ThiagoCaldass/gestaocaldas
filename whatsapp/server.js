@@ -43,30 +43,114 @@ const CONTACTS_FILE  = path.join(AUTH_DIR, 'contacts.json');
 const CAPTACAO_CONFIG_FILE = path.join(__dirname, 'captacao_config.json');
 const TEMPO_LEMBRETE = 24 * 60 * 60 * 1000;      // 24h
 
+// Estrutura de uma etapa do fluxo:
+//   label            — nome descritivo (só para exibição no editor)
+//   mensagem         — texto enviado APÓS receber a resposta desta etapa
+//   salvar_como      — campo da conversa a salvar ('nome'|'objetivo'|'historico'|'dificuldade'|'horario'|null)
+//                      'nome' é especial: pega a primeira palavra e capitaliza
+//   notificar_admin  — se true, envia notif_msg ao admin após receber a resposta
+//   notif_msg        — template da notificação ({nome},{texto},{tel} disponíveis)
+//   enviar_pdf       — se true, envia o PDF antes da mensagem desta etapa
+//   concluir         — se true, esta é a última etapa (marca como done)
+//   msg_conclusao    — mensagem enviada ao lead ao concluir
+//   notif_conclusao  — template da notificação final ao admin
+//   notificar_admin_conclusao — se true, envia notif_conclusao ao concluir
+
+const DEFAULT_ETAPAS = [
+  {
+    label: 'Receber nome',
+    mensagem: '{nome}, antes de te passar todos os detalhes do acompanhamento, posso te fazer algumas perguntas rápidas pra entender bem como podemos te ajudar no *Team Caldas*? 😊',
+    salvar_como: 'nome',
+    notificar_admin: false, notif_msg: '',
+    enviar_pdf: false,
+    concluir: false, msg_conclusao: '', notif_conclusao: '', notificar_admin_conclusao: false,
+  },
+  {
+    label: 'Permissão para perguntas',
+    mensagem: 'Show, {nome}! 🙌\nQual o seu principal objetivo hoje? Pode dar detalhes como metas, números ou até mandar áudio se preferir…',
+    salvar_como: null,
+    notificar_admin: false, notif_msg: '',
+    enviar_pdf: false,
+    concluir: false, msg_conclusao: '', notif_conclusao: '', notificar_admin_conclusao: false,
+  },
+  {
+    label: 'Objetivo',
+    mensagem: 'Massa, {nome}! Isso é exatamente o que trabalhamos no Team Caldas. 💪\n\nPra que eu entenda melhor:\n• Há quanto tempo você vem buscando esse objetivo?\n• O que tem feito até agora pra tentar alcançá-lo?',
+    salvar_como: 'objetivo',
+    notificar_admin: true,
+    notif_msg: '🔔 *Novo lead — Team Caldas*\n👤 {nome}\n📱 {tel}\n🎯 Objetivo: "{texto}"',
+    enviar_pdf: false,
+    concluir: false, msg_conclusao: '', notif_conclusao: '', notificar_admin_conclusao: false,
+  },
+  {
+    label: 'Histórico',
+    mensagem: 'Entendi! E o que tem sido mais difícil pra você nessa jornada?\nPode detalhar. 🙏',
+    salvar_como: 'historico',
+    notificar_admin: false, notif_msg: '',
+    enviar_pdf: false,
+    concluir: false, msg_conclusao: '', notif_conclusao: '', notificar_admin_conclusao: false,
+  },
+  {
+    label: 'Dificuldade',
+    mensagem: 'Faz todo sentido, {nome}. Muita gente passa por isso.\n\nPosso te enviar um material explicando como a gente vai chegar no seu objetivo nos próximos meses? 📎',
+    salvar_como: 'dificuldade',
+    notificar_admin: true,
+    notif_msg: '🔔 *Atualização — {nome}*\n😓 Dificuldade: "{texto}"',
+    enviar_pdf: false,
+    concluir: false, msg_conclusao: '', notif_conclusao: '', notificar_admin_conclusao: false,
+  },
+  {
+    label: 'Aceite do PDF',
+    mensagem: 'Prontinho, {nome}! Dá uma olhada com atenção. 😊\n\nShoww! Aqui no *Team Caldas* o trabalho é 100% individualizado MESMO.\nPor isso o próximo passo é agendarmos uma chamada rápida (15-20 min) onde entendo melhor o seu caso e te passo um plano de ação personalizado.\n\nTopa?',
+    salvar_como: null,
+    notificar_admin: false, notif_msg: '',
+    enviar_pdf: true,
+    concluir: false, msg_conclusao: '', notif_conclusao: '', notificar_admin_conclusao: false,
+  },
+  {
+    label: 'Aceite da chamada',
+    mensagem: 'Que ótimo! ⏰ Qual o melhor horário pra você ainda hoje ou amanhã?',
+    salvar_como: null,
+    notificar_admin: false, notif_msg: '',
+    enviar_pdf: false,
+    concluir: false, msg_conclusao: '', notif_conclusao: '', notificar_admin_conclusao: false,
+  },
+  {
+    label: 'Horário',
+    mensagem: '',
+    salvar_como: 'horario',
+    notificar_admin: false, notif_msg: '',
+    enviar_pdf: false,
+    concluir: true,
+    msg_conclusao: 'Perfeito, {nome}! ✅ Thiago vai entrar em contato no horário combinado.\nQualquer dúvida pode falar. Até já! 💪',
+    notif_conclusao: '✅ *Lead qualificado — Team Caldas*\n\n👤 Nome: {nome}\n📱 wa.me/{tel}\n🎯 Objetivo: "{objetivo}"\n📖 Histórico: "{historico}"\n😓 Dificuldade: "{dificuldade}"\n⏰ Horário: "{horario}"',
+    notificar_admin_conclusao: true,
+  },
+];
+
 const DEFAULT_CAPTACAO_CONFIG = {
   adminTel: '5514997115664',
-  msgs: {
-    boas_vindas:  'Opa! Seja bem-vindo(a) ao *Team Caldas* 💪\nQual o seu nome, por gentileza?',
-    etapa2: '{nome}, antes de te passar todos os detalhes do acompanhamento, posso te fazer algumas perguntas rápidas pra entender bem como podemos te ajudar no *Team Caldas*? 😊',
-    etapa3: 'Show, {nome}! 🙌\nQual o seu principal objetivo hoje? Pode dar detalhes como metas, números ou até mandar áudio se preferir…',
-    etapa4: 'Massa, {nome}! Isso é exatamente o que trabalhamos no Team Caldas. 💪\n\nPra que eu entenda melhor:\n• Há quanto tempo você vem buscando esse objetivo?\n• O que tem feito até agora pra tentar alcançá-lo?',
-    etapa5: 'Entendi! E o que tem sido mais difícil pra você nessa jornada?\nPode detalhar. 🙏',
-    etapa6: 'Faz todo sentido, {nome}. Muita gente passa por isso.\n\nPosso te enviar um material explicando como a gente vai chegar no seu objetivo nos próximos meses? 📎',
-    etapa7: 'Prontinho, {nome}! Dá uma olhada com atenção. 😊\n\nShoww! Aqui no *Team Caldas* o trabalho é 100% individualizado MESMO.\nPor isso o próximo passo é agendarmos uma chamada rápida (15-20 min) onde entendo melhor o seu caso e te passo um plano de ação personalizado.\n\nTopa?',
-    etapa8: 'Que ótimo! ⏰ Qual o melhor horário pra você ainda hoje ou amanhã?',
-    concluido: 'Perfeito, {nome}! ✅ Thiago vai entrar em contato no horário combinado.\nQualquer dúvida pode falar. Até já! 💪',
-    lembrete: 'Oi, {nome}! 👋 Só passando pra ver se ficou alguma dúvida sobre o *Team Caldas*. Qualquer coisa é só falar! 😊',
-    lembrete_sem_nome: 'Oi! 👋 Só passando pra ver se ficou alguma dúvida sobre o *Team Caldas*. Qualquer coisa é só falar! 😊',
-  }
+  // palavras_chave: mensagens de não-contatos que disparam o fluxo.
+  // Lista vazia = dispara para qualquer mensagem de novo contato.
+  palavras_chave: ['oi', 'olá', 'ola', 'info', 'informações', 'informacoes', 'treino', 'personal', 'calistenia', 'quero', 'como funciona'],
+  boas_vindas: 'Opa! Seja bem-vindo(a) ao *Team Caldas* 💪\nQual o seu nome, por gentileza?',
+  lembrete: 'Oi, {nome}! 👋 Só passando pra ver se ficou alguma dúvida sobre o *Team Caldas*. Qualquer coisa é só falar! 😊',
+  lembrete_sem_nome: 'Oi! 👋 Só passando pra ver se ficou alguma dúvida sobre o *Team Caldas*. Qualquer coisa é só falar! 😊',
+  etapas: DEFAULT_ETAPAS,
 };
 
-let captacaoConfig = { ...DEFAULT_CAPTACAO_CONFIG, msgs: { ...DEFAULT_CAPTACAO_CONFIG.msgs } };
+let captacaoConfig = JSON.parse(JSON.stringify(DEFAULT_CAPTACAO_CONFIG));
 
 function loadCaptacaoConfig() {
   try {
     if (fs.existsSync(CAPTACAO_CONFIG_FILE)) {
       const saved = JSON.parse(fs.readFileSync(CAPTACAO_CONFIG_FILE, 'utf8'));
-      captacaoConfig = { ...DEFAULT_CAPTACAO_CONFIG, ...saved, msgs: { ...DEFAULT_CAPTACAO_CONFIG.msgs, ...(saved.msgs||{}) } };
+      captacaoConfig = {
+        ...DEFAULT_CAPTACAO_CONFIG,
+        ...saved,
+        etapas: saved.etapas || DEFAULT_CAPTACAO_CONFIG.etapas,
+        palavras_chave: saved.palavras_chave ?? DEFAULT_CAPTACAO_CONFIG.palavras_chave,
+      };
       console.log('⚙️  Config captação carregada');
     }
   } catch (e) { console.error('❌ loadCaptacaoConfig:', e.message); }
@@ -78,7 +162,18 @@ function saveCaptacaoConfig() {
 }
 
 function getAdminJid() { return (captacaoConfig.adminTel || '5514997115664').replace(/\D/g,'') + '@s.whatsapp.net'; }
-function msg(key, nome) { return (captacaoConfig.msgs[key] || '').replace(/\{nome\}/g, nome || ''); }
+
+function interpolar(tmpl, c, texto, jid) {
+  if (!tmpl) return '';
+  return tmpl
+    .replace(/\{nome\}/g, c.nome || '')
+    .replace(/\{texto\}/g, texto || '')
+    .replace(/\{tel\}/g, (jid || '').replace('@s.whatsapp.net', ''))
+    .replace(/\{objetivo\}/g, c.objetivo || '')
+    .replace(/\{historico\}/g, c.historico || '')
+    .replace(/\{dificuldade\}/g, c.dificuldade || '')
+    .replace(/\{horario\}/g, c.horario || '');
+}
 
 // Contatos já conhecidos — JIDs que já mandaram mensagem antes.
 // Novos contatos (não conhecidos) disparam o fluxo de captação.
@@ -116,7 +211,10 @@ function agendarLembrete(jid) {
   c.reminderTimer = setTimeout(async () => {
     const conv = conversas.get(jid);
     if (!conv || conv.etapa === 'done') return;
-    const lembrete = conv.nome ? msg('lembrete', conv.nome) : msg('lembrete_sem_nome', '');
+    const tmpl = conv.nome
+      ? (captacaoConfig.lembrete || DEFAULT_CAPTACAO_CONFIG.lembrete)
+      : (captacaoConfig.lembrete_sem_nome || DEFAULT_CAPTACAO_CONFIG.lembrete_sem_nome);
+    const lembrete = tmpl.replace(/\{nome\}/g, conv.nome || '');
     try { await enviarMsg(jid, lembrete); } catch (e) { console.error('❌ Lembrete:', e.message); }
     // Expira silenciosamente após mais 24h sem resposta
     conv.reminderTimer = setTimeout(() => {
@@ -134,8 +232,8 @@ async function enviarMsg(jid, texto) {
   try { await sock.sendPresenceUpdate('unavailable'); } catch {}
 }
 
-async function notificarAdmin(msg) {
-  try { await enviarMsg(ADMIN_JID, msg); } catch {}
+async function notificarAdmin(texto) {
+  try { await enviarMsg(getAdminJid(), texto); } catch {}
 }
 
 async function enviarPDF(jid) {
@@ -157,46 +255,44 @@ async function enviarPDF(jid) {
 }
 
 async function avancarEtapa(jid, c, texto) {
-  if (c.etapa === 1) {
-    const primeiro = texto.split(/\s+/)[0];
-    c.nome  = primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase();
-    c.etapa = 2;
-    await enviarMsg(jid, msg('etapa2', c.nome));
+  const etapas = captacaoConfig.etapas || DEFAULT_ETAPAS;
+  const idx = (typeof c.etapa === 'number' ? c.etapa : 1) - 1;
+  if (idx >= etapas.length) return;
+  const etapa = etapas[idx];
 
-  } else if (c.etapa === 2) {
-    c.etapa = 3;
-    await enviarMsg(jid, msg('etapa3', c.nome));
+  // Salvar campo da conversa
+  if (etapa.salvar_como) {
+    if (etapa.salvar_como === 'nome') {
+      const primeiro = texto.split(/\s+/)[0];
+      c.nome = primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase();
+    } else {
+      c[etapa.salvar_como] = texto;
+    }
+  }
 
-  } else if (c.etapa === 3) {
-    c.objetivo = texto; c.etapa = 4;
-    await notificarAdmin(`🔔 *Novo lead — Team Caldas*\n👤 ${c.nome}\n📱 ${jid.replace('@s.whatsapp.net','')}\n🎯 Objetivo: "${texto}"`);
-    await enviarMsg(jid, msg('etapa4', c.nome));
+  // Notificar admin (antes de enviar a mensagem da etapa)
+  if (etapa.notificar_admin && etapa.notif_msg) {
+    await notificarAdmin(interpolar(etapa.notif_msg, c, texto, jid));
+  }
 
-  } else if (c.etapa === 4) {
-    c.historico = texto; c.etapa = 5;
-    await enviarMsg(jid, msg('etapa5', c.nome));
-
-  } else if (c.etapa === 5) {
-    c.dificuldade = texto; c.etapa = 6;
-    await notificarAdmin(`🔔 *Atualização — ${c.nome}*\n😓 Dificuldade: "${texto}"`);
-    await enviarMsg(jid, msg('etapa6', c.nome));
-
-  } else if (c.etapa === 6) {
-    c.etapa = 7;
+  // Enviar PDF se configurado
+  if (etapa.enviar_pdf) {
     await enviarPDF(jid);
     await new Promise(r => setTimeout(r, 2000));
-    await enviarMsg(jid, msg('etapa7', c.nome));
+  }
 
-  } else if (c.etapa === 7) {
-    c.etapa = 8;
-    await enviarMsg(jid, msg('etapa8', c.nome));
-
-  } else if (c.etapa === 8) {
-    c.horario = texto; c.etapa = 'done';
-    await enviarMsg(jid, msg('concluido', c.nome));
-    await notificarAdmin(`✅ *Lead qualificado — Team Caldas*\n\n👤 Nome: ${c.nome}\n📱 wa.me/${jid.replace('@s.whatsapp.net','')}\n🎯 Objetivo: "${c.objetivo}"\n📖 Histórico: "${c.historico}"\n😓 Dificuldade: "${c.dificuldade}"\n⏰ Horário solicitado: "${texto}"`);
+  // Concluir fluxo ou avançar para próxima etapa
+  if (etapa.concluir) {
+    c.etapa = 'done';
+    if (etapa.msg_conclusao) await enviarMsg(jid, interpolar(etapa.msg_conclusao, c, texto, jid));
+    if (etapa.notificar_admin_conclusao && etapa.notif_conclusao) {
+      await notificarAdmin(interpolar(etapa.notif_conclusao, c, texto, jid));
+    }
     console.log(`✅ Fluxo concluído: ${c.nome} (${jid})`);
     setTimeout(() => conversas.delete(jid), 60000);
+  } else {
+    c.etapa = idx + 2; // próxima etapa (1-indexado)
+    if (etapa.mensagem) await enviarMsg(jid, interpolar(etapa.mensagem, c, texto, jid));
   }
 }
 
@@ -231,16 +327,18 @@ async function processarFluxo(jid, textoRaw, pushName) {
     return;
   }
 
-  // Contato novo → inicia fluxo (apenas se captação ativa)
+  // Contato novo → inicia fluxo se captação ativa e palavra-chave encontrada
   if (isNovo && captacaoAtiva) {
+    const palavras = captacaoConfig.palavras_chave;
+    const textoLow = texto.toLowerCase();
+    const dispara = !palavras?.length || palavras.some(p => textoLow.includes(p.toLowerCase()));
+    if (!dispara) return;
     conversas.set(jid, { etapa: 1, nome: pushName || '', ts: Date.now() });
-    // Subscreve presença e aguarda sessão E2E ser estabelecida
-    // antes de enviar — evita "mensagem indisponível" no destinatário
     try { await sock.presenceSubscribe(jid); } catch {}
     await new Promise(r => setTimeout(r, 1500));
-    await enviarMsg(jid, msg('boas_vindas', ''));
+    await enviarMsg(jid, captacaoConfig.boas_vindas || DEFAULT_CAPTACAO_CONFIG.boas_vindas);
     agendarLembrete(jid);
-    console.log(`🎯 Fluxo iniciado (novo contato): ${jid}`);
+    console.log(`🎯 Fluxo iniciado (palavra-chave): ${jid} — "${texto.slice(0,40)}"`);
   }
 }
 
@@ -548,9 +646,13 @@ app.delete('/contatos/:tel', (req, res) => {
 // Config da captação — GET retorna, POST salva
 app.get('/captacao-config', (req, res) => res.json(captacaoConfig));
 app.post('/captacao-config', (req, res) => {
-  const { adminTel, msgs } = req.body;
-  if (adminTel) captacaoConfig.adminTel = adminTel.replace(/\D/g,'');
-  if (msgs && typeof msgs === 'object') captacaoConfig.msgs = { ...captacaoConfig.msgs, ...msgs };
+  const { adminTel, boas_vindas, lembrete, lembrete_sem_nome, etapas, palavras_chave } = req.body;
+  if (adminTel !== undefined) captacaoConfig.adminTel = adminTel.replace(/\D/g,'');
+  if (boas_vindas !== undefined) captacaoConfig.boas_vindas = boas_vindas;
+  if (lembrete !== undefined) captacaoConfig.lembrete = lembrete;
+  if (lembrete_sem_nome !== undefined) captacaoConfig.lembrete_sem_nome = lembrete_sem_nome;
+  if (etapas !== undefined) captacaoConfig.etapas = etapas;
+  if (palavras_chave !== undefined) captacaoConfig.palavras_chave = palavras_chave;
   saveCaptacaoConfig();
   console.log('⚙️  Config captação atualizada');
   res.json({ ok: true, config: captacaoConfig });

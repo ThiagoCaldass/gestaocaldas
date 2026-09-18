@@ -8059,28 +8059,45 @@ function renderWhatsApp() {
 
       <!-- CONFIGURAR FLUXO -->
       <div id="wap-cap-fluxo" style="display:none;padding:0 16px 16px">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:14px">Use <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{nome}</code> para personalizar com o nome do lead. As mudanças valem para as próximas mensagens.</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px">
+          Variáveis disponíveis: <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{nome}</code>
+          <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{texto}</code>
+          <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{tel}</code>
+          <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{objetivo}</code>
+          <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{horario}</code>
+        </div>
+
+        <div style="margin-bottom:12px">
+          <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">Palavras-chave que disparam o fluxo (não-contatos)</label>
+          <input id="wap-cap-palavras" type="text" placeholder="oi, olá, info, treino, personal" style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;box-sizing:border-box">
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Separadas por vírgula. Deixe em branco para disparar em qualquer mensagem.</div>
+        </div>
         <div style="margin-bottom:12px">
           <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">Número do admin (recebe notificações)</label>
-          <input id="wap-cap-admintel" type="tel" placeholder="5514997115664" style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit">
+          <input id="wap-cap-admintel" type="tel" placeholder="5514997115664" style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit;box-sizing:border-box">
         </div>
-        ${[
-          ['boas_vindas','Boas-vindas (1ª mensagem enviada para novos contatos)'],
-          ['etapa2','Etapa 2 — após receber o nome'],
-          ['etapa3','Etapa 3 — pergunta o objetivo'],
-          ['etapa4','Etapa 4 — pergunta histórico'],
-          ['etapa5','Etapa 5 — pergunta dificuldade'],
-          ['etapa6','Etapa 6 — oferece o PDF'],
-          ['etapa7','Etapa 7 — após enviar PDF, propõe call'],
-          ['etapa8','Etapa 8 — pede horário da call'],
-          ['concluido','Concluído — confirmação final'],
-          ['lembrete','Lembrete 24h (com nome)'],
-          ['lembrete_sem_nome','Lembrete 24h (sem nome)'],
-        ].map(([k,label]) => `
-          <div style="margin-bottom:12px">
-            <label style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);font-weight:600">${label}</label>
-            <textarea id="wap-cap-msg-${k}" rows="3" style="width:100%;margin-top:5px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
-          </div>`).join('')}
+        <div style="margin-bottom:12px">
+          <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">Boas-vindas (1ª mensagem para não-contatos)</label>
+          <textarea id="wap-cap-boas-vindas" rows="2" style="width:100%;margin-top:5px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <div style="flex:1">
+            <label style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);font-weight:600">Lembrete 24h (com nome)</label>
+            <textarea id="wap-cap-lembrete" rows="2" style="width:100%;margin-top:5px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+          </div>
+          <div style="flex:1">
+            <label style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);font-weight:600">Lembrete 24h (sem nome)</label>
+            <textarea id="wap-cap-lembrete-sem-nome" rows="2" style="width:100%;margin-top:5px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+          </div>
+        </div>
+
+        <!-- Lista de etapas dinâmica -->
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:12px">
+          <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600;margin-bottom:10px">🔁 Etapas do fluxo de captação</div>
+          <div id="wap-etapas-list" style="display:flex;flex-direction:column;gap:8px"></div>
+          <button onclick="wapAddEtapa()" style="margin-top:10px;width:100%;padding:8px;background:transparent;border:1px dashed var(--border);border-radius:8px;color:var(--text3);cursor:pointer;font-size:12px;font-family:inherit">+ Adicionar etapa</button>
+        </div>
+
         <div style="display:flex;gap:8px;align-items:center">
           <button onclick="wapSalvarCaptacaoConfig()" style="padding:8px 20px;background:var(--accent3);color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;font-family:'Barlow Condensed'">Salvar configuração</button>
           <span id="wap-cap-save-status" style="font-size:11px;color:var(--text3)"></span>
@@ -8118,7 +8135,13 @@ function wapCapTab(tab) {
 }
 
 // ── Captação: monitor de conversas ───────────────────────────────────
-const ETAPA_LABELS = {1:'1 — Aguardando nome',2:'2 — Aguardando confirmação',3:'3 — Aguardando objetivo',4:'4 — Aguardando histórico',5:'5 — Aguardando dificuldade',6:'6 — Aguardando resposta PDF',7:'7 — Aguardando horário call',8:'8 — Concluindo','done':'Concluído'};
+let _captacaoEtapas = [];
+
+function _etapaLabel(etapa) {
+  if (etapa === 'done') return 'Concluído';
+  if (typeof etapa === 'number' && _captacaoEtapas[etapa - 1]) return `${etapa} — ${_captacaoEtapas[etapa - 1].label || 'Etapa ' + etapa}`;
+  return 'Etapa ' + etapa;
+}
 
 async function wapCarregarConversas() {
   const el = document.getElementById('wap-conversas-list');
@@ -8138,7 +8161,7 @@ async function wapCarregarConversas() {
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px">
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;font-size:13px">${c.nome || '(sem nome)'} <span style="font-weight:400;font-size:11px;color:var(--text3)">· ${c.tel}</span></div>
-          <div style="font-size:11px;color:var(--accent3);margin-top:2px">${ETAPA_LABELS[c.etapa] || 'Etapa ' + c.etapa}</div>
+          <div style="font-size:11px;color:var(--accent3);margin-top:2px">${_etapaLabel(c.etapa)}</div>
           ${c.objetivo ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Objetivo: ${c.objetivo}</div>` : ''}
         </div>
         <div style="font-size:10px;color:var(--text3);flex-shrink:0">${tempo} atrás</div>
@@ -8159,34 +8182,136 @@ async function wapCancelarConversa(tel) {
   } catch { showToast('Erro ao cancelar conversa', 'error'); }
 }
 
+// ── Captação: editor de etapas ───────────────────────────────────────
+const _SALVAR_OPTS = [
+  ['','(não salvar)'],['nome','nome (1ª palavra, capitalizada)'],
+  ['objetivo','objetivo'],['historico','histórico'],
+  ['dificuldade','dificuldade'],['horario','horário'],
+];
+
+function _wapEtapaCard(e, idx, total) {
+  const salvOpts = _SALVAR_OPTS.map(([v,l]) => `<option value="${v}" ${e.salvar_como===v?'selected':''}>${l}</option>`).join('');
+  const isLast = idx === total - 1;
+  return `
+  <div id="wap-etapa-${idx}" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+      <span style="font-size:10px;font-weight:700;color:var(--accent3);min-width:18px">${idx+1}</span>
+      <input value="${(e.label||'').replace(/"/g,'&quot;')}" oninput="_wapEtapaField(${idx},'label',this.value)" placeholder="Nome da etapa" style="flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:5px 8px;color:var(--text);font-size:12px;font-family:inherit">
+      <button onclick="wapMoveEtapa(${idx},-1)" ${idx===0?'disabled':''} style="padding:3px 7px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--text3);cursor:pointer;font-size:11px">↑</button>
+      <button onclick="wapMoveEtapa(${idx},1)" ${isLast?'disabled':''} style="padding:3px 7px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--text3);cursor:pointer;font-size:11px">↓</button>
+      <button onclick="wapRemoveEtapa(${idx})" style="padding:3px 7px;border:1px solid var(--red);border-radius:5px;background:transparent;color:var(--red);cursor:pointer;font-size:11px">✕</button>
+    </div>
+
+    <div style="margin-bottom:8px">
+      <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Mensagem enviada após esta etapa</label>
+      <textarea rows="2" oninput="_wapEtapaField(${idx},'mensagem',this.value)" style="width:100%;margin-top:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box">${(e.mensagem||'').replace(/</g,'&lt;')}</textarea>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+      <div>
+        <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Salvar resposta como</label>
+        <select onchange="_wapEtapaField(${idx},'salvar_como',this.value)" style="display:block;margin-top:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:5px 8px;color:var(--text);font-size:12px;font-family:inherit">${salvOpts}</select>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;margin-top:16px">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+          <input type="checkbox" ${e.notificar_admin?'checked':''} onchange="_wapEtapaField(${idx},'notificar_admin',this.checked);_wapRenderEtapas()"> Notificar admin
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+          <input type="checkbox" ${e.enviar_pdf?'checked':''} onchange="_wapEtapaField(${idx},'enviar_pdf',this.checked)"> Enviar PDF
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+          <input type="checkbox" ${e.concluir?'checked':''} onchange="_wapEtapaField(${idx},'concluir',this.checked);_wapRenderEtapas()"> Concluir fluxo
+        </label>
+      </div>
+    </div>
+
+    ${e.notificar_admin ? `
+    <div style="margin-bottom:8px">
+      <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Mensagem de notificação ao admin</label>
+      <textarea rows="2" oninput="_wapEtapaField(${idx},'notif_msg',this.value)" style="width:100%;margin-top:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box">${(e.notif_msg||'').replace(/</g,'&lt;')}</textarea>
+    </div>` : ''}
+
+    ${e.concluir ? `
+    <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+      <div style="font-size:10px;color:var(--accent3);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Configuração de conclusão</div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Mensagem final ao lead</label>
+        <textarea rows="2" oninput="_wapEtapaField(${idx},'msg_conclusao',this.value)" style="width:100%;margin-top:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box">${(e.msg_conclusao||'').replace(/</g,'&lt;')}</textarea>
+      </div>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;margin-bottom:6px">
+        <input type="checkbox" ${e.notificar_admin_conclusao?'checked':''} onchange="_wapEtapaField(${idx},'notificar_admin_conclusao',this.checked);_wapRenderEtapas()"> Notificar admin ao concluir
+      </label>
+      ${e.notificar_admin_conclusao ? `
+      <div>
+        <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Notificação de conclusão ao admin</label>
+        <textarea rows="3" oninput="_wapEtapaField(${idx},'notif_conclusao',this.value)" style="width:100%;margin-top:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box">${(e.notif_conclusao||'').replace(/</g,'&lt;')}</textarea>
+      </div>` : ''}
+    </div>` : ''}
+  </div>`;
+}
+
+function _wapRenderEtapas() {
+  const el = document.getElementById('wap-etapas-list');
+  if (!el) return;
+  el.innerHTML = _captacaoEtapas.map((e, i) => _wapEtapaCard(e, i, _captacaoEtapas.length)).join('');
+}
+
+function _wapEtapaField(idx, field, value) {
+  if (_captacaoEtapas[idx]) _captacaoEtapas[idx][field] = value;
+}
+
+function wapAddEtapa() {
+  _captacaoEtapas.push({ label: 'Nova etapa', mensagem: '', salvar_como: null, notificar_admin: false, notif_msg: '', enviar_pdf: false, concluir: false, msg_conclusao: '', notif_conclusao: '', notificar_admin_conclusao: false });
+  _wapRenderEtapas();
+}
+
+function wapRemoveEtapa(idx) {
+  if (!confirm('Remover esta etapa?')) return;
+  _captacaoEtapas.splice(idx, 1);
+  _wapRenderEtapas();
+}
+
+function wapMoveEtapa(idx, dir) {
+  const dest = idx + dir;
+  if (dest < 0 || dest >= _captacaoEtapas.length) return;
+  [_captacaoEtapas[idx], _captacaoEtapas[dest]] = [_captacaoEtapas[dest], _captacaoEtapas[idx]];
+  _wapRenderEtapas();
+}
+
 // ── Captação: configurar fluxo ───────────────────────────────────────
 async function wapCarregarCaptacaoConfig() {
   try {
     const r = await fetch(getWaServer() + '/captacao-config', { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return;
     const cfg = await r.json();
-    const adminEl = document.getElementById('wap-cap-admintel');
-    if (adminEl) adminEl.value = cfg.adminTel || '';
-    const keys = ['boas_vindas','etapa2','etapa3','etapa4','etapa5','etapa6','etapa7','etapa8','concluido','lembrete','lembrete_sem_nome'];
-    keys.forEach(k => {
-      const el = document.getElementById('wap-cap-msg-' + k);
-      if (el && cfg.msgs?.[k] !== undefined) el.value = cfg.msgs[k];
-    });
+    const v = id => document.getElementById(id);
+    if (v('wap-cap-admintel')) v('wap-cap-admintel').value = cfg.adminTel || '';
+    if (v('wap-cap-palavras')) v('wap-cap-palavras').value = (cfg.palavras_chave || []).join(', ');
+    if (v('wap-cap-boas-vindas')) v('wap-cap-boas-vindas').value = cfg.boas_vindas || '';
+    if (v('wap-cap-lembrete')) v('wap-cap-lembrete').value = cfg.lembrete || '';
+    if (v('wap-cap-lembrete-sem-nome')) v('wap-cap-lembrete-sem-nome').value = cfg.lembrete_sem_nome || '';
+    if (Array.isArray(cfg.etapas)) {
+      _captacaoEtapas = cfg.etapas.map(e => ({ ...e }));
+      _wapRenderEtapas();
+    }
   } catch {}
 }
 
 async function wapSalvarCaptacaoConfig() {
   const status = document.getElementById('wap-cap-save-status');
   if (status) status.textContent = 'Salvando...';
-  const adminTel = document.getElementById('wap-cap-admintel')?.value || '';
-  const keys = ['boas_vindas','etapa2','etapa3','etapa4','etapa5','etapa6','etapa7','etapa8','concluido','lembrete','lembrete_sem_nome'];
-  const msgs = {};
-  keys.forEach(k => { const el = document.getElementById('wap-cap-msg-' + k); if (el) msgs[k] = el.value; });
+  const v = id => document.getElementById(id)?.value || '';
+  const adminTel = v('wap-cap-admintel');
+  const boas_vindas = v('wap-cap-boas-vindas');
+  const lembrete = v('wap-cap-lembrete');
+  const lembrete_sem_nome = v('wap-cap-lembrete-sem-nome');
+  const palavras_raw = v('wap-cap-palavras');
+  const palavras_chave = palavras_raw.split(',').map(p => p.trim()).filter(Boolean);
   try {
     const r = await fetch(getWaServer() + '/captacao-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminTel, msgs }),
+      body: JSON.stringify({ adminTel, boas_vindas, lembrete, lembrete_sem_nome, palavras_chave, etapas: _captacaoEtapas }),
       signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) throw new Error('erro');
