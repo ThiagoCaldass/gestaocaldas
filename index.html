@@ -8077,6 +8077,11 @@ function renderWhatsApp() {
           <input id="wap-cap-admintel" type="tel" placeholder="5514997115664" style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit;box-sizing:border-box">
         </div>
         <div style="margin-bottom:12px">
+          <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">URL do PDF (Google Drive, Dropbox, etc.)</label>
+          <input id="wap-cap-pdf-url" type="url" placeholder="https://drive.google.com/uc?export=download&id=..." style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;box-sizing:border-box">
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Link direto para download. No Google Drive: Compartilhar → qualquer pessoa com o link → copiar link de download direto.</div>
+        </div>
+        <div style="margin-bottom:12px">
           <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">Boas-vindas (1ª mensagem para não-contatos)</label>
           <textarea id="wap-cap-boas-vindas" rows="2" style="width:100%;margin-top:5px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
         </div>
@@ -8192,6 +8197,7 @@ const _SALVAR_OPTS = [
 function _wapEtapaCard(e, idx, total) {
   const salvOpts = _SALVAR_OPTS.map(([v,l]) => `<option value="${v}" ${e.salvar_como===v?'selected':''}>${l}</option>`).join('');
   const isLast = idx === total - 1;
+  const taStyle = 'width:100%;margin-top:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box';
   return `
   <div id="wap-etapa-${idx}" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
@@ -8204,7 +8210,7 @@ function _wapEtapaCard(e, idx, total) {
 
     <div style="margin-bottom:8px">
       <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Mensagem enviada após esta etapa</label>
-      <textarea rows="2" oninput="_wapEtapaField(${idx},'mensagem',this.value)" style="width:100%;margin-top:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box">${(e.mensagem||'').replace(/</g,'&lt;')}</textarea>
+      <textarea rows="2" oninput="_wapEtapaField(${idx},'mensagem',this.value)" style="${taStyle}">${(e.mensagem||'').replace(/</g,'&lt;')}</textarea>
     </div>
 
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
@@ -8214,39 +8220,36 @@ function _wapEtapaCard(e, idx, total) {
       </div>
       <div style="display:flex;gap:14px;align-items:center;margin-top:16px">
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
-          <input type="checkbox" ${e.notificar_admin?'checked':''} onchange="_wapEtapaField(${idx},'notificar_admin',this.checked);_wapRenderEtapas()"> Notificar admin
+          <input type="checkbox" ${e.notificar_admin?'checked':''} onchange="_wapEtapaField(${idx},'notificar_admin',this.checked);document.getElementById('wap-notif-${idx}').style.display=this.checked?'block':'none'"> Notificar admin
         </label>
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
           <input type="checkbox" ${e.enviar_pdf?'checked':''} onchange="_wapEtapaField(${idx},'enviar_pdf',this.checked)"> Enviar PDF
         </label>
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
-          <input type="checkbox" ${e.concluir?'checked':''} onchange="_wapEtapaField(${idx},'concluir',this.checked);_wapRenderEtapas()"> Concluir fluxo
+          <input type="checkbox" ${e.concluir?'checked':''} onchange="_wapEtapaField(${idx},'concluir',this.checked);document.getElementById('wap-concluir-${idx}').style.display=this.checked?'block':'none'"> Concluir fluxo
         </label>
       </div>
     </div>
 
-    ${e.notificar_admin ? `
-    <div style="margin-bottom:8px">
+    <div id="wap-notif-${idx}" style="margin-bottom:8px;${e.notificar_admin?'':'display:none'}">
       <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Mensagem de notificação ao admin</label>
-      <textarea rows="2" oninput="_wapEtapaField(${idx},'notif_msg',this.value)" style="width:100%;margin-top:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box">${(e.notif_msg||'').replace(/</g,'&lt;')}</textarea>
-    </div>` : ''}
+      <textarea rows="2" oninput="_wapEtapaField(${idx},'notif_msg',this.value)" style="${taStyle}">${(e.notif_msg||'').replace(/</g,'&lt;')}</textarea>
+    </div>
 
-    ${e.concluir ? `
-    <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+    <div id="wap-concluir-${idx}" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;${e.concluir?'':'display:none'}">
       <div style="font-size:10px;color:var(--accent3);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Configuração de conclusão</div>
       <div style="margin-bottom:8px">
         <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Mensagem final ao lead</label>
-        <textarea rows="2" oninput="_wapEtapaField(${idx},'msg_conclusao',this.value)" style="width:100%;margin-top:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box">${(e.msg_conclusao||'').replace(/</g,'&lt;')}</textarea>
+        <textarea rows="2" oninput="_wapEtapaField(${idx},'msg_conclusao',this.value)" style="${taStyle}">${(e.msg_conclusao||'').replace(/</g,'&lt;')}</textarea>
       </div>
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;margin-bottom:6px">
-        <input type="checkbox" ${e.notificar_admin_conclusao?'checked':''} onchange="_wapEtapaField(${idx},'notificar_admin_conclusao',this.checked);_wapRenderEtapas()"> Notificar admin ao concluir
+        <input type="checkbox" ${e.notificar_admin_conclusao?'checked':''} onchange="_wapEtapaField(${idx},'notificar_admin_conclusao',this.checked);document.getElementById('wap-notif-conc-${idx}').style.display=this.checked?'block':'none'"> Notificar admin ao concluir
       </label>
-      ${e.notificar_admin_conclusao ? `
-      <div>
+      <div id="wap-notif-conc-${idx}" style="${e.notificar_admin_conclusao?'':'display:none'}">
         <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Notificação de conclusão ao admin</label>
-        <textarea rows="3" oninput="_wapEtapaField(${idx},'notif_conclusao',this.value)" style="width:100%;margin-top:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box">${(e.notif_conclusao||'').replace(/</g,'&lt;')}</textarea>
-      </div>` : ''}
-    </div>` : ''}
+        <textarea rows="3" oninput="_wapEtapaField(${idx},'notif_conclusao',this.value)" style="${taStyle}">${(e.notif_conclusao||'').replace(/</g,'&lt;')}</textarea>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -8286,6 +8289,7 @@ async function wapCarregarCaptacaoConfig() {
     const cfg = await r.json();
     const v = id => document.getElementById(id);
     if (v('wap-cap-admintel')) v('wap-cap-admintel').value = cfg.adminTel || '';
+    if (v('wap-cap-pdf-url')) v('wap-cap-pdf-url').value = cfg.pdf_url || '';
     if (v('wap-cap-palavras')) v('wap-cap-palavras').value = (cfg.palavras_chave || []).map(p => Array.isArray(p) ? p.join('+') : p).join(', ');
     if (v('wap-cap-boas-vindas')) v('wap-cap-boas-vindas').value = cfg.boas_vindas || '';
     if (v('wap-cap-lembrete')) v('wap-cap-lembrete').value = cfg.lembrete || '';
@@ -8302,6 +8306,7 @@ async function wapSalvarCaptacaoConfig() {
   if (status) status.textContent = 'Salvando...';
   const v = id => document.getElementById(id)?.value || '';
   const adminTel = v('wap-cap-admintel');
+  const pdf_url = v('wap-cap-pdf-url');
   const boas_vindas = v('wap-cap-boas-vindas');
   const lembrete = v('wap-cap-lembrete');
   const lembrete_sem_nome = v('wap-cap-lembrete-sem-nome');
@@ -8314,7 +8319,7 @@ async function wapSalvarCaptacaoConfig() {
     const r = await fetch(getWaServer() + '/captacao-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminTel, boas_vindas, lembrete, lembrete_sem_nome, palavras_chave, etapas: _captacaoEtapas }),
+      body: JSON.stringify({ adminTel, pdf_url, boas_vindas, lembrete, lembrete_sem_nome, palavras_chave, etapas: _captacaoEtapas }),
       signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) throw new Error('erro');

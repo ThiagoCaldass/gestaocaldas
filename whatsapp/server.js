@@ -130,6 +130,7 @@ const DEFAULT_ETAPAS = [
 
 const DEFAULT_CAPTACAO_CONFIG = {
   adminTel: '5514997115664',
+  pdf_url: '',  // URL pública do PDF — sobrepõe WA_PDF_URL e PDF_PATH quando preenchida
   // palavras_chave: mensagens de não-contatos que disparam o fluxo.
   // Lista vazia = dispara para qualquer mensagem de novo contato.
   palavras_chave: ['oi', 'olá', 'ola', 'info', 'informações', 'informacoes', 'treino', 'personal', 'calistenia', 'quero', 'como funciona'],
@@ -239,9 +240,10 @@ async function notificarAdmin(texto) {
 async function enviarPDF(jid) {
   if (!sock || waStatus !== 'conectado') return;
   let buffer = null;
-  if (PDF_URL) {
+  const urlParaUsar = captacaoConfig.pdf_url || PDF_URL;
+  if (urlParaUsar) {
     try {
-      const r = await fetch(PDF_URL, { signal: AbortSignal.timeout(15000) });
+      const r = await fetch(urlParaUsar, { signal: AbortSignal.timeout(15000) });
       if (r.ok) buffer = Buffer.from(await r.arrayBuffer());
     } catch (e) { console.error('❌ PDF via URL:', e.message); }
   }
@@ -650,8 +652,9 @@ app.delete('/contatos/:tel', (req, res) => {
 // Config da captação — GET retorna, POST salva
 app.get('/captacao-config', (req, res) => res.json(captacaoConfig));
 app.post('/captacao-config', (req, res) => {
-  const { adminTel, boas_vindas, lembrete, lembrete_sem_nome, etapas, palavras_chave } = req.body;
+  const { adminTel, pdf_url, boas_vindas, lembrete, lembrete_sem_nome, etapas, palavras_chave } = req.body;
   if (adminTel !== undefined) captacaoConfig.adminTel = adminTel.replace(/\D/g,'');
+  if (pdf_url !== undefined) captacaoConfig.pdf_url = pdf_url;
   if (boas_vindas !== undefined) captacaoConfig.boas_vindas = boas_vindas;
   if (lembrete !== undefined) captacaoConfig.lembrete = lembrete;
   if (lembrete_sem_nome !== undefined) captacaoConfig.lembrete_sem_nome = lembrete_sem_nome;
