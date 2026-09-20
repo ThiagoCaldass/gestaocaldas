@@ -4640,8 +4640,8 @@ function renderPersonalContent(md, tab) {
           </td>
           ${(tab==='online'||tab==='presencial')?`<td style="${ro?'':'cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
             <div style="display:flex;align-items:center;gap:5px">
-              ${tab==='online'&&!ro?`<span onclick="event.stopPropagation();cycleFormStatus('${a.id}')" title="Ciclar status do forms" style="font-size:14px;line-height:1;cursor:pointer">${_formEmoji(a)}</span>`:''}
               ${a.pausado?'—':aV?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(a.proxAtt)} !</span>`:aP?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(a.proxAtt)}</span>`:a7?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(a.proxAtt)}</span>`:a.proxAtt?`<span style="color:var(--text2);font-size:12px">${fmtDate(a.proxAtt)}</span>`:`<span style="color:var(--text3);font-size:11px">Definir</span>`}
+              ${tab==='online'&&!ro?`<span onclick="event.stopPropagation();cycleFormStatus('${a.id}')" title="Ciclar status do forms" style="font-size:14px;line-height:1;cursor:pointer">${_formEmoji(a)}</span>`:''}
             </div>
           </td>
 `:''}
