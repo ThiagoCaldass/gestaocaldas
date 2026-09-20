@@ -4656,7 +4656,6 @@ function renderPersonalContent(md, tab) {
     <div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);font-size:12px">
       <span style="color:var(--text3)">Total</span>
       <div style="display:flex;align-items:center;gap:12px">
-        ${tab==='online'&&!ro?`<button class="btn btn-ghost btn-sm" onclick="desmarcarTodosMsg()" style="font-size:11px">↺ Msg</button>`:''}
         <span class="mono stat-green">${fmt(tab==='online'?tOl:tPr)}</span>
       </div>
     </div></div>
