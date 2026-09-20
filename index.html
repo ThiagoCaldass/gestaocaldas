@@ -1037,6 +1037,7 @@ function migrateParceriasToOnline(md) {
       plano: 'parceria',
       proxAtt: p.proxAtt || null,
       attTreino: p.attTreino || null,
+      formStatus: p.formStatus || 'ok',
       obs: p.obs || '',
       telefone: p.telefone || '',
       email: p.email || '',
@@ -4638,7 +4639,10 @@ function renderPersonalContent(md, tab) {
             })():(()=>{const n=(a.aulasDatas||[]).length;return `<span style="font-family:'Barlow Condensed';font-size:15px;font-weight:700;color:${n>0?'var(--accent)':'var(--text3)'}">${n}</span><span style="font-size:10px;color:var(--text3);margin-left:2px">aula${n!==1?'s':''}</span>`;})()}
           </td>
           ${(tab==='online'||tab==='presencial')?`<td style="${ro?'':'cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
-            ${a.pausado?'—':aV?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(a.proxAtt)} !</span>`:aP?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(a.proxAtt)}</span>`:a7?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(a.proxAtt)}</span>`:a.proxAtt?`<span style="color:var(--text2);font-size:12px">${fmtDate(a.proxAtt)}</span>`:`<span style="color:var(--text3);font-size:11px">Definir</span>`}
+            <div style="display:flex;align-items:center;gap:5px">
+              ${tab==='online'&&!ro?`<span onclick="event.stopPropagation();cycleFormStatus('${a.id}')" title="Ciclar status do forms" style="font-size:14px;line-height:1;cursor:pointer">${_formEmoji(a)}</span>`:''}
+              ${a.pausado?'—':aV?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(a.proxAtt)} !</span>`:aP?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(a.proxAtt)}</span>`:a7?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(a.proxAtt)}</span>`:a.proxAtt?`<span style="color:var(--text2);font-size:12px">${fmtDate(a.proxAtt)}</span>`:`<span style="color:var(--text3);font-size:11px">Definir</span>`}
+            </div>
           </td>
 `:''}
           <td style="${ro?'':'cursor:pointer'}" onclick="${a.pausado?`togglePausadoPersonal('${a.id}')`:`togglePersonal('${a.id}')`}">
@@ -5216,6 +5220,22 @@ function saveEditCell_Cali(id, campo) {
 }
 
 
+function _formEmoji(a) {
+  if (a.formStatus === 'aguardando') return '📋';
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const atrasado = a.proxAtt && new Date(a.proxAtt) < hoje;
+  if (a.formStatus === 'pendente' || atrasado) return '🔴';
+  return '✅';
+}
+function cycleFormStatus(id) {
+  if(guardReadOnly()) return;
+  const md = getMonthData();
+  const a = md.personal.online.find(x => x.id === id);
+  if (!a) return;
+  const cur = _formEmoji(a);
+  a.formStatus = cur === '✅' ? 'pendente' : cur === '🔴' ? 'aguardando' : 'ok';
+  saveData(); setAlunosTab('online');
+}
 function attTreino(id){
   if(guardReadOnly())return;
   const md=getMonthData();
@@ -5250,6 +5270,7 @@ function saveAtt(id){
   a.attTreino=document.getElementById('mD').value;
   a.proxAtt=document.getElementById('mProx').value;
   a.obs=document.getElementById('mO').value;
+  a.formStatus='ok';
   saveData();closeModal();setAlunosTab(alunosTab);
 }
 function gerenciarPlanos() {
