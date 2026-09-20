@@ -4563,7 +4563,8 @@ function renderPersonalContent(md, tab) {
         const h0=new Date();h0.setHours(0,0,0,0);
         const pAD=a.proxAtt?new Date(a.proxAtt):null;
         const dpV=pAD?Math.floor((pAD-h0)/86400000):null;
-        const aV=dpV!==null&&dpV<0, aP=dpV!==null&&dpV>=0&&dpV<=3, a7=dpV!==null&&dpV>3&&dpV<=7;
+        const _formAguard = tab==='online' && a.formStatus==='aguardando';
+        const aV=!_formAguard&&dpV!==null&&dpV<0, aP=!_formAguard&&dpV!==null&&dpV>=0&&dpV<=3, a7=!_formAguard&&dpV!==null&&dpV>3&&dpV<=7;
 
         // ── Payment urgency ──
         let pgtoUrgency = null; // null | 'amarelo' | 'vermelho'
