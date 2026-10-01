@@ -897,7 +897,7 @@ function emptyMonth() {
     tattoo: [],
     parcerias: [],
     cartao: { bb: { fechamento: null, parceladas: [], avista: [], assinaturas: [] }, inter: { fechamento: null, parceladas: [], avista: [], assinaturas: [] }, emp: { fechamento: null, parceladas: [], avista: [], assinaturas: [] } },
-    contaEmp: { saidas: [], retiradas: [], contasAPagar: [] }
+    contaEmp: { saidas: [], retiradas: [] }
   };
 }
 
@@ -1110,16 +1110,8 @@ function seedNewMonth(md, k) {
   // 2b. Copy persistent contaEmp saídas (reset pago, ts)
   const saidasPers = (prev.contaEmp?.saidas || []).filter(s => s.persistente);
   if (saidasPers.length > 0) {
-    if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [], contasAPagar: [] };
-    md.contaEmp.saidas = saidasPers.map(s => ({ ...s, id: uid(), pago: false, ts: Date.now() }));
-  }
-
-  // 2c. Copy persistent contaEmp contasAPagar (reset pago, ts)
-  const contasPers = (prev.contaEmp?.contasAPagar || []).filter(c => c.persistente);
-  if (contasPers.length > 0) {
-    if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [], contasAPagar: [] };
-    if (!md.contaEmp.contasAPagar) md.contaEmp.contasAPagar = [];
-    md.contaEmp.contasAPagar = contasPers.map(c => ({ ...c, id: uid(), pago: false, ts: Date.now() }));
+    if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
+    md.contaEmp.saidas = saidasPers.map(s => ({ ...s, id: uid(), pago: false, dataPago: '', ts: Date.now() }));
   }
 
   // 3. Copy alunos (reset pago, aulasDatas — mantém nome, valor, configurações)
@@ -2049,15 +2041,13 @@ function renderDashboard(md) {
     .reduce((s,g)=>s+g.valor, 0);
 
   // ── Conta Empresarial ──
-  if(!md.contaEmp) md.contaEmp={saidas:[],retiradas:[],contasAPagar:[]};
-  if(!md.contaEmp.contasAPagar) md.contaEmp.contasAPagar=[];
+  if(!md.contaEmp) md.contaEmp={saidas:[],retiradas:[]};
   const empAllAlunos=[...(md.calistenia||[]),...(md.personal?.online||[]),...(md.personal?.presencial||[])];
   const empEntradas=empAllAlunos.filter(a=>a.pago&&a.contaPgto==='emp');
   const empTotalEnt=empEntradas.reduce((s,a)=>s+(a.valorFinal||a.valor||0),0);
   const empTotalSai=md.contaEmp.saidas.reduce((s,x)=>s+(x.valor||0),0);
   const empTotalRet=md.contaEmp.retiradas.reduce((s,x)=>s+(x.valor||0),0);
-  const empTotalCap=md.contaEmp.contasAPagar.reduce((s,x)=>s+(x.valor||0),0);
-  const empSaldo=empTotalEnt-empTotalSai-empTotalRet-empTotalCap;
+  const empSaldo=empTotalEnt-empTotalSai-empTotalRet;
   if(!md.cartao.emp) md.cartao.emp={fechamento:null,parceladas:[],avista:[],assinaturas:[]};
   const empCartaoT=[...md.cartao.emp.parceladas,...md.cartao.emp.avista,...md.cartao.emp.assinaturas.filter(a=>!a.pausada)].reduce((s,x)=>s+(x.valor||0),0);
 
@@ -2297,10 +2287,10 @@ function renderDashboard(md) {
         <div style="margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
             <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Comprometido das entradas</span>
-            <span style="font-size:11px;font-family:'Barlow Condensed';color:var(--text2)">${Math.min(100,Math.round((empTotalSai+empTotalRet+empTotalCap+empCartaoT)/empTotalEnt*100))}%</span>
+            <span style="font-size:11px;font-family:'Barlow Condensed';color:var(--text2)">${Math.min(100,Math.round((empTotalSai+empTotalRet+empCartaoT)/empTotalEnt*100))}%</span>
           </div>
           <div class="progress-bar">
-            <div class="progress-fill" style="width:${Math.min(100,Math.round((empTotalSai+empTotalRet+empTotalCap)/empTotalEnt*100))}%;background:var(--red)"></div>
+            <div class="progress-fill" style="width:${Math.min(100,Math.round((empTotalSai+empTotalRet)/empTotalEnt*100))}%;background:var(--red)"></div>
           </div>
         </div>` : ''}
         <!-- gráfico pizza entradas -->
@@ -2854,8 +2844,7 @@ function _buildFluxoDataEmp() {
     if (d.getFullYear() !== ano || d.getMonth() !== mes) return null;
     return d.getDate();
   }
-  if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [], contasAPagar: [] };
-  if (!md.contaEmp.contasAPagar) md.contaEmp.contasAPagar = [];
+  if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
   const caliCalc = calcValoresCali(md.calistenia || []);
   const allAlunos = [
     ...caliCalc.filter(a => a.contaPgto === 'emp'),
@@ -2863,8 +2852,7 @@ function _buildFluxoDataEmp() {
   ];
   const expGanhos  = allAlunos.reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
   const expGastos  = (md.contaEmp.saidas||[]).reduce((s,x)=>s+(x.valor||0),0)
-                   + (md.contaEmp.retiradas||[]).reduce((s,x)=>s+(x.valor||0),0)
-                   + (md.contaEmp.contasAPagar||[]).reduce((s,x)=>s+(x.valor||0),0);
+                   + (md.contaEmp.retiradas||[]).reduce((s,x)=>s+(x.valor||0),0);
   const expSaldoFim = expGanhos - expGastos;
   const entradas = {}, saidas = {};
   function addEv(map, dia, nome, valor, feito) {
@@ -2886,10 +2874,6 @@ function _buildFluxoDataEmp() {
   (md.contaEmp.retiradas||[]).forEach(r => {
     const dia = dateDay(r.data) || daysInMonth;
     addEv(saidas, dia, r.desc||'Retirada', r.valor||0, true);
-  });
-  (md.contaEmp.contasAPagar||[]).forEach(c => {
-    const dia = dateDay(c.dataPrevisao) || daysInMonth;
-    addEv(saidas, dia, c.desc||'Conta', c.valor||0, c.pago);
   });
   const chartNet = Object.values(entradas).flat().reduce((s,x)=>s+x.valor,0)
                  - Object.values(saidas).flat().reduce((s,x)=>s+x.valor,0);
@@ -6251,8 +6235,7 @@ function saveFechamento(bank) {
 
 // ==================== CONTA EMPRESARIAL ====================
 function renderContaEmpresarial(md) {
-  if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [], contasAPagar: [] };
-  if (!md.contaEmp.contasAPagar) md.contaEmp.contasAPagar = [];
+  if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
   const ro = isReadOnly();
   const caliCalcEmp = calcValoresCali(md.calistenia || []);
   const empCali  = caliCalcEmp.filter(a => a.pago && a.contaPgto === 'emp').reduce((s,a) => s + (a.valorFinal||0), 0);
@@ -6261,21 +6244,19 @@ function renderContaEmpresarial(md) {
   const totalEntradas = empCali + empOnline + empPres;
   const totalSaidas = md.contaEmp.saidas.reduce((s,x) => s + (x.valor||0), 0);
   const totalRetiradas = md.contaEmp.retiradas.reduce((s,x) => s + (x.valor||0), 0);
-  const totalContasAPagar = md.contaEmp.contasAPagar.reduce((s,x) => s + (x.valor||0), 0);
-  const totalSaidasAll = totalSaidas + totalRetiradas + totalContasAPagar;
+  const totalSaidasAll = totalSaidas + totalRetiradas;
   const saldo = totalEntradas - totalSaidasAll;
   const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '';
 
   document.getElementById('topbarActions').innerHTML = ro ? '' : `
     <button class="btn btn-ghost btn-sm" onclick="openAddSaidaEmp()">+ <span>Saída</span></button>
-    <button class="btn btn-ghost btn-sm" onclick="openAddContaAPagarEmp()">+ <span>Conta</span></button>
     <button class="btn btn-primary btn-sm" onclick="openAddRetiradaEmp()">+ <span>Retirada</span></button>`;
 
   const fInner = document.getElementById('financasInner') || document.getElementById('content');
   fInner.innerHTML = `<div>
     <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card green"><div class="stat-label">Entradas</div><div class="stat-value stat-green">${fmt(totalEntradas)}</div><div class="stat-sub">Cali ${fmt(empCali)} · Online ${fmt(empOnline)} · Pres. ${fmt(empPres)}</div></div>
-      <div class="stat-card red"><div class="stat-label">Saídas + Retiradas</div><div class="stat-value stat-red">${fmt(totalSaidasAll)}</div><div class="stat-sub">${md.contaEmp.saidas.length} saída${md.contaEmp.saidas.length!==1?'s':''} · ${md.contaEmp.retiradas.length} ret. · ${md.contaEmp.contasAPagar.length} conta${md.contaEmp.contasAPagar.length!==1?'s':''}</div></div>
+      <div class="stat-card red"><div class="stat-label">Saídas + Retiradas</div><div class="stat-value stat-red">${fmt(totalSaidasAll)}</div><div class="stat-sub">${md.contaEmp.saidas.length} saída${md.contaEmp.saidas.length!==1?'s':''} · ${md.contaEmp.retiradas.length} retirada${md.contaEmp.retiradas.length!==1?'s':''}</div></div>
       <div class="stat-card accent"><div class="stat-label">Saldo</div><div class="stat-value ${saldo>=0?'stat-green':'stat-red'}">${fmt(saldo)}</div></div>
     </div>
 
@@ -6315,15 +6296,21 @@ function renderContaEmpresarial(md) {
         <div class="table-card">
           <div class="table-scroll"><table style="table-layout:fixed">
           <thead><tr>
-            <th style="width:36%">Descrição</th>
-            <th style="width:18%">Valor</th>
+            <th style="width:34%">Descrição</th>
+            <th style="width:16%">Valor</th>
             <th style="width:13%">Status</th>
-            <th style="width:15%">Data</th>
+            <th style="width:19%">Data</th>
             <th style="width:18%"></th>
           </tr></thead>
           <tbody>${md.contaEmp.saidas.length === 0
             ? `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px">Nenhuma saída</td></tr>`
-            : md.contaEmp.saidas.map((x,i) => `<tr>
+            : md.contaEmp.saidas.map((x,i) => {
+                const dataPrev = x.dataPrevisao || x.data || '';
+                const dataPago = x.dataPago || '';
+                const dataLabel = x.pago
+                  ? (dataPago ? `<span style="color:var(--green);font-size:11px">✓ ${fmtDate(dataPago)}</span>` : '<span style="color:var(--green);font-size:11px">✓</span>')
+                  : (dataPrev ? `<span style="color:var(--text3);font-size:11px">Prev: ${fmtDate(dataPrev)}</span>` : '—');
+                return `<tr>
                 <td>
                   <div style="display:flex;align-items:center;gap:5px">
                     <span>${x.desc||''}</span>
@@ -6332,14 +6319,14 @@ function renderContaEmpresarial(md) {
                 </td>
                 <td class="mono stat-red">${fmt(x.valor||0)}</td>
                 <td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':'toggleSaidaEmp('+i+')'}">
-                  <span class="badge ${x.pago?'badge-green':'badge-red'}">${x.pago?'✓':'✕'}</span>
+                  <span class="badge ${x.pago?'badge-green':'badge-yellow'}">${x.pago?'Pago':'Pendente'}</span>
                 </td>
-                <td style="color:var(--text3);font-size:11px">${fmtDate(x.data)}</td>
+                <td>${dataLabel}</td>
                 ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
                   <button class="btn btn-ghost btn-sm" onclick="editSaidaEmp(${i})" style="padding:4px 7px">✎</button>
                   <button class="btn btn-danger btn-sm" onclick="removeSaidaEmp(${i})" style="padding:4px 7px">✕</button>
                 </div></td>`}
-              </tr>`).join('')}
+              </tr>`;}).join('')}
           </tbody></table></div>
           <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
             <span style="color:var(--text3)">Total</span><span class="mono stat-red">${fmt(totalSaidas)}</span>
@@ -6368,41 +6355,6 @@ function renderContaEmpresarial(md) {
             <span style="color:var(--text3)">Total</span><span class="mono stat-red">${fmt(totalRetiradas)}</span>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div class="section-header" style="margin-top:16px"><div class="section-title">CONTAS A PAGAR</div>${ro?'':`<button class="btn btn-ghost btn-sm" onclick="openAddContaAPagarEmp()">+</button>`}</div>
-    <div class="table-card">
-      <div class="table-scroll"><table style="table-layout:fixed">
-      <thead><tr>
-        <th style="width:32%">Descrição</th>
-        <th style="width:16%">Valor</th>
-        <th style="width:11%">Status</th>
-        <th style="width:16%">Previsão</th>
-        <th style="width:25%"></th>
-      </tr></thead>
-      <tbody>${md.contaEmp.contasAPagar.length === 0
-        ? `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px">Nenhuma conta a pagar</td></tr>`
-        : md.contaEmp.contasAPagar.map((x,i) => `<tr>
-            <td>
-              <div style="display:flex;align-items:center;gap:5px">
-                <span>${x.desc||''}</span>
-                ${x.persistente?`<span title="Recorrente" style="font-size:10px;color:var(--accent3)">🔁</span>`:''}
-              </div>
-            </td>
-            <td class="mono stat-red">${fmt(x.valor||0)}</td>
-            <td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':'toggleContaAPagarEmp('+i+')'}">
-              <span class="badge ${x.pago?'badge-green':'badge-yellow'}">${x.pago?'Pago':'Pendente'}</span>
-            </td>
-            <td style="color:var(--text3);font-size:11px">${fmtDate(x.dataPrevisao)}</td>
-            ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
-              <button class="btn btn-ghost btn-sm" onclick="editContaAPagarEmp(${i})" style="padding:4px 7px">✎</button>
-              <button class="btn btn-danger btn-sm" onclick="removeContaAPagarEmp(${i})" style="padding:4px 7px">✕</button>
-            </div></td>`}
-          </tr>`).join('')}
-      </tbody></table></div>
-      <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
-        <span style="color:var(--text3)">Total</span><span class="mono stat-red">${fmt(totalContasAPagar)}</span>
       </div>
     </div>
   </div>`;
@@ -6439,7 +6391,7 @@ function openAddSaidaEmp(){
   openModal(`<div class="modal-handle"></div><div class="modal-title">NOVA SAÍDA</div>
     <div class="form-group"><label class="form-label">Descrição</label><input id="empSaidaDesc" type="text" placeholder="Ex: Imposto, material..."></div>
     <div class="form-group"><label class="form-label">Valor (R$)</label><input id="empSaidaValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
-    <div class="form-group"><label class="form-label">Data</label><input id="empSaidaData" type="date"></div>
+    <div class="form-group"><label class="form-label">Data Prevista de Pagamento</label><input id="empSaidaData" type="date"></div>
     <div class="form-group"><label class="form-label">Status</label><select id="empSaidaPago"><option value="0">Pendente</option><option value="1">Pago</option></select></div>
     <div style="padding:10px 0;border-top:1px solid var(--border);margin-bottom:12px">${_empSaidaPersBtnHtml(false)}</div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarSaidaEmp()">Adicionar</button></div>`);
@@ -6447,13 +6399,14 @@ function openAddSaidaEmp(){
 function salvarSaidaEmp(){
   const desc=document.getElementById('empSaidaDesc').value.trim();
   const valor=parseFloat(document.getElementById('empSaidaValor').value)||0;
-  const data=document.getElementById('empSaidaData').value;
+  const dataPrevisao=document.getElementById('empSaidaData').value;
   const pago=document.getElementById('empSaidaPago')?.value==='1';
   const persistente=document.getElementById('empSaidaPers')?.value==='1';
   if(!desc){showFieldError('empSaidaDesc','Informe a descrição');return;}
+  const today=new Date().toISOString().slice(0,10);
   const md=getMonthData();
   if(!md.contaEmp) md.contaEmp={saidas:[],retiradas:[]};
-  md.contaEmp.saidas.push({id:uid(),desc,valor,data,pago,persistente,ts:Date.now()});
+  md.contaEmp.saidas.push({id:uid(),desc,valor,dataPrevisao,pago,dataPago:pago?today:'',persistente,ts:Date.now()});
   saveData();closeModal();renderContaEmpresarial(md);
 }
 function editSaidaEmp(i){
@@ -6463,7 +6416,7 @@ function editSaidaEmp(i){
   openModal(`<div class="modal-handle"></div><div class="modal-title">EDITAR SAÍDA</div>
     <div class="form-group"><label class="form-label">Descrição</label><input id="empSaidaDesc" type="text" value="${x.desc||''}"></div>
     <div class="form-group"><label class="form-label">Valor (R$)</label><input id="empSaidaValor" type="number" step="0.01" min="0" value="${x.valor||0}"></div>
-    <div class="form-group"><label class="form-label">Data</label><input id="empSaidaData" type="date" value="${x.data||''}"></div>
+    <div class="form-group"><label class="form-label">Data Prevista de Pagamento</label><input id="empSaidaData" type="date" value="${x.dataPrevisao||x.data||''}"></div>
     <div class="form-group"><label class="form-label">Status</label><select id="empSaidaPago"><option value="0" ${!x.pago?'selected':''}>Pendente</option><option value="1" ${x.pago?'selected':''}>Pago</option></select></div>
     <div style="padding:10px 0;border-top:1px solid var(--border);margin-bottom:12px">${_empSaidaPersBtnHtml(!!x.persistente)}</div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveEditSaidaEmp(${i})">Salvar</button></div>`);
@@ -6471,11 +6424,14 @@ function editSaidaEmp(i){
 function saveEditSaidaEmp(i){
   const md=getMonthData();
   const x=md.contaEmp.saidas[i];if(!x)return;
+  const wasPago=x.pago;
   x.desc=document.getElementById('empSaidaDesc').value.trim()||x.desc;
   x.valor=parseFloat(document.getElementById('empSaidaValor').value)||0;
-  x.data=document.getElementById('empSaidaData').value;
+  x.dataPrevisao=document.getElementById('empSaidaData').value;
   x.pago=document.getElementById('empSaidaPago')?.value==='1';
   x.persistente=document.getElementById('empSaidaPers')?.value==='1';
+  if(x.pago && !wasPago) x.dataPago=new Date().toISOString().slice(0,10);
+  if(!x.pago) x.dataPago='';
   saveData();closeModal();renderContaEmpresarial(md);
 }
 function toggleSaidaEmp(i){
@@ -6483,95 +6439,13 @@ function toggleSaidaEmp(i){
   const md=getMonthData();
   const x=md.contaEmp.saidas[i];if(!x)return;
   x.pago=!x.pago;
+  if(x.pago) x.dataPago=new Date().toISOString().slice(0,10);
+  else x.dataPago='';
   saveData();renderContaEmpresarial(md);
 }
 function removeSaidaEmp(i){
   const md=getMonthData();
   md.contaEmp.saidas.splice(i,1);
-  saveData();renderContaEmpresarial(md);
-}
-
-function _empContaAPagarPersBtnHtml(ativo){
-  return `<button id="empContaPersBtn" onclick="toggleEmpContaPers()" type="button" style="
-    width:100%;padding:12px 16px;border-radius:8px;border:1.5px solid ${ativo?'var(--accent3)':'var(--border)'};
-    background:${ativo?'rgba(53,200,241,0.08)':'var(--surface2)'};
-    color:${ativo?'var(--accent3)':'var(--text2)'};
-    font-family:'Barlow Condensed';font-size:15px;font-weight:${ativo?600:400};
-    cursor:pointer;display:flex;align-items:center;justify-content:space-between;
-    transition:all 0.15s;-webkit-tap-highlight-color:transparent">
-    <span>🔁 Conta recorrente</span>
-    <span id="empContaPersState" style="font-size:12px">${ativo?'✓ Ativo':'Inativo'}</span>
-  </button>
-  <input id="empContaPers" type="hidden" value="${ativo?'1':'0'}">
-  <div style="font-size:11px;color:var(--text3);margin-top:6px;padding:0 4px">Conta fixa mensal — aparece todo mês automaticamente</div>`;
-}
-window.toggleEmpContaPers = function(){
-  const inp=document.getElementById('empContaPers');
-  const btn=document.getElementById('empContaPersBtn');
-  const lbl=document.getElementById('empContaPersState');
-  if(!inp||!btn||!lbl)return;
-  const ativo=inp.value!=='1';
-  inp.value=ativo?'1':'0';
-  btn.style.border=`1.5px solid ${ativo?'var(--accent3)':'var(--border)'}`;
-  btn.style.background=ativo?'rgba(53,200,241,0.08)':'var(--surface2)';
-  btn.style.color=ativo?'var(--accent3)':'var(--text2)';
-  btn.style.fontWeight=ativo?600:400;
-  lbl.textContent=ativo?'✓ Ativo':'Inativo';
-};
-function openAddContaAPagarEmp(){
-  openModal(`<div class="modal-handle"></div><div class="modal-title">NOVA CONTA A PAGAR</div>
-    <div class="form-group"><label class="form-label">Descrição</label><input id="empContaDesc" type="text" placeholder="Ex: Aluguel, IPTU, fornecedor..."></div>
-    <div class="form-group"><label class="form-label">Valor (R$)</label><input id="empContaValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
-    <div class="form-group"><label class="form-label">Data Prevista de Pagamento</label><input id="empContaDataPrevisao" type="date"></div>
-    <div style="padding:10px 0;border-top:1px solid var(--border);margin-bottom:12px">${_empContaAPagarPersBtnHtml(false)}</div>
-    <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarContaAPagarEmp()">Adicionar</button></div>`);
-}
-function salvarContaAPagarEmp(){
-  const desc=document.getElementById('empContaDesc').value.trim();
-  const valor=parseFloat(document.getElementById('empContaValor').value)||0;
-  const dataPrevisao=document.getElementById('empContaDataPrevisao').value;
-  const persistente=document.getElementById('empContaPers')?.value==='1';
-  if(!desc){showFieldError('empContaDesc','Informe a descrição');return;}
-  const md=getMonthData();
-  if(!md.contaEmp) md.contaEmp={saidas:[],retiradas:[],contasAPagar:[]};
-  if(!md.contaEmp.contasAPagar) md.contaEmp.contasAPagar=[];
-  md.contaEmp.contasAPagar.push({id:uid(),desc,valor,dataPrevisao,pago:false,persistente,ts:Date.now()});
-  saveData();closeModal();renderContaEmpresarial(md);
-}
-function editContaAPagarEmp(i){
-  if(guardReadOnly())return;
-  const md=getMonthData();
-  if(!md.contaEmp.contasAPagar) md.contaEmp.contasAPagar=[];
-  const x=md.contaEmp.contasAPagar[i];if(!x)return;
-  openModal(`<div class="modal-handle"></div><div class="modal-title">EDITAR CONTA A PAGAR</div>
-    <div class="form-group"><label class="form-label">Descrição</label><input id="empContaDesc" type="text" value="${x.desc||''}"></div>
-    <div class="form-group"><label class="form-label">Valor (R$)</label><input id="empContaValor" type="number" step="0.01" min="0" value="${x.valor||0}"></div>
-    <div class="form-group"><label class="form-label">Data Prevista de Pagamento</label><input id="empContaDataPrevisao" type="date" value="${x.dataPrevisao||''}"></div>
-    <div style="padding:10px 0;border-top:1px solid var(--border);margin-bottom:12px">${_empContaAPagarPersBtnHtml(!!x.persistente)}</div>
-    <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveEditContaAPagarEmp(${i})">Salvar</button></div>`);
-}
-function saveEditContaAPagarEmp(i){
-  const md=getMonthData();
-  if(!md.contaEmp.contasAPagar) md.contaEmp.contasAPagar=[];
-  const x=md.contaEmp.contasAPagar[i];if(!x)return;
-  x.desc=document.getElementById('empContaDesc').value.trim()||x.desc;
-  x.valor=parseFloat(document.getElementById('empContaValor').value)||0;
-  x.dataPrevisao=document.getElementById('empContaDataPrevisao').value;
-  x.persistente=document.getElementById('empContaPers')?.value==='1';
-  saveData();closeModal();renderContaEmpresarial(md);
-}
-function toggleContaAPagarEmp(i){
-  if(guardReadOnly())return;
-  const md=getMonthData();
-  if(!md.contaEmp.contasAPagar) md.contaEmp.contasAPagar=[];
-  const x=md.contaEmp.contasAPagar[i];if(!x)return;
-  x.pago=!x.pago;
-  saveData();renderContaEmpresarial(md);
-}
-function removeContaAPagarEmp(i){
-  const md=getMonthData();
-  if(!md.contaEmp.contasAPagar) md.contaEmp.contasAPagar=[];
-  md.contaEmp.contasAPagar.splice(i,1);
   saveData();renderContaEmpresarial(md);
 }
 
@@ -10089,20 +9963,18 @@ renderDashboard = (function(_orig) {
       .reduce((s,g) => s + g.valor, 0);
 
     // ── Conta Empresarial ──
-    if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [], contasAPagar: [] };
-    if (!md.contaEmp.contasAPagar) md.contaEmp.contasAPagar = [];
+    if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
     const caliCalcEmp  = calcValoresCali(md.calistenia || []);
     const empAllAlunos = [...caliCalcEmp, ...(md.personal?.online||[]), ...(md.personal?.presencial||[])];
     const empEntradas  = empAllAlunos.filter(a => a.pago && a.contaPgto === 'emp');
     const empTotalEnt  = empEntradas.reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
     const empTotalSai  = (md.contaEmp.saidas||[]).reduce((s,x) => s + (x.valor||0), 0);
     const empTotalRet  = (md.contaEmp.retiradas||[]).reduce((s,x) => s + (x.valor||0), 0);
-    const empTotalCap  = (md.contaEmp.contasAPagar||[]).reduce((s,x) => s + (x.valor||0), 0);
-    const empSaldo     = empTotalEnt - empTotalSai - empTotalRet - empTotalCap;
+    const empSaldo     = empTotalEnt - empTotalSai - empTotalRet;
     if (!md.cartao.emp) md.cartao.emp = { fechamento:null, parceladas:[], avista:[], assinaturas:[] };
     const empCartaoT   = [...md.cartao.emp.parceladas, ...md.cartao.emp.avista, ...md.cartao.emp.assinaturas.filter(a=>!a.pausada)].reduce((s,x) => s + (x.valor||0), 0);
     const expEmpEnt    = empAllAlunos.filter(a => !a.pausado && a.contaPgto === 'emp').reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
-    const expEmpSaldo  = expEmpEnt - empTotalSai - empTotalRet - empTotalCap;
+    const expEmpSaldo  = expEmpEnt - empTotalSai - empTotalRet;
     const empVsExp     = expEmpSaldo - empSaldo;
 
     const alunosCali   = md.calistenia.length;
@@ -10410,7 +10282,7 @@ renderDashboard = (function(_orig) {
 
       empresarial: () => {
         const empSaldoColor = empSaldo >= 0 ? 'var(--green)' : 'var(--red)';
-        const empUsoPct = empTotalEnt > 0 ? Math.min(100, Math.round((empTotalSai + empTotalRet + empTotalCap + empCartaoT) / empTotalEnt * 100)) : 0;
+        const empUsoPct = empTotalEnt > 0 ? Math.min(100, Math.round((empTotalSai + empTotalRet + empCartaoT) / empTotalEnt * 100)) : 0;
         // Pie chart entradas empresariais por aluno (top 5)
         const empEntradasByAluno = empEntradas.slice(0,8).map(a => ({
           nome: (a.nome||'?').split(' ')[0],
@@ -10447,19 +10319,16 @@ renderDashboard = (function(_orig) {
         };
         const pieColors1 = ['#4CAF50','#35c8f1','var(--accent)','#f1c135','#e8200a','#a78bfa','#fb923c'];
         const pieColors2 = ['#e8200a','#f97316','#f1c135','#a78bfa','var(--accent)'];
-        const empSaidasItems = [
-          ...(md.contaEmp.saidas||[]).map(s => ({nome:s.desc||'?', val:s.valor||0})),
-          ...(md.contaEmp.contasAPagar||[]).map(c => ({nome:c.desc||'?', val:c.valor||0}))
-        ].filter(x=>x.val>0);
+        const empSaidasItems = (md.contaEmp.saidas||[]).map(s => ({nome:s.desc||'?', val:s.valor||0})).filter(x=>x.val>0);
         return '<div class="dg-w">'
           +'<div class="dg-wh" style="border-top:3px solid #35c8f1;background:rgba(53,200,241,0.04)">🏢 Conta Empresarial'
           +'<span onclick="financasTab=\'empresarial\';navigate(\'financas\')" style="cursor:pointer;font-size:10px;font-family:\'Barlow Condensed\';text-transform:none;letter-spacing:0;color:var(--accent)">ver detalhes →</span></div>'
           +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border)">'
           +[
-            {l:'Entradas',  v:empTotalEnt,              c:'var(--green)'},
-            {l:'Saídas',    v:empTotalSai+empTotalCap,  c:'var(--red)'},
-            {l:'Retiradas', v:empTotalRet,               c:'var(--red)'},
-            {l:'Saldo',     v:empSaldo,                  c:empSaldoColor},
+            {l:'Entradas', v:empTotalEnt, c:'var(--green)'},
+            {l:'Saídas',   v:empTotalSai, c:'var(--red)'},
+            {l:'Retiradas',v:empTotalRet, c:'var(--red)'},
+            {l:'Saldo',    v:empSaldo,    c:empSaldoColor},
           ].map(x => '<div style="background:var(--surface);padding:10px 8px;text-align:center">'
             +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">'+x.l+'</div>'
             +'<div style="font-family:\'Barlow Condensed\';font-size:16px;color:'+x.c+'">'+fmt(x.v)+'</div></div>'
