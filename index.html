@@ -2869,10 +2869,11 @@ function _buildFluxoDataEmp() {
   });
   (md.contaEmp.saidas||[]).forEach(s => {
     let dia;
-    if (s.pago && s.dataPago) { dia = dateDay(s.dataPago); }
-    else {
-      const dPrev = dateDay(s.dataPrevisao || s.data) || daysInMonth;
-      dia = (todayDay && dPrev < todayDay) ? todayDay : dPrev;
+    if (s.pago) {
+      dia = tsDay(s.ts) || 1;
+    } else {
+      const diaVenc = s.diaVencimento || tsDay(s.ts) || daysInMonth;
+      dia = (todayDay && diaVenc < todayDay) ? todayDay : diaVenc;
     }
     addEv(saidas, dia, s.desc||'Saída', s.valor||0, s.pago);
   });
@@ -6301,35 +6302,32 @@ function renderContaEmpresarial(md) {
         <div class="table-card">
           <div class="table-scroll"><table style="table-layout:fixed">
           <thead><tr>
-            <th style="width:34%">Descrição</th>
-            <th style="width:16%">Valor</th>
-            <th style="width:13%">Status</th>
-            <th style="width:19%">Pago em</th>
-            <th style="width:18%"></th>
+            <th style="width:40%">Descrição</th>
+            <th style="width:18%">Valor</th>
+            <th style="width:16%">Status</th>
+            <th style="width:0"></th>
+            <th style="width:26%"></th>
           </tr></thead>
           <tbody>${md.contaEmp.saidas.length === 0
             ? `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px">Nenhuma saída</td></tr>`
-            : md.contaEmp.saidas.map((x,i) => {
-                const dataPrev = x.dataPrevisao || x.data || '';
-                const dataPago = x.dataPago || '';
-                return `<tr>
+            : md.contaEmp.saidas.map((x,i) => `<tr>
                 <td>
                   <div style="display:flex;align-items:center;gap:5px;min-width:0">
                     <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.desc||''}</span>
                     ${x.persistente?`<span title="Recorrente" style="font-size:10px;color:var(--accent3);flex-shrink:0">🔁</span>`:''}
-                    ${dataPrev&&!x.pago?`<span title="Vence ${fmtDate(dataPrev)}" style="font-size:10px;color:#f1c135;flex-shrink:0;background:rgba(241,193,53,0.12);border-radius:3px;padding:1px 5px;white-space:nowrap">📅 ${fmtDate(dataPrev)}</span>`:''}
+                    ${x.tipoGasto==='conta'&&x.diaVencimento?`<span title="Vence dia ${x.diaVencimento}" style="font-size:10px;color:#f1c135;flex-shrink:0;background:rgba(241,193,53,0.12);border-radius:3px;padding:1px 5px">📅 dia ${x.diaVencimento}</span>`:''}
                   </div>
                 </td>
                 <td class="mono stat-red">${fmt(x.valor||0)}</td>
                 <td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':'toggleSaidaEmp('+i+')'}">
                   <span class="badge ${x.pago?'badge-green':'badge-yellow'}">${x.pago?'Pago':'Pendente'}</span>
                 </td>
-                <td style="color:var(--text3);font-size:11px">${x.pago&&dataPago?fmtDate(dataPago):''}</td>
+                <td></td>
                 ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
                   <button class="btn btn-ghost btn-sm" onclick="editSaidaEmp(${i})" style="padding:4px 7px">✎</button>
                   <button class="btn btn-danger btn-sm" onclick="removeSaidaEmp(${i})" style="padding:4px 7px">✕</button>
                 </div></td>`}
-              </tr>`;}).join('')}
+              </tr>`).join('')}
           </tbody></table></div>
           <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
             <span style="color:var(--text3)">Total</span><span class="mono stat-red">${fmt(totalSaidas)}</span>
@@ -6390,11 +6388,49 @@ window.toggleEmpSaidaPers = function(){
   btn.style.fontWeight=ativo?600:400;
   lbl.textContent=ativo?'✓ Ativo':'Inativo';
 };
+function _empSaidaTipoBtns(tipoAtual, diaAtual) {
+  const onI = tipoAtual !== 'conta';
+  const onC = tipoAtual === 'conta';
+  const stOn  = t => `padding:8px 0;border-radius:7px;cursor:pointer;flex:1;font-family:'Barlow Condensed';font-size:13px;border:1.5px solid ${t==='i'?'var(--red)':'var(--accent3)'};background:${t==='i'?'rgba(232,32,10,0.1)':'rgba(53,200,241,0.1)'};color:${t==='i'?'var(--red)':'var(--accent3)'};font-weight:700`;
+  const stOff = `padding:8px 0;border-radius:7px;cursor:pointer;flex:1;font-family:'Barlow Condensed';font-size:13px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-weight:400`;
+  return `
+    <div class="form-group"><label class="form-label">Tipo de saída</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="empSaidaTipoImediato" onclick="empSaidaSetTipo('imediato')" style="${onI?stOn('i'):stOff}">💸 Imediato</button>
+        <button type="button" id="empSaidaTipoConta"    onclick="empSaidaSetTipo('conta')"    style="${onC?stOn('c'):stOff}">📅 Conta a pagar</button>
+      </div>
+      <input id="empSaidaTipoVal" type="hidden" value="${tipoAtual||'imediato'}">
+    </div>
+    <div id="empSaidaDiaVencDiv" class="form-group" style="${onC?'':'display:none'}">
+      <label class="form-label">Dia do vencimento</label>
+      <input id="empSaidaDiaVenc" type="number" inputmode="numeric" min="1" max="31" placeholder="Ex: 10" value="${diaAtual||''}">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Dia do mês em que esta conta costuma vencer</div>
+    </div>`;
+}
+window.empSaidaSetTipo = function(tipo) {
+  const btnI = document.getElementById('empSaidaTipoImediato');
+  const btnC = document.getElementById('empSaidaTipoConta');
+  const divD = document.getElementById('empSaidaDiaVencDiv');
+  const inp  = document.getElementById('empSaidaTipoVal');
+  if (!btnI||!btnC) return;
+  const on  = 'border:1.5px solid var(--accent);background:rgba(232,32,10,0.1);color:var(--accent);font-weight:700';
+  const off = 'border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-weight:400';
+  if (tipo === 'imediato') {
+    btnI.style.cssText += ';' + on.replace(/var\(--accent\)/g,'var(--red)');
+    btnC.style.cssText = btnC.style.cssText.replace(/border:[^;]+;background:[^;]+;color:[^;]+;font-weight:[^;]+/,'') + ';' + off;
+    if (divD) divD.style.display = 'none';
+  } else {
+    btnC.style.cssText += ';' + on.replace(/var\(--accent\)/g,'var(--accent3)');
+    btnI.style.cssText = btnI.style.cssText.replace(/border:[^;]+;background:[^;]+;color:[^;]+;font-weight:[^;]+/,'') + ';' + off;
+    if (divD) divD.style.display = '';
+  }
+  if (inp) inp.value = tipo;
+};
 function openAddSaidaEmp(){
   openModal(`<div class="modal-handle"></div><div class="modal-title">NOVA SAÍDA</div>
     <div class="form-group"><label class="form-label">Descrição</label><input id="empSaidaDesc" type="text" placeholder="Ex: Imposto, material..."></div>
     <div class="form-group"><label class="form-label">Valor (R$)</label><input id="empSaidaValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
-    <div class="form-group"><label class="form-label">Data Prevista de Pagamento</label><input id="empSaidaData" type="date"></div>
+    ${_empSaidaTipoBtns('imediato', '')}
     <div class="form-group"><label class="form-label">Status</label><select id="empSaidaPago"><option value="0">Pendente</option><option value="1">Pago</option></select></div>
     <div style="padding:10px 0;border-top:1px solid var(--border);margin-bottom:12px">${_empSaidaPersBtnHtml(false)}</div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarSaidaEmp()">Adicionar</button></div>`);
@@ -6402,14 +6438,14 @@ function openAddSaidaEmp(){
 function salvarSaidaEmp(){
   const desc=document.getElementById('empSaidaDesc').value.trim();
   const valor=parseFloat(document.getElementById('empSaidaValor').value)||0;
-  const dataPrevisao=document.getElementById('empSaidaData').value;
+  const tp=document.getElementById('empSaidaTipoVal')?.value||'imediato';
+  const dv=parseInt(document.getElementById('empSaidaDiaVenc')?.value)||null;
   const pago=document.getElementById('empSaidaPago')?.value==='1';
   const persistente=document.getElementById('empSaidaPers')?.value==='1';
   if(!desc){showFieldError('empSaidaDesc','Informe a descrição');return;}
-  const today=new Date().toISOString().slice(0,10);
   const md=getMonthData();
   if(!md.contaEmp) md.contaEmp={saidas:[],retiradas:[]};
-  md.contaEmp.saidas.push({id:uid(),desc,valor,dataPrevisao,pago,dataPago:pago?today:'',persistente,ts:Date.now()});
+  md.contaEmp.saidas.push({id:uid(),desc,valor,pago,tipoGasto:tp,diaVencimento:tp==='conta'?dv:null,persistente,ts:Date.now()});
   saveData();closeModal();renderContaEmpresarial(md);
 }
 function editSaidaEmp(i){
@@ -6419,7 +6455,7 @@ function editSaidaEmp(i){
   openModal(`<div class="modal-handle"></div><div class="modal-title">EDITAR SAÍDA</div>
     <div class="form-group"><label class="form-label">Descrição</label><input id="empSaidaDesc" type="text" value="${x.desc||''}"></div>
     <div class="form-group"><label class="form-label">Valor (R$)</label><input id="empSaidaValor" type="number" step="0.01" min="0" value="${x.valor||0}"></div>
-    <div class="form-group"><label class="form-label">Data Prevista de Pagamento</label><input id="empSaidaData" type="date" value="${x.dataPrevisao||x.data||''}"></div>
+    ${_empSaidaTipoBtns(x.tipoGasto||'imediato', x.diaVencimento||'')}
     <div class="form-group"><label class="form-label">Status</label><select id="empSaidaPago"><option value="0" ${!x.pago?'selected':''}>Pendente</option><option value="1" ${x.pago?'selected':''}>Pago</option></select></div>
     <div style="padding:10px 0;border-top:1px solid var(--border);margin-bottom:12px">${_empSaidaPersBtnHtml(!!x.persistente)}</div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveEditSaidaEmp(${i})">Salvar</button></div>`);
@@ -6427,14 +6463,14 @@ function editSaidaEmp(i){
 function saveEditSaidaEmp(i){
   const md=getMonthData();
   const x=md.contaEmp.saidas[i];if(!x)return;
-  const wasPago=x.pago;
   x.desc=document.getElementById('empSaidaDesc').value.trim()||x.desc;
   x.valor=parseFloat(document.getElementById('empSaidaValor').value)||0;
-  x.dataPrevisao=document.getElementById('empSaidaData').value;
+  x.tipoGasto=document.getElementById('empSaidaTipoVal')?.value||'imediato';
+  x.diaVencimento=x.tipoGasto==='conta'?(parseInt(document.getElementById('empSaidaDiaVenc')?.value)||null):null;
+  const wasPago=x.pago;
   x.pago=document.getElementById('empSaidaPago')?.value==='1';
+  if(x.pago&&!wasPago) x.ts=Date.now();
   x.persistente=document.getElementById('empSaidaPers')?.value==='1';
-  if(x.pago && !wasPago) x.dataPago=new Date().toISOString().slice(0,10);
-  if(!x.pago) x.dataPago='';
   saveData();closeModal();renderContaEmpresarial(md);
 }
 function toggleSaidaEmp(i){
@@ -6442,8 +6478,7 @@ function toggleSaidaEmp(i){
   const md=getMonthData();
   const x=md.contaEmp.saidas[i];if(!x)return;
   x.pago=!x.pago;
-  if(x.pago) x.dataPago=new Date().toISOString().slice(0,10);
-  else x.dataPago='';
+  if(x.pago) x.ts=Date.now();
   saveData();renderContaEmpresarial(md);
 }
 function removeSaidaEmp(i){
