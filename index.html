@@ -2847,8 +2847,8 @@ function _buildFluxoDataEmp() {
   if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
   const caliCalc = calcValoresCali(md.calistenia || []);
   const allAlunos = [
-    ...caliCalc.filter(a => a.contaPgto === 'emp'),
-    ...[...(md.personal?.online||[]), ...(md.personal?.presencial||[])].filter(a => !a.pausado && a.contaPgto === 'emp')
+    ...caliCalc.filter(a => !a.pausado && (!a.pago || a.contaPgto === 'emp')),
+    ...[...(md.personal?.online||[]), ...(md.personal?.presencial||[])].filter(a => !a.pausado && (!a.pago || a.contaPgto === 'emp'))
   ];
   const expGanhos  = allAlunos.reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
   const expGastos  = (md.contaEmp.saidas||[]).reduce((s,x)=>s+(x.valor||0),0)
