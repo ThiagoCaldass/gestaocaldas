@@ -2943,18 +2943,107 @@ function _renderFluxoSvgDual(diasP, diasE, todayDay, daysInMonth, H) {
   </svg>`;
 }
 
+function _buildFluxoDataConsolidado() {
+  const md  = getMonthData();
+  const now = new Date();
+  const ano = currentMonth.y, mes = currentMonth.m;
+  const daysInMonth = new Date(ano, mes + 1, 0).getDate();
+  const todayDay = (ano === now.getFullYear() && mes === now.getMonth()) ? now.getDate() : null;
+  function parseDia(str) {
+    if (!str) return null;
+    const s = String(str).toLowerCase().trim();
+    if (s === 'final' || s === 'último' || s === 'ultimo') return daysInMonth;
+    const m = s.match(/\d+/); const n = m ? parseInt(m[0]) : null;
+    return (n && n >= 1 && n <= 31) ? n : null;
+  }
+  function tsDay(ts) {
+    if (!ts) return null;
+    const d = new Date(ts);
+    if (d.getFullYear() !== ano || d.getMonth() !== mes) return null;
+    return d.getDate();
+  }
+  if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
+  const CATS_ESPELHO = ['calistenia','personal','personal_online','personal_presencial'];
+  const caliCalc = calcValoresCali(md.calistenia || []);
+  const allAlunos = [
+    ...caliCalc.filter(a => !a.pausado),
+    ...[...(md.personal?.online||[]), ...(md.personal?.presencial||[])].filter(a => !a.pausado)
+  ];
+  const expGanhos = allAlunos.reduce((s,a) => s + (a.valorFinal||a.valor||0), 0)
+    + (md.balanco?.ganhos||[]).filter(g => !CATS_ESPELHO.includes((g.categoria||'avulso').toLowerCase()) && g.categoria !== 'retirada_emp').reduce((s,g) => s + (g.valor||0), 0);
+  const expGastos = (md.contaEmp.saidas||[]).reduce((s,x) => s + (x.valor||0), 0)
+    + (md.balanco?.gastos||[]).reduce((s,g) => s + (g.valor||0), 0);
+  const expSaldoFim = expGanhos - expGastos;
+  const entradas = {}, saidas = {};
+  function addEv(map, dia, nome, valor, feito) {
+    if (!dia || valor <= 0) return;
+    const d = Math.min(Math.max(1, dia), daysInMonth);
+    if (!map[d]) map[d] = [];
+    map[d].push({ nome, valor, feito: !!feito });
+  }
+  allAlunos.forEach(a => {
+    let dia;
+    if (a.pago && a.tsPago) { dia = tsDay(a.tsPago) || 1; }
+    else { const d = parseDia(a.diaAcerto) || 1; dia = (todayDay && d < todayDay) ? todayDay : d; }
+    addEv(entradas, dia, a.nome, a.valorFinal||a.valor||0, a.pago);
+  });
+  (md.balanco?.ganhos||[]).filter(g => !CATS_ESPELHO.includes((g.categoria||'avulso').toLowerCase()) && g.categoria !== 'retirada_emp').forEach(g => {
+    const posSomas = (g.historico||[]).filter(h => h.tipo === 'soma' && (h.delta||0) > 0);
+    const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
+    const valorBase = Math.max(0, (g.valor||0) - posTot);
+    let diaBase;
+    if (g.recebido) { diaBase = tsDay(g.ts) || parseDia(g.diaAcerto) || 1; }
+    else { const d = parseDia(g.diaAcerto) || tsDay(g.ts) || daysInMonth; diaBase = (todayDay && d < todayDay) ? todayDay : d; }
+    if (valorBase > 0) addEv(entradas, diaBase, g.nome, valorBase, g.recebido);
+    posSomas.forEach(h => addEv(entradas, tsDay(h.ts) || diaBase, g.nome, h.delta, g.recebido));
+  });
+  (md.contaEmp.saidas||[]).forEach(s => {
+    let dia;
+    if (s.pago) { dia = tsDay(s.ts) || 1; }
+    else { const dv = s.diaVencimento || tsDay(s.ts) || daysInMonth; dia = (todayDay && dv < todayDay) ? todayDay : dv; }
+    addEv(saidas, dia, s.desc||'Saída emp', s.valor||0, s.pago);
+  });
+  (md.balanco?.gastos||[]).forEach(g => {
+    const posSomas = (g.historico||[]).filter(h => h.tipo === 'soma' && (h.delta||0) > 0);
+    const posTot   = posSomas.reduce((s,h) => s + h.delta, 0);
+    const valorBase = Math.max(0, (g.valor||0) - posTot);
+    let diaBase;
+    if (g.pago) { diaBase = tsDay(g.ts) || 1; }
+    else { const dv = g.diaVencimento || tsDay(g.ts) || daysInMonth; diaBase = (todayDay && dv < todayDay) ? todayDay : dv; }
+    if (valorBase > 0) addEv(saidas, diaBase, g.nome, valorBase, g.pago);
+    posSomas.forEach(h => addEv(saidas, tsDay(h.ts) || diaBase, g.nome, h.delta, g.pago));
+  });
+  const chartNet = Object.values(entradas).flat().reduce((s,x)=>s+x.valor,0)
+                 - Object.values(saidas).flat().reduce((s,x)=>s+x.valor,0);
+  const ajNet = expSaldoFim - chartNet;
+  if (ajNet >  0.01) { if (!entradas[1]) entradas[1]=[]; entradas[1].push({nome:'Outros',valor: ajNet,feito:false}); }
+  if (ajNet < -0.01) { if (!saidas[1])   saidas[1]  =[]; saidas[1].push({nome:'Outros',valor:-ajNet,feito:false}); }
+  let acc = 0;
+  const dias = Array.from({length: daysInMonth}, (_,i) => {
+    const d   = i + 1;
+    const ent = (entradas[d]||[]).reduce((s,x)=>s+x.valor,0);
+    const sai = (saidas[d]||[]).reduce((s,x)=>s+x.valor,0);
+    acc += ent - sai;
+    return { d, ent, sai, acc, ev: [...(entradas[d]||[]).map(x=>({...x,tipo:'e'})), ...(saidas[d]||[]).map(x=>({...x,tipo:'s'}))] };
+  });
+  return { dias, expGanhos, expGastos, expSaldoFim, todayDay, daysInMonth };
+}
+
 function renderWidgetFluxo() {
   const pessoal = _buildFluxoData();
   const emp     = _buildFluxoDataEmp();
+  const consol  = _buildFluxoDataConsolidado();
   window._fluxoDiasMap['w']  = pessoal.dias;
   window._fluxoDiasMap['we'] = emp.dias;
+  window._fluxoDiasMap['wc'] = consol.dias;
   const svgP = _renderFluxoSvg(pessoal.dias, pessoal.todayDay, pessoal.daysInMonth, pessoal.expSaldoFim, 'w',  90);
   const svgE = _renderFluxoSvg(emp.dias,     emp.todayDay,     emp.daysInMonth,     emp.expSaldoFim,     'we', 90);
+  const svgC = _renderFluxoSvg(consol.dias,  consol.todayDay,  consol.daysInMonth,  consol.expSaldoFim,  'wc', 90);
   const svgA = _renderFluxoSvgDual(pessoal.dias, emp.dias, pessoal.todayDay, pessoal.daysInMonth, 90);
-  window._fluxoWidgetTab = window._fluxoWidgetTab || 'pessoal';
+  window._fluxoWidgetTab = window._fluxoWidgetTab || 'consolidado';
   window.setFluxoWidgetTab = function(tab) {
     window._fluxoWidgetTab = tab;
-    ['pessoal','empresarial','ambos'].forEach(t => {
+    ['consolidado','pessoal','empresarial','ambos'].forEach(t => {
       const content = document.getElementById('fw-tab-content-'+t);
       const btn     = document.getElementById('fw-tbtn-'+t);
       const stats   = document.getElementById('fw-stats-'+t);
@@ -2977,15 +3066,18 @@ function renderWidgetFluxo() {
   return `<div class="dg-w">
     <div class="dg-wh">
       Fluxo do Mês
-      <div id="fw-stats-pessoal"     style="display:${t==='pessoal'?'flex':'none'};gap:8px;align-items:center">${fmtStat(pessoal.expGanhos,'var(--green)')} ${fmtStat(pessoal.expGastos,'var(--red)')} ${fmtStat(pessoal.expSaldoFim,pessoal.expSaldoFim>=0?'var(--green)':'var(--red)')}</div>
-      <div id="fw-stats-empresarial" style="display:${t==='empresarial'?'flex':'none'};gap:8px;align-items:center">${fmtStat(emp.expGanhos,'var(--green)')} ${fmtStat(emp.expGastos,'var(--red)')} ${fmtStat(emp.expSaldoFim,emp.expSaldoFim>=0?'var(--green)':'var(--red)')}</div>
-      <div id="fw-stats-ambos"       style="display:${t==='ambos'?'flex':'none'};gap:8px;align-items:center"><span style="font-size:10px;color:#4CAF50;font-family:'Barlow Condensed'">● ${fmt(pessoal.expSaldoFim)}</span><span style="font-size:10px;color:#35c8f1;font-family:'Barlow Condensed'">● ${fmt(emp.expSaldoFim)}</span>${fmtStat(totalSaldo,totalSaldo>=0?'var(--green)':'var(--red)')}</div>
+      <div id="fw-stats-consolidado"  style="display:${t==='consolidado'?'flex':'none'};gap:8px;align-items:center">${fmtStat(consol.expGanhos,'var(--green)')} ${fmtStat(consol.expGastos,'var(--red)')} ${fmtStat(consol.expSaldoFim,consol.expSaldoFim>=0?'var(--green)':'var(--red)')}</div>
+      <div id="fw-stats-pessoal"      style="display:${t==='pessoal'?'flex':'none'};gap:8px;align-items:center">${fmtStat(pessoal.expGanhos,'var(--green)')} ${fmtStat(pessoal.expGastos,'var(--red)')} ${fmtStat(pessoal.expSaldoFim,pessoal.expSaldoFim>=0?'var(--green)':'var(--red)')}</div>
+      <div id="fw-stats-empresarial"  style="display:${t==='empresarial'?'flex':'none'};gap:8px;align-items:center">${fmtStat(emp.expGanhos,'var(--green)')} ${fmtStat(emp.expGastos,'var(--red)')} ${fmtStat(emp.expSaldoFim,emp.expSaldoFim>=0?'var(--green)':'var(--red)')}</div>
+      <div id="fw-stats-ambos"        style="display:${t==='ambos'?'flex':'none'};gap:8px;align-items:center"><span style="font-size:10px;color:#4CAF50;font-family:'Barlow Condensed'">● ${fmt(pessoal.expSaldoFim)}</span><span style="font-size:10px;color:#35c8f1;font-family:'Barlow Condensed'">● ${fmt(emp.expSaldoFim)}</span>${fmtStat(totalSaldo,totalSaldo>=0?'var(--green)':'var(--red)')}</div>
     </div>
     <div style="padding:4px 8px;display:flex;gap:3px;background:var(--surface2);border-bottom:1px solid var(--border)">
+      ${tbtn('consolidado','⬡ Consolidado',t==='consolidado')}
       ${tbtn('pessoal','💰 Pessoal',t==='pessoal')}
       ${tbtn('empresarial','🏢 Empresarial',t==='empresarial')}
-      ${tbtn('ambos','⬡ Ambos',t==='ambos')}
+      ${tbtn('ambos','◫ Ambos',t==='ambos')}
     </div>
+    <div id="fw-tab-content-consolidado" style="display:${t==='consolidado'?'block':'none'};padding:10px 16px 4px">${svgC}${_renderFluxoLista(consol.dias, consol.todayDay, '180px')}</div>
     <div id="fw-tab-content-pessoal"     style="display:${t==='pessoal'?'block':'none'};padding:10px 16px 4px">${svgP}${_renderFluxoLista(pessoal.dias, pessoal.todayDay, '180px')}</div>
     <div id="fw-tab-content-empresarial" style="display:${t==='empresarial'?'block':'none'};padding:10px 16px 4px">${svgE}${_renderFluxoLista(emp.dias, emp.todayDay, '180px')}</div>
     <div id="fw-tab-content-ambos"       style="display:${t==='ambos'?'block':'none'};padding:10px 16px 4px">
