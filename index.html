@@ -3006,7 +3006,7 @@ function renderFinancas(md) {
   document.getElementById('topbarActions').innerHTML = '';
   document.getElementById('content').innerHTML = `<div class="page">
     <div class="tabs" style="width:100%;margin-bottom:16px">
-      <button class="tab ${financasTab==='balanco'?'active':''}" onclick="setFinancasTab('balanco')">Balanço</button>
+      <button class="tab ${financasTab==='balanco'?'active':''}" onclick="setFinancasTab('balanco')">💰 Pessoal</button>
       <button class="tab ${financasTab==='cartao'?'active':''}" onclick="setFinancasTab('cartao')">Cartão</button>
       <button class="tab ${financasTab==='porquinho'?'active':''}" onclick="setFinancasTab('porquinho')">🐷 Poupança</button>
       <button class="tab ${financasTab==='empresarial'?'active':''}" onclick="setFinancasTab('empresarial')">🏢 Empresarial</button>
@@ -6012,80 +6012,105 @@ function renderContaEmpresarial(md) {
   const totalEntradas = entradas.reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
   const totalSaidas = md.contaEmp.saidas.reduce((s,x) => s + (x.valor||0), 0);
   const totalRetiradas = md.contaEmp.retiradas.reduce((s,x) => s + (x.valor||0), 0);
-  const saldo = totalEntradas - totalSaidas - totalRetiradas;
-  const fmtR = v => 'R$ ' + v.toFixed(2).replace('.',',');
+  const totalSaidasAll = totalSaidas + totalRetiradas;
+  const saldo = totalEntradas - totalSaidasAll;
   const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '';
 
-  let html = `<div style="padding:0 4px">
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
-      <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Entradas</div>
-        <div style="font-size:18px;font-weight:700;color:var(--green)">${fmtR(totalEntradas)}</div>
-      </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Saídas</div>
-        <div style="font-size:18px;font-weight:700;color:var(--red)">${fmtR(totalSaidas + totalRetiradas)}</div>
-      </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Saldo</div>
-        <div style="font-size:18px;font-weight:700;color:${saldo>=0?'var(--green)':'var(--red)'}">${fmtR(saldo)}</div>
-      </div>
+  document.getElementById('topbarActions').innerHTML = ro ? '' : `
+    <button class="btn btn-ghost btn-sm" onclick="openAddSaidaEmp()">+ <span>Saída</span></button>
+    <button class="btn btn-primary btn-sm" onclick="openAddRetiradaEmp()">+ <span>Retirada</span></button>`;
+
+  const fInner = document.getElementById('financasInner') || document.getElementById('content');
+  fInner.innerHTML = `<div>
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card green"><div class="stat-label">Entradas</div><div class="stat-value stat-green">${fmt(totalEntradas)}</div><div class="stat-sub">${entradas.length} aluno${entradas.length!==1?'s':''}</div></div>
+      <div class="stat-card red"><div class="stat-label">Saídas + Retiradas</div><div class="stat-value stat-red">${fmt(totalSaidasAll)}</div><div class="stat-sub">${md.contaEmp.saidas.length} saída${md.contaEmp.saidas.length!==1?'s':''} · ${md.contaEmp.retiradas.length} retirada${md.contaEmp.retiradas.length!==1?'s':''}</div></div>
+      <div class="stat-card accent"><div class="stat-label">Saldo</div><div class="stat-value ${saldo>=0?'stat-green':'stat-red'}">${fmt(saldo)}</div></div>
     </div>
 
-    <div style="margin-bottom:20px">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Entradas (alunos)</div>
-      ${entradas.length === 0 ? `<div style="color:var(--text3);font-size:13px;padding:8px 0">Nenhum pagamento na conta empresarial</div>` :
-        entradas.map(a => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-          <span style="color:var(--text1);font-size:14px">${a.nome||''}</span>
-          <span style="color:var(--green);font-weight:600">${fmtR(a.valorFinal||a.valor||0)}</span>
-        </div>`).join('')}
+    <div style="position:sticky;bottom:0;z-index:10;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 16px;margin-bottom:12px;display:flex;gap:16px;justify-content:space-between;align-items:center;box-shadow:0 -2px 8px rgba(0,0,0,0.3)">
+      <div style="display:flex;gap:4px;align-items:baseline"><span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-right:4px">Entradas</span><span class="mono" style="color:var(--green);font-size:15px;font-family:'Barlow Condensed'">${fmt(totalEntradas)}</span></div>
+      <div style="width:1px;height:20px;background:var(--border)"></div>
+      <div style="display:flex;gap:4px;align-items:baseline"><span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-right:4px">Saídas</span><span class="mono" style="color:var(--red);font-size:15px;font-family:'Barlow Condensed'">${fmt(totalSaidasAll)}</span></div>
+      <div style="width:1px;height:20px;background:var(--border)"></div>
+      <div style="display:flex;gap:4px;align-items:baseline"><span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-right:4px">Saldo</span><span class="mono" style="color:${saldo>=0?'var(--green)':'var(--red)'};font-size:15px;font-weight:700;font-family:'Barlow Condensed'">${fmt(saldo)}</span></div>
     </div>
 
-    <div style="margin-bottom:20px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px">Saídas</div>
-        ${!ro?`<button onclick="openAddSaidaEmp()" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-family:'Barlow Condensed';font-size:13px;cursor:pointer">+ Saída</button>`:''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="two-col">
+      <div>
+        <div class="section-header"><div class="section-title">ENTRADAS</div></div>
+        <div class="table-card">
+          <div class="table-scroll"><table style="table-layout:fixed">
+          <thead><tr>
+            <th style="width:55%">Aluno</th>
+            <th style="width:25%">Valor</th>
+            <th style="width:20%">Origem</th>
+          </tr></thead>
+          <tbody>${entradas.length === 0
+            ? `<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:16px">Nenhuma entrada empresarial</td></tr>`
+            : entradas.map(a => {
+                const cat = md.calistenia?.find(x=>x.id===a.id) ? 'Cali' : 'Personal';
+                return `<tr>
+                  <td>${a.nome||''}</td>
+                  <td class="mono stat-green">${fmt(a.valorFinal||a.valor||0)}</td>
+                  <td><span class="badge badge-blue" style="font-size:10px">${cat}</span></td>
+                </tr>`;
+              }).join('')}
+          </tbody></table></div>
+          <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
+            <span style="color:var(--text3)">Total</span><span class="mono stat-green">${fmt(totalEntradas)}</span>
+          </div>
+        </div>
       </div>
-      ${md.contaEmp.saidas.length === 0 ? `<div style="color:var(--text3);font-size:13px;padding:8px 0">Nenhuma saída</div>` :
-        md.contaEmp.saidas.map((x,i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-          <div>
-            <div style="color:var(--text1);font-size:14px">${x.desc||''}</div>
-            ${x.data?`<div style="color:var(--text3);font-size:11px">${fmtDate(x.data)}</div>`:''}
+      <div>
+        <div class="section-header"><div class="section-title">SAÍDAS</div>${ro?'':`<button class="btn btn-ghost btn-sm" onclick="openAddSaidaEmp()">+</button>`}</div>
+        <div class="table-card">
+          <div class="table-scroll"><table style="table-layout:fixed">
+          <thead><tr>
+            <th style="width:40%">Descrição</th>
+            <th style="width:20%">Valor</th>
+            <th style="width:18%">Data</th>
+            <th style="width:22%"></th>
+          </tr></thead>
+          <tbody>${md.contaEmp.saidas.length === 0
+            ? `<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Nenhuma saída</td></tr>`
+            : md.contaEmp.saidas.map((x,i) => `<tr>
+                <td>${x.desc||''}</td>
+                <td class="mono stat-red">${fmt(x.valor||0)}</td>
+                <td style="color:var(--text3);font-size:11px">${fmtDate(x.data)}</td>
+                ${ro?'<td></td>':`<td><button class="btn btn-danger btn-sm" onclick="removeSaidaEmp(${i})" style="padding:4px 7px">✕</button></td>`}
+              </tr>`).join('')}
+          </tbody></table></div>
+          <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
+            <span style="color:var(--text3)">Total</span><span class="mono stat-red">${fmt(totalSaidas)}</span>
           </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="color:var(--red);font-weight:600">${fmtR(x.valor||0)}</span>
-            ${!ro?`<button onclick="removeSaidaEmp(${i})" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0">×</button>`:''}
-          </div>
-        </div>`).join('')}
-    </div>
+        </div>
 
-    <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px">Retiradas</div>
-        ${!ro?`<button onclick="openAddRetiradaEmp()" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-family:'Barlow Condensed';font-size:13px;cursor:pointer">+ Retirada</button>`:''}
+        <div class="section-header" style="margin-top:16px"><div class="section-title">RETIRADAS</div>${ro?'':`<button class="btn btn-ghost btn-sm" onclick="openAddRetiradaEmp()">+</button>`}</div>
+        <div class="table-card">
+          <div class="table-scroll"><table style="table-layout:fixed">
+          <thead><tr>
+            <th style="width:40%">Descrição</th>
+            <th style="width:20%">Valor</th>
+            <th style="width:18%">Data</th>
+            <th style="width:22%"></th>
+          </tr></thead>
+          <tbody>${md.contaEmp.retiradas.length === 0
+            ? `<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Nenhuma retirada</td></tr>`
+            : md.contaEmp.retiradas.map((x,i) => `<tr>
+                <td>${x.desc||'Retirada'}</td>
+                <td class="mono stat-red">${fmt(x.valor||0)}</td>
+                <td style="color:var(--text3);font-size:11px">${fmtDate(x.data)}</td>
+                ${ro?'<td></td>':`<td><button class="btn btn-danger btn-sm" onclick="removeRetiradaEmp(${i})" style="padding:4px 7px">✕</button></td>`}
+              </tr>`).join('')}
+          </tbody></table></div>
+          <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
+            <span style="color:var(--text3)">Total</span><span class="mono stat-red">${fmt(totalRetiradas)}</span>
+          </div>
+        </div>
       </div>
-      ${md.contaEmp.retiradas.length === 0 ? `<div style="color:var(--text3);font-size:13px;padding:8px 0">Nenhuma retirada</div>` :
-        md.contaEmp.retiradas.map((x,i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-          <div>
-            <div style="color:var(--text1);font-size:14px">${x.desc||'Retirada'}</div>
-            ${x.data?`<div style="color:var(--text3);font-size:11px">${fmtDate(x.data)}</div>`:''}
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="color:var(--red);font-weight:600">${fmtR(x.valor||0)}</span>
-            ${!ro?`<button onclick="removeRetiradaEmp(${i})" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0">×</button>`:''}
-          </div>
-        </div>`).join('')}
     </div>
   </div>`;
-
-  document.getElementById('content').innerHTML = `
-    <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">
-      <button class="tab ${financasTab==='balanco'?'active':''}" onclick="setFinancasTab('balanco')">Balanço</button>
-      <button class="tab ${financasTab==='cartao'?'active':''}" onclick="setFinancasTab('cartao')">Cartão</button>
-      <button class="tab ${financasTab==='porquinho'?'active':''}" onclick="setFinancasTab('porquinho')">🐷 Poupança</button>
-      <button class="tab ${financasTab==='empresarial'?'active':''}" onclick="setFinancasTab('empresarial')">🏢 Empresarial</button>
-    </div>
-    <div style="max-width:600px;margin:0 auto">${html}</div>`;
 }
 
 function openAddSaidaEmp(){
@@ -6093,7 +6118,7 @@ function openAddSaidaEmp(){
     <div class="form-group"><label>Descrição</label><input id="empSaidaDesc" type="text" placeholder="Ex: Imposto, material..."></div>
     <div class="form-group"><label>Valor (R$)</label><input id="empSaidaValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
     <div class="form-group"><label>Data</label><input id="empSaidaData" type="date"></div>
-    <button class="btn-primary" onclick="salvarSaidaEmp()">Salvar</button>`);
+    <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="salvarSaidaEmp()">Salvar</button>`);
 }
 function salvarSaidaEmp(){
   const desc=document.getElementById('empSaidaDesc').value.trim();
@@ -6116,7 +6141,7 @@ function openAddRetiradaEmp(){
     <div class="form-group"><label>Descrição</label><input id="empRetDesc" type="text" placeholder="Ex: Retirada mensal"></div>
     <div class="form-group"><label>Valor (R$)</label><input id="empRetValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
     <div class="form-group"><label>Data</label><input id="empRetData" type="date"></div>
-    <button class="btn-primary" onclick="salvarRetiradaEmp()">Salvar</button>`);
+    <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="salvarRetiradaEmp()">Salvar</button>`);
 }
 function salvarRetiradaEmp(){
   const desc=document.getElementById('empRetDesc').value.trim()||'Retirada';
