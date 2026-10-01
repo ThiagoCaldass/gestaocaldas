@@ -2638,9 +2638,9 @@ function _buildFluxoData() {
 
   const CATS_ESPELHO = ['calistenia','personal','personal_online','personal_presencial'];
   const caliCalc    = calcValoresCali(md.calistenia || []);
-  const expCali     = caliCalc.reduce((s,a) => s + a.valorFinal, 0);
+  const expCali     = caliCalc.filter(a => a.pago && a.contaPgto !== 'emp').reduce((s,a) => s + a.valorFinal, 0);
   const expPersonal = [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
-    .filter(a => !a.pausado).reduce((s,a) => s + (a.valor||0), 0);
+    .filter(a => a.pago && a.contaPgto !== 'emp').reduce((s,a) => s + (a.valor||0), 0);
   const expResto    = (md.balanco?.ganhos||[])
     .filter(g => !CATS_ESPELHO.includes((g.categoria||'avulso').toLowerCase()))
     .reduce((s,g) => s + (g.valor||0), 0);
@@ -2666,19 +2666,15 @@ function _buildFluxoData() {
     return d.getDate();
   }
 
-  caliCalc.forEach(a => {
-    let dia;
-    if (a.pago && a.tsPago) { dia = tsDay(a.tsPago) || 1; }
-    else { const d = parseDia(a.diaAcerto) || 1; dia = (todayDay && d < todayDay) ? todayDay : d; }
-    addEv(entradas, dia, a.nome, a.valorFinal, a.pago);
+  caliCalc.filter(a => a.pago && a.contaPgto !== 'emp').forEach(a => {
+    const dia = tsDay(a.tsPago) || 1;
+    addEv(entradas, dia, a.nome, a.valorFinal, true);
   });
   [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
-    .filter(a => !a.pausado)
+    .filter(a => a.pago && a.contaPgto !== 'emp')
     .forEach(a => {
-      let dia;
-      if (a.pago && a.tsPago) { dia = tsDay(a.tsPago) || 1; }
-      else { const d = parseDia(a.diaAcerto) || 1; dia = (todayDay && d < todayDay) ? todayDay : d; }
-      addEv(entradas, dia, a.nome, a.valor||0, a.pago);
+      const dia = tsDay(a.tsPago) || 1;
+      addEv(entradas, dia, a.nome, a.valor||0, true);
     });
   (md.balanco?.ganhos||[]).filter(g => !CATS_ESPELHO.includes((g.categoria||'avulso').toLowerCase()) && g.categoria !== 'retirada_emp').forEach(g => {
     const posSomas = (g.historico||[]).filter(h => h.tipo === 'soma' && (h.delta||0) > 0);
@@ -2913,11 +2909,37 @@ function _renderFluxoSvgDual(diasP, diasE, todayDay, daysInMonth, H) {
        <text x="${xOf(todayDay)}" y="${PAD-1}" text-anchor="middle" font-size="7" fill="var(--accent3)" font-family="Barlow Condensed">HOJE</text>` : '';
   const zeroLine = minV < 0
     ? `<line x1="${PAD}" y1="${y0}" x2="${VW-PAD}" y2="${y0}" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="3,3"/>` : '';
+  const idxMaxP = valsP.indexOf(Math.max(...valsP));
+  const idxMinP = valsP.indexOf(Math.min(...valsP));
+  const idxMaxE = valsE.indexOf(Math.max(...valsE));
+  const idxMinE = valsE.indexOf(Math.min(...valsE));
+  const labelMaxP = maxV > 0 && valsP[idxMaxP] > 0
+    ? `<circle cx="${xOf(idxMaxP+1)}" cy="${yOf(valsP[idxMaxP])}" r="2.5" fill="#4CAF50"/>
+       <text x="${xOf(idxMaxP+1)}" y="${yOf(valsP[idxMaxP])-5}" text-anchor="middle" font-size="7" font-weight="700" fill="#4CAF50" font-family="Barlow Condensed">+${fmt(valsP[idxMaxP])}</text>` : '';
+  const labelMinP = valsP[idxMinP] < -0.01
+    ? `<circle cx="${xOf(idxMinP+1)}" cy="${yOf(valsP[idxMinP])}" r="2.5" fill="#4CAF50"/>
+       <text x="${xOf(idxMinP+1)}" y="${yOf(valsP[idxMinP])+13}" text-anchor="middle" font-size="7" font-weight="700" fill="#4CAF50" font-family="Barlow Condensed">${fmt(valsP[idxMinP])}</text>` : '';
+  const labelMaxE = maxV > 0 && valsE[idxMaxE] > 0
+    ? `<circle cx="${xOf(idxMaxE+1)}" cy="${yOf(valsE[idxMaxE])}" r="2.5" fill="#35c8f1"/>
+       <text x="${xOf(idxMaxE+1)}" y="${yOf(valsE[idxMaxE])-5}" text-anchor="middle" font-size="7" font-weight="700" fill="#35c8f1" font-family="Barlow Condensed">+${fmt(valsE[idxMaxE])}</text>` : '';
+  const labelMinE = valsE[idxMinE] < -0.01
+    ? `<circle cx="${xOf(idxMinE+1)}" cy="${yOf(valsE[idxMinE])}" r="2.5" fill="#35c8f1"/>
+       <text x="${xOf(idxMinE+1)}" y="${yOf(valsE[idxMinE])+13}" text-anchor="middle" font-size="7" font-weight="700" fill="#35c8f1" font-family="Barlow Condensed">${fmt(valsE[idxMinE])}</text>` : '';
+  const allDias = [...new Set([...diasP, ...diasE].map(d=>d.d))].sort((a,b)=>a-b);
+  const dayTicks = allDias.filter(d => {
+    const evP = diasP.find(x=>x.d===d); const evE = diasE.find(x=>x.d===d);
+    return (evP&&evP.ev.length>0) || (evE&&evE.ev.length>0);
+  }).map(d => {
+    const evP = diasP.find(x=>x.d===d); const evE = diasE.find(x=>x.d===d);
+    const hasP = evP&&evP.ev.length>0, hasE = evE&&evE.ev.length>0;
+    const col = hasP && hasE ? '#f1c135' : hasP ? '#4CAF50' : '#35c8f1';
+    return `<text x="${xOf(d)}" y="${H}" text-anchor="middle" font-size="7" fill="${col}" font-family="Barlow Condensed" font-weight="600" opacity="0.8">${d}</text>`;
+  }).join('');
   return `<svg viewBox="0 0 ${VW} ${H+4}" style="width:100%;display:block;overflow:visible">
     ${zeroLine}
-    ${ptsP ? `<polyline points="${ptsP}" fill="none" stroke="#4CAF50" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
-    ${ptsE ? `<polyline points="${ptsE}" fill="none" stroke="#35c8f1" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6,3"/>` : ''}
-    ${todayLine}
+    ${ptsP ? `<polyline points="${ptsP}" fill="none" stroke="#4CAF50" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
+    ${ptsE ? `<polyline points="${ptsE}" fill="none" stroke="#35c8f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6,3"/>` : ''}
+    ${dayTicks}${todayLine}${labelMaxP}${labelMinP}${labelMaxE}${labelMinE}
   </svg>`;
 }
 
