@@ -2212,17 +2212,18 @@ function renderDashboard(md) {
 
     <!-- GRÁFICOS DE PIZZA -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px" class="two-col">
-      ${renderPieChart('Fontes de Ganho', (() => {
+      ${renderPieChart('Fontes de Ganho — Pessoal', (() => {
+        const excluir = ['calistenia','personal','retirada_emp'];
         const src = [
           {l:'Calistenia', v:realCali,    cor:'#4CAF50'},
           {l:'Personal',   v:realPersonal,cor:'#E8200A'},
           ...md.balanco.ganhos
-            .filter(g=>!['calistenia','personal'].includes((g.categoria||'').toLowerCase())&&g.recebido&&g.valor>0)
+            .filter(g=>!excluir.includes((g.categoria||'').toLowerCase())&&g.recebido&&g.valor>0)
             .map((g,i)=>({l:g.nome, v:g.valor, cor:['#f1c135','#a78bfa','#f472b6','#fb923c','#35c8f1'][i%5]}))
         ].filter(x=>x.v>0);
         return src;
       })())}
-      ${renderPieChart('Distribuição de Gastos', (() => {
+      ${renderPieChart('Gastos Pessoais', (() => {
         const catMap = {};
         md.balanco.gastos.filter(g=>g.pago).forEach(g=>{
           const k=(g.categoria||g.nome).toLowerCase();
