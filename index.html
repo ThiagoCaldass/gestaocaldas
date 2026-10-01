@@ -896,7 +896,8 @@ function emptyMonth() {
     ponto: { dias: {}, valorHora: 15.9 },
     tattoo: [],
     parcerias: [],
-    cartao: { bb: { fechamento: null, parceladas: [], avista: [], assinaturas: [] }, inter: { fechamento: null, parceladas: [], avista: [], assinaturas: [] } }
+    cartao: { bb: { fechamento: null, parceladas: [], avista: [], assinaturas: [] }, inter: { fechamento: null, parceladas: [], avista: [], assinaturas: [] } },
+    contaEmp: { saidas: [], retiradas: [] }
   };
 }
 
@@ -3008,6 +3009,7 @@ function renderFinancas(md) {
       <button class="tab ${financasTab==='balanco'?'active':''}" onclick="setFinancasTab('balanco')">Balanço</button>
       <button class="tab ${financasTab==='cartao'?'active':''}" onclick="setFinancasTab('cartao')">Cartão</button>
       <button class="tab ${financasTab==='porquinho'?'active':''}" onclick="setFinancasTab('porquinho')">🐷 Poupança</button>
+      <button class="tab ${financasTab==='empresarial'?'active':''}" onclick="setFinancasTab('empresarial')">🏢 Empresarial</button>
     </div>
     <div id="financasInner" style="padding:0"></div>
   </div>`;
@@ -3017,7 +3019,7 @@ function renderFinancas(md) {
 function setFinancasTab(tab) {
   financasTab = tab;
   document.querySelectorAll('#content .tab').forEach((t,i) => {
-    const tabs=['balanco','cartao','porquinho'];
+    const tabs=['balanco','cartao','porquinho','empresarial'];
     t.classList.toggle('active', tabs[i]===tab);
   });
   loadFinancasTab(getMonthData());
@@ -3028,6 +3030,8 @@ function loadFinancasTab(md) {
     renderBalancoOriginal(md);
   } else if (financasTab==='cartao') {
     renderCartaoOriginal(md);
+  } else if (financasTab==='empresarial') {
+    renderContaEmpresarial(md);
   } else {
     renderPorquinhoOriginal();
   }
@@ -4338,7 +4342,17 @@ function deleteSelectedPersonal(){
   md.personal.presencial=md.personal.presencial.filter(a=>!ids.includes(a.id));
   saveData();setAlunosTab(alunosTab);
 }
-function toggleCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a){a.pago=!a.pago;if(a.pago)a.tsPago=Date.now();else delete a.tsPago;}syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);}
+function toggleCali(id){
+  if(guardReadOnly())return;
+  const md=getMonthData();
+  const a=md.calistenia.find(x=>x.id===id);
+  if(!a) return;
+  if(!a.pago){
+    perguntarContaPgto(conta=>{a.pago=true;a.tsPago=Date.now();a.contaPgto=conta;syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);});
+  } else {
+    a.pago=false;delete a.tsPago;delete a.contaPgto;syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);
+  }
+}
 function togglePausadoCali(id){if(guardReadOnly())return;const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(a){a.pausado=!a.pausado;if(a.pausado)a.pago=false;}saveData();setAlunosTab(alunosTab);}
 function removeCali(id){if(guardReadOnly())return;const md=getMonthData();const bk=JSON.parse(JSON.stringify(md.calistenia));const item=md.calistenia.find(x=>x.id===id);md.calistenia=md.calistenia.filter(x=>x.id!==id);saveData();setAlunosTab(alunosTab);showToast(`"${item?.nome||'Aluno'}" removido`,'warning',5000,'Desfazer',()=>{md.calistenia=bk;saveData();setAlunosTab(alunosTab);});}
 
@@ -5164,7 +5178,17 @@ function saveValorPersonal(id, isPres) {
   saveData(); closeModal(); setAlunosTab(alunosTab);
 }
 
-function togglePersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a){a.pago=!a.pago;if(a.pago)a.tsPago=Date.now();else delete a.tsPago;}syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);}
+function togglePersonal(id){
+  if(guardReadOnly())return;
+  const md=getMonthData();
+  let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);
+  if(!a) return;
+  if(!a.pago){
+    perguntarContaPgto(conta=>{a.pago=true;a.tsPago=Date.now();a.contaPgto=conta;syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);});
+  } else {
+    a.pago=false;delete a.tsPago;delete a.contaPgto;syncGanhosFromTables(md);saveData();setAlunosTab(alunosTab);
+  }
+}
 function togglePausadoPersonal(id){if(guardReadOnly())return;const md=getMonthData();let a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);if(a){a.pausado=!a.pausado;if(a.pausado)a.pago=false;}saveData();setAlunosTab(alunosTab);}
 function removePersonal(id){if(guardReadOnly())return;const md=getMonthData();const bkO=JSON.parse(JSON.stringify(md.personal.online));const bkP=JSON.parse(JSON.stringify(md.personal.presencial));const item=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);md.personal.online=md.personal.online.filter(x=>x.id!==id);md.personal.presencial=md.personal.presencial.filter(x=>x.id!==id);saveData();setAlunosTab(alunosTab);showToast(`"${item?.nome||'Aluno'}" removido`,'warning',5000,'Desfazer',()=>{md.personal.online=bkO;md.personal.presencial=bkP;saveData();setAlunosTab(alunosTab);});}
 // ── Inline cell edit helpers ──
@@ -5977,6 +6001,136 @@ function saveFechamento(bank) {
   const md = getMonthData();
   md.cartao[bank].fechamento = dia;
   saveData(); closeModal(); setFinancasTab('cartao');
+}
+
+// ==================== CONTA EMPRESARIAL ====================
+function renderContaEmpresarial(md) {
+  if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
+  const ro = isReadOnly();
+  const allAlunos = [...(md.calistenia||[]), ...(md.personal?.online||[]), ...(md.personal?.presencial||[])];
+  const entradas = allAlunos.filter(a => a.pago && a.contaPgto === 'emp');
+  const totalEntradas = entradas.reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
+  const totalSaidas = md.contaEmp.saidas.reduce((s,x) => s + (x.valor||0), 0);
+  const totalRetiradas = md.contaEmp.retiradas.reduce((s,x) => s + (x.valor||0), 0);
+  const saldo = totalEntradas - totalSaidas - totalRetiradas;
+  const fmtR = v => 'R$ ' + v.toFixed(2).replace('.',',');
+  const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '';
+
+  let html = `<div style="padding:0 4px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
+      <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Entradas</div>
+        <div style="font-size:18px;font-weight:700;color:var(--green)">${fmtR(totalEntradas)}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Saídas</div>
+        <div style="font-size:18px;font-weight:700;color:var(--red)">${fmtR(totalSaidas + totalRetiradas)}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Saldo</div>
+        <div style="font-size:18px;font-weight:700;color:${saldo>=0?'var(--green)':'var(--red)'}">${fmtR(saldo)}</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Entradas (alunos)</div>
+      ${entradas.length === 0 ? `<div style="color:var(--text3);font-size:13px;padding:8px 0">Nenhum pagamento na conta empresarial</div>` :
+        entradas.map(a => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--text1);font-size:14px">${a.nome||''}</span>
+          <span style="color:var(--green);font-weight:600">${fmtR(a.valorFinal||a.valor||0)}</span>
+        </div>`).join('')}
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px">Saídas</div>
+        ${!ro?`<button onclick="openAddSaidaEmp()" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-family:'Barlow Condensed';font-size:13px;cursor:pointer">+ Saída</button>`:''}
+      </div>
+      ${md.contaEmp.saidas.length === 0 ? `<div style="color:var(--text3);font-size:13px;padding:8px 0">Nenhuma saída</div>` :
+        md.contaEmp.saidas.map((x,i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="color:var(--text1);font-size:14px">${x.desc||''}</div>
+            ${x.data?`<div style="color:var(--text3);font-size:11px">${fmtDate(x.data)}</div>`:''}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="color:var(--red);font-weight:600">${fmtR(x.valor||0)}</span>
+            ${!ro?`<button onclick="removeSaidaEmp(${i})" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0">×</button>`:''}
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px">Retiradas</div>
+        ${!ro?`<button onclick="openAddRetiradaEmp()" style="background:var(--accent);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-family:'Barlow Condensed';font-size:13px;cursor:pointer">+ Retirada</button>`:''}
+      </div>
+      ${md.contaEmp.retiradas.length === 0 ? `<div style="color:var(--text3);font-size:13px;padding:8px 0">Nenhuma retirada</div>` :
+        md.contaEmp.retiradas.map((x,i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="color:var(--text1);font-size:14px">${x.desc||'Retirada'}</div>
+            ${x.data?`<div style="color:var(--text3);font-size:11px">${fmtDate(x.data)}</div>`:''}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="color:var(--red);font-weight:600">${fmtR(x.valor||0)}</span>
+            ${!ro?`<button onclick="removeRetiradaEmp(${i})" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0">×</button>`:''}
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+  document.getElementById('content').innerHTML = `
+    <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">
+      <button class="tab ${financasTab==='balanco'?'active':''}" onclick="setFinancasTab('balanco')">Balanço</button>
+      <button class="tab ${financasTab==='cartao'?'active':''}" onclick="setFinancasTab('cartao')">Cartão</button>
+      <button class="tab ${financasTab==='porquinho'?'active':''}" onclick="setFinancasTab('porquinho')">🐷 Poupança</button>
+      <button class="tab ${financasTab==='empresarial'?'active':''}" onclick="setFinancasTab('empresarial')">🏢 Empresarial</button>
+    </div>
+    <div style="max-width:600px;margin:0 auto">${html}</div>`;
+}
+
+function openAddSaidaEmp(){
+  openModal(`<div class="modal-handle"></div><div class="modal-title">NOVA SAÍDA</div>
+    <div class="form-group"><label>Descrição</label><input id="empSaidaDesc" type="text" placeholder="Ex: Imposto, material..."></div>
+    <div class="form-group"><label>Valor (R$)</label><input id="empSaidaValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
+    <div class="form-group"><label>Data</label><input id="empSaidaData" type="date"></div>
+    <button class="btn-primary" onclick="salvarSaidaEmp()">Salvar</button>`);
+}
+function salvarSaidaEmp(){
+  const desc=document.getElementById('empSaidaDesc').value.trim();
+  const valor=parseFloat(document.getElementById('empSaidaValor').value)||0;
+  const data=document.getElementById('empSaidaData').value;
+  if(!desc){showFieldError('empSaidaDesc','Informe a descrição');return;}
+  const md=getMonthData();
+  if(!md.contaEmp) md.contaEmp={saidas:[],retiradas:[]};
+  md.contaEmp.saidas.push({desc,valor,data});
+  saveData();closeModal();renderContaEmpresarial(md);
+}
+function removeSaidaEmp(i){
+  const md=getMonthData();
+  md.contaEmp.saidas.splice(i,1);
+  saveData();renderContaEmpresarial(md);
+}
+
+function openAddRetiradaEmp(){
+  openModal(`<div class="modal-handle"></div><div class="modal-title">NOVA RETIRADA</div>
+    <div class="form-group"><label>Descrição</label><input id="empRetDesc" type="text" placeholder="Ex: Retirada mensal"></div>
+    <div class="form-group"><label>Valor (R$)</label><input id="empRetValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
+    <div class="form-group"><label>Data</label><input id="empRetData" type="date"></div>
+    <button class="btn-primary" onclick="salvarRetiradaEmp()">Salvar</button>`);
+}
+function salvarRetiradaEmp(){
+  const desc=document.getElementById('empRetDesc').value.trim()||'Retirada';
+  const valor=parseFloat(document.getElementById('empRetValor').value)||0;
+  const data=document.getElementById('empRetData').value;
+  const md=getMonthData();
+  if(!md.contaEmp) md.contaEmp={saidas:[],retiradas:[]};
+  md.contaEmp.retiradas.push({desc,valor,data});
+  saveData();closeModal();renderContaEmpresarial(md);
+}
+function removeRetiradaEmp(i){
+  const md=getMonthData();
+  md.contaEmp.retiradas.splice(i,1);
+  saveData();renderContaEmpresarial(md);
 }
 
 function renderCartao(md){ renderFinancas(md); }
@@ -7442,6 +7596,18 @@ async function setMonth(m,y){
 function closeMonthOutside(e){if(e.target===document.getElementById('monthOverlay'))document.getElementById('monthOverlay').classList.remove('open');}
 
 // ==================== MODAL ====================
+let _contaPgtoCb = null;
+function perguntarContaPgto(cb){
+  _contaPgtoCb = cb;
+  openModal(`<div class="modal-handle"></div>
+    <div class="modal-title">CONTA DO PAGAMENTO</div>
+    <p style="text-align:center;color:var(--text2);margin:0 0 20px">Recebido em qual conta?</p>
+    <div style="display:flex;gap:12px;justify-content:center">
+      <button onclick="escolherContaPgto('pessoal')" style="flex:1;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text1);font-family:'Barlow Condensed';font-size:16px;font-weight:600;cursor:pointer">💰 Pessoal</button>
+      <button onclick="escolherContaPgto('emp')" style="flex:1;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text1);font-family:'Barlow Condensed';font-size:16px;font-weight:600;cursor:pointer">🏢 Empresarial</button>
+    </div>`);
+}
+function escolherContaPgto(conta){closeModal();if(_contaPgtoCb){_contaPgtoCb(conta);_contaPgtoCb=null;}}
 function openModal(html){document.getElementById('modalContent').innerHTML=html;document.getElementById('modalOverlay').classList.add('open');}
 function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
 function closeModalOutside(e){if(e.target===document.getElementById('modalOverlay'))closeModal();}
