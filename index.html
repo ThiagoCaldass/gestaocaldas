@@ -2868,7 +2868,12 @@ function _buildFluxoDataEmp() {
     addEv(entradas, dia, a.nome, a.valorFinal||a.valor||0, a.pago);
   });
   (md.contaEmp.saidas||[]).forEach(s => {
-    const dia = dateDay(s.data) || daysInMonth;
+    let dia;
+    if (s.pago && s.dataPago) { dia = dateDay(s.dataPago); }
+    else {
+      const dPrev = dateDay(s.dataPrevisao || s.data) || daysInMonth;
+      dia = (todayDay && dPrev < todayDay) ? todayDay : dPrev;
+    }
     addEv(saidas, dia, s.desc||'Saída', s.valor||0, s.pago);
   });
   (md.contaEmp.retiradas||[]).forEach(r => {
@@ -6299,7 +6304,7 @@ function renderContaEmpresarial(md) {
             <th style="width:34%">Descrição</th>
             <th style="width:16%">Valor</th>
             <th style="width:13%">Status</th>
-            <th style="width:19%">Data</th>
+            <th style="width:19%">Pago em</th>
             <th style="width:18%"></th>
           </tr></thead>
           <tbody>${md.contaEmp.saidas.length === 0
@@ -6307,21 +6312,19 @@ function renderContaEmpresarial(md) {
             : md.contaEmp.saidas.map((x,i) => {
                 const dataPrev = x.dataPrevisao || x.data || '';
                 const dataPago = x.dataPago || '';
-                const dataLabel = x.pago
-                  ? (dataPago ? `<span style="color:var(--green);font-size:11px">✓ ${fmtDate(dataPago)}</span>` : '<span style="color:var(--green);font-size:11px">✓</span>')
-                  : (dataPrev ? `<span style="color:var(--text3);font-size:11px">Prev: ${fmtDate(dataPrev)}</span>` : '—');
                 return `<tr>
                 <td>
-                  <div style="display:flex;align-items:center;gap:5px">
-                    <span>${x.desc||''}</span>
-                    ${x.persistente?`<span title="Recorrente" style="font-size:10px;color:var(--accent3)">🔁</span>`:''}
+                  <div style="display:flex;align-items:center;gap:5px;min-width:0">
+                    <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.desc||''}</span>
+                    ${x.persistente?`<span title="Recorrente" style="font-size:10px;color:var(--accent3);flex-shrink:0">🔁</span>`:''}
+                    ${dataPrev&&!x.pago?`<span title="Vence ${fmtDate(dataPrev)}" style="font-size:10px;color:#f1c135;flex-shrink:0;background:rgba(241,193,53,0.12);border-radius:3px;padding:1px 5px;white-space:nowrap">📅 ${fmtDate(dataPrev)}</span>`:''}
                   </div>
                 </td>
                 <td class="mono stat-red">${fmt(x.valor||0)}</td>
                 <td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':'toggleSaidaEmp('+i+')'}">
                   <span class="badge ${x.pago?'badge-green':'badge-yellow'}">${x.pago?'Pago':'Pendente'}</span>
                 </td>
-                <td>${dataLabel}</td>
+                <td style="color:var(--text3);font-size:11px">${x.pago&&dataPago?fmtDate(dataPago):''}</td>
                 ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
                   <button class="btn btn-ghost btn-sm" onclick="editSaidaEmp(${i})" style="padding:4px 7px">✎</button>
                   <button class="btn btn-danger btn-sm" onclick="removeSaidaEmp(${i})" style="padding:4px 7px">✕</button>
