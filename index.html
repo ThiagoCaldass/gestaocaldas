@@ -896,7 +896,7 @@ function emptyMonth() {
     ponto: { dias: {}, valorHora: 15.9 },
     tattoo: [],
     parcerias: [],
-    cartao: { bb: { fechamento: null, parceladas: [], avista: [], assinaturas: [] }, inter: { fechamento: null, parceladas: [], avista: [], assinaturas: [] } },
+    cartao: { bb: { fechamento: null, parceladas: [], avista: [], assinaturas: [] }, inter: { fechamento: null, parceladas: [], avista: [], assinaturas: [] }, emp: { fechamento: null, parceladas: [], avista: [], assinaturas: [] } },
     contaEmp: { saidas: [], retiradas: [] }
   };
 }
@@ -1100,6 +1100,11 @@ function seedNewMonth(md, k) {
     md.cartao.inter.parceladas  = (prev.cartao.inter?.parceladas  || []).map(p => ({...p, id: uid()}));
     md.cartao.inter.assinaturas = (prev.cartao.inter?.assinaturas || []).map(a => ({...a, id: uid()}));
     md.cartao.inter.avista      = [];
+    if (!md.cartao.emp) md.cartao.emp = { fechamento: null, parceladas: [], avista: [], assinaturas: [] };
+    md.cartao.emp.fechamento    = prev.cartao.emp?.fechamento ?? null;
+    md.cartao.emp.parceladas    = (prev.cartao.emp?.parceladas  || []).map(p => ({...p, id: uid()}));
+    md.cartao.emp.assinaturas   = (prev.cartao.emp?.assinaturas || []).map(a => ({...a, id: uid()}));
+    md.cartao.emp.avista        = [];
   }
 
   // 3. Copy alunos (reset pago, aulasDatas — mantém nome, valor, configurações)
@@ -2018,6 +2023,17 @@ function renderDashboard(md) {
     .filter(g=>!CATS_COM_TABELA.includes((g.categoria||'').toLowerCase()) && g.recebido)
     .reduce((s,g)=>s+g.valor, 0);
 
+  // ── Conta Empresarial ──
+  if(!md.contaEmp) md.contaEmp={saidas:[],retiradas:[]};
+  const empAllAlunos=[...(md.calistenia||[]),...(md.personal?.online||[]),...(md.personal?.presencial||[])];
+  const empEntradas=empAllAlunos.filter(a=>a.pago&&a.contaPgto==='emp');
+  const empTotalEnt=empEntradas.reduce((s,a)=>s+(a.valorFinal||a.valor||0),0);
+  const empTotalSai=md.contaEmp.saidas.reduce((s,x)=>s+(x.valor||0),0);
+  const empTotalRet=md.contaEmp.retiradas.reduce((s,x)=>s+(x.valor||0),0);
+  const empSaldo=empTotalEnt-empTotalSai-empTotalRet;
+  if(!md.cartao.emp) md.cartao.emp={fechamento:null,parceladas:[],avista:[],assinaturas:[]};
+  const empCartaoT=[...md.cartao.emp.parceladas,...md.cartao.emp.avista,...md.cartao.emp.assinaturas.filter(a=>!a.pausada)].reduce((s,x)=>s+(x.valor||0),0);
+
   // ── Mês anterior: expectativa ──
   const prevMonthKey = (() => {
     let pm = currentMonth.m, py = currentMonth.y;
@@ -2213,6 +2229,68 @@ function renderDashboard(md) {
             v, cor:cores[i%cores.length]
           }));
       })())}
+    </div>
+
+    <!-- CONTA EMPRESARIAL -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px">
+      <div style="background:rgba(53,200,241,0.05);border-bottom:1px solid rgba(53,200,241,0.15);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="navigate('financas');setFinancasTab('empresarial')">
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--accent3);font-weight:500">🏢 Conta Empresarial</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:1px">Entradas, saídas e cartão</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'Barlow Condensed';font-size:20px;color:${empSaldo>=0?'var(--green)':'var(--red)'}">${fmt(empSaldo)}</div>
+          <div style="font-size:10px;color:var(--text3)">saldo</div>
+        </div>
+      </div>
+      <div style="padding:12px 16px">
+        <!-- stat row -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Entradas</div>
+            <div style="font-family:'Barlow Condensed';font-size:16px;color:var(--green)">${fmt(empTotalEnt)}</div>
+            <div style="font-size:10px;color:var(--text3)">${empEntradas.length} aluno${empEntradas.length!==1?'s':''}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Saídas</div>
+            <div style="font-family:'Barlow Condensed';font-size:16px;color:var(--red)">${fmt(empTotalSai)}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Retiradas</div>
+            <div style="font-family:'Barlow Condensed';font-size:16px;color:var(--red)">${fmt(empTotalRet)}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Cartão Emp.</div>
+            <div style="font-family:'Barlow Condensed';font-size:16px;color:var(--red)">${fmt(empCartaoT)}</div>
+          </div>
+        </div>
+        <!-- progress bar entradas -->
+        ${empTotalEnt > 0 ? `
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Comprometido das entradas</span>
+            <span style="font-size:11px;font-family:'Barlow Condensed';color:var(--text2)">${Math.min(100,Math.round((empTotalSai+empTotalRet+empCartaoT)/empTotalEnt*100))}%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:${Math.min(100,Math.round((empTotalSai+empTotalRet)/empTotalEnt*100))}%;background:var(--red)"></div>
+          </div>
+        </div>` : ''}
+        <!-- gráfico pizza entradas -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" class="two-col">
+          ${renderPieChart('Entradas Empresariais', (() => {
+            const cores=['#4CAF50','#35c8f1','#f1c135','#a78bfa','#f472b6','#fb923c'];
+            return empEntradas.map((a,i)=>({l:a.nome||'Aluno',v:a.valorFinal||a.valor||0,cor:cores[i%cores.length]})).filter(x=>x.v>0);
+          })())}
+          ${renderPieChart('Saídas Empresariais', (() => {
+            const cores=['#E8200A','#ff6b35','#f1c135','#35c8f1','#a78bfa','#f472b6'];
+            const items=[
+              ...md.contaEmp.saidas.map((x,i)=>({l:x.desc||'Saída',v:x.valor||0,cor:cores[i%cores.length]})),
+              ...md.contaEmp.retiradas.map((x,i)=>({l:x.desc||'Retirada',v:x.valor||0,cor:cores[(i+3)%cores.length]})),
+            ];
+            return items.filter(x=>x.v>0);
+          })())}
+        </div>
+      </div>
     </div>
 
     <!-- COMPARAÇÃO MÊS ANTERIOR -->
@@ -3007,9 +3085,9 @@ function renderFinancas(md) {
   document.getElementById('content').innerHTML = `<div class="page">
     <div class="tabs" style="width:100%;margin-bottom:16px">
       <button class="tab ${financasTab==='balanco'?'active':''}" onclick="setFinancasTab('balanco')">💰 Pessoal</button>
+      <button class="tab ${financasTab==='empresarial'?'active':''}" onclick="setFinancasTab('empresarial')">🏢 Empresarial</button>
       <button class="tab ${financasTab==='cartao'?'active':''}" onclick="setFinancasTab('cartao')">Cartão</button>
       <button class="tab ${financasTab==='porquinho'?'active':''}" onclick="setFinancasTab('porquinho')">🐷 Poupança</button>
-      <button class="tab ${financasTab==='empresarial'?'active':''}" onclick="setFinancasTab('empresarial')">🏢 Empresarial</button>
     </div>
     <div id="financasInner" style="padding:0"></div>
   </div>`;
@@ -3019,7 +3097,7 @@ function renderFinancas(md) {
 function setFinancasTab(tab) {
   financasTab = tab;
   document.querySelectorAll('#content .tab').forEach((t,i) => {
-    const tabs=['balanco','cartao','porquinho','empresarial'];
+    const tabs=['balanco','empresarial','cartao','porquinho'];
     t.classList.toggle('active', tabs[i]===tab);
   });
   loadFinancasTab(getMonthData());
@@ -6164,10 +6242,12 @@ function removeRetiradaEmp(i){
 
 function renderCartao(md){ renderFinancas(md); }
 function renderCartaoOriginal(md){
-  const bb=md.cartao.bb, inter=md.cartao.inter;
+  if(!md.cartao.emp) md.cartao.emp={fechamento:null,parceladas:[],avista:[],assinaturas:[]};
+  const bb=md.cartao.bb, inter=md.cartao.inter, emp=md.cartao.emp;
   const bbP=bb.parceladas.reduce((a,b)=>a+b.valor,0), bbA=bb.avista.reduce((a,b)=>a+b.valor,0), bbAs=bb.assinaturas.filter(a=>!a.pausada).reduce((a,b)=>a+b.valor,0);
   const inP=inter.parceladas.reduce((a,b)=>a+b.valor,0), inA=inter.avista.reduce((a,b)=>a+b.valor,0), inAs=inter.assinaturas.filter(a=>!a.pausada).reduce((a,b)=>a+b.valor,0);
-  const bbT=bbP+bbA+bbAs, inT=inP+inA+inAs;
+  const emP=emp.parceladas.reduce((a,b)=>a+b.valor,0), emA=emp.avista.reduce((a,b)=>a+b.valor,0), emAs=emp.assinaturas.filter(a=>!a.pausada).reduce((a,b)=>a+b.valor,0);
+  const bbT=bbP+bbA+bbAs, inT=inP+inA+inAs, emT=emP+emA+emAs;
 
   document.getElementById('topbarActions').innerHTML='';
   const cInner = document.getElementById('financasInner') || document.getElementById('content');
@@ -6180,6 +6260,7 @@ function renderCartaoOriginal(md){
         <select id="cc-bank" style="max-width:90px;flex:0 0 90px">
           <option value="bb">BB</option>
           <option value="inter">Inter</option>
+          <option value="emp">Emp.</option>
         </select>
         <button class="btn btn-primary" onclick="saveQuickCC()">Salvar</button>
       </div>
@@ -6236,15 +6317,29 @@ function renderCartaoOriginal(md){
           <div class="cc-item">Ass. <span>${fmt(inAs)}</span></div>
         </div>
       </div>
+      <div class="cc-card">
+        <div class="cc-bank" style="display:flex;align-items:center;justify-content:space-between">
+          <span>🏢 Empresarial</span>
+          <button onclick="editFechamento('emp')" style="background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;color:${emp.fechamento?'var(--accent)':'var(--text3)'};cursor:pointer;font-family:'Barlow Condensed'">
+            ${emp.fechamento ? `Fecha dia ${emp.fechamento}` : 'Definir fechamento'}
+          </button>
+        </div>
+        <div class="cc-total stat-red">${fmt(emT)}</div>
+        <div class="cc-breakdown">
+          <div class="cc-item">Parc. <span>${fmt(emP)}</span></div>
+          <div class="cc-item">Vist. <span>${fmt(emA)}</span></div>
+          <div class="cc-item">Ass. <span>${fmt(emAs)}</span></div>
+        </div>
+      </div>
       <div class="stat-card red" style="flex:0.6;min-width:140px">
         <div class="stat-label">Total Geral</div>
-        <div class="stat-value stat-red">${fmt(bbT+inT)}</div>
+        <div class="stat-value stat-red">${fmt(bbT+inT+emT)}</div>
       </div>
     </div>
 
-    ${['bb','inter'].map(bank=>{
+    ${['bb','inter','emp'].map(bank=>{
       const c=md.cartao[bank];
-      const lbl=bank==='bb'?'🟡 Banco do Brasil':'🔴 Inter';
+      const lbl=bank==='bb'?'🟡 Banco do Brasil':bank==='inter'?'🔴 Inter':'🏢 Empresarial';
       return `<div style="margin-bottom:24px">
         <div class="section-title" style="margin-bottom:12px">${lbl}</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px" class="two-col">
