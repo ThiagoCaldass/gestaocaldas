@@ -1107,6 +1107,13 @@ function seedNewMonth(md, k) {
     md.cartao.emp.avista        = [];
   }
 
+  // 2b. Copy persistent contaEmp saídas (reset pago, ts)
+  const saidasPers = (prev.contaEmp?.saidas || []).filter(s => s.persistente);
+  if (saidasPers.length > 0) {
+    if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
+    md.contaEmp.saidas = saidasPers.map(s => ({ ...s, id: uid(), pago: false, ts: Date.now() }));
+  }
+
   // 3. Copy alunos (reset pago, aulasDatas — mantém nome, valor, configurações)
   if (prev.calistenia?.length) {
     md.calistenia = prev.calistenia.map(a => ({
@@ -6145,18 +6152,30 @@ function renderContaEmpresarial(md) {
         <div class="table-card">
           <div class="table-scroll"><table style="table-layout:fixed">
           <thead><tr>
-            <th style="width:40%">Descrição</th>
-            <th style="width:20%">Valor</th>
-            <th style="width:18%">Data</th>
-            <th style="width:22%"></th>
+            <th style="width:36%">Descrição</th>
+            <th style="width:18%">Valor</th>
+            <th style="width:13%">Status</th>
+            <th style="width:15%">Data</th>
+            <th style="width:18%"></th>
           </tr></thead>
           <tbody>${md.contaEmp.saidas.length === 0
-            ? `<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Nenhuma saída</td></tr>`
+            ? `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px">Nenhuma saída</td></tr>`
             : md.contaEmp.saidas.map((x,i) => `<tr>
-                <td>${x.desc||''}</td>
+                <td>
+                  <div style="display:flex;align-items:center;gap:5px">
+                    <span>${x.desc||''}</span>
+                    ${x.persistente?`<span title="Recorrente" style="font-size:10px;color:var(--accent3)">🔁</span>`:''}
+                  </div>
+                </td>
                 <td class="mono stat-red">${fmt(x.valor||0)}</td>
+                <td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':'toggleSaidaEmp('+i+')'}">
+                  <span class="badge ${x.pago?'badge-green':'badge-red'}">${x.pago?'✓':'✕'}</span>
+                </td>
                 <td style="color:var(--text3);font-size:11px">${fmtDate(x.data)}</td>
-                ${ro?'<td></td>':`<td><button class="btn btn-danger btn-sm" onclick="removeSaidaEmp(${i})" style="padding:4px 7px">✕</button></td>`}
+                ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
+                  <button class="btn btn-ghost btn-sm" onclick="editSaidaEmp(${i})" style="padding:4px 7px">✎</button>
+                  <button class="btn btn-danger btn-sm" onclick="removeSaidaEmp(${i})" style="padding:4px 7px">✕</button>
+                </div></td>`}
               </tr>`).join('')}
           </tbody></table></div>
           <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
@@ -6191,22 +6210,82 @@ function renderContaEmpresarial(md) {
   </div>`;
 }
 
+function _empSaidaPersBtnHtml(ativo){
+  return `<button id="empSaidaPersBtn" onclick="toggleEmpSaidaPers()" type="button" style="
+    width:100%;padding:12px 16px;border-radius:8px;border:1.5px solid ${ativo?'var(--accent3)':'var(--border)'};
+    background:${ativo?'rgba(53,200,241,0.08)':'var(--surface2)'};
+    color:${ativo?'var(--accent3)':'var(--text2)'};
+    font-family:'Barlow Condensed';font-size:15px;font-weight:${ativo?600:400};
+    cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+    transition:all 0.15s;-webkit-tap-highlight-color:transparent">
+    <span>🔁 Gasto recorrente</span>
+    <span id="empSaidaPersState" style="font-size:12px">${ativo?'✓ Ativo':'Inativo'}</span>
+  </button>
+  <input id="empSaidaPers" type="hidden" value="${ativo?'1':'0'}">
+  <div style="font-size:11px;color:var(--text3);margin-top:6px;padding:0 4px">Gasto fixo mensal — aparece todo mês automaticamente</div>`;
+}
+window.toggleEmpSaidaPers = function(){
+  const inp=document.getElementById('empSaidaPers');
+  const btn=document.getElementById('empSaidaPersBtn');
+  const lbl=document.getElementById('empSaidaPersState');
+  if(!inp||!btn||!lbl)return;
+  const ativo=inp.value!=='1';
+  inp.value=ativo?'1':'0';
+  btn.style.border=`1.5px solid ${ativo?'var(--accent3)':'var(--border)'}`;
+  btn.style.background=ativo?'rgba(53,200,241,0.08)':'var(--surface2)';
+  btn.style.color=ativo?'var(--accent3)':'var(--text2)';
+  btn.style.fontWeight=ativo?600:400;
+  lbl.textContent=ativo?'✓ Ativo':'Inativo';
+};
 function openAddSaidaEmp(){
   openModal(`<div class="modal-handle"></div><div class="modal-title">NOVA SAÍDA</div>
-    <div class="form-group"><label>Descrição</label><input id="empSaidaDesc" type="text" placeholder="Ex: Imposto, material..."></div>
-    <div class="form-group"><label>Valor (R$)</label><input id="empSaidaValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
-    <div class="form-group"><label>Data</label><input id="empSaidaData" type="date"></div>
-    <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="salvarSaidaEmp()">Salvar</button>`);
+    <div class="form-group"><label class="form-label">Descrição</label><input id="empSaidaDesc" type="text" placeholder="Ex: Imposto, material..."></div>
+    <div class="form-group"><label class="form-label">Valor (R$)</label><input id="empSaidaValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
+    <div class="form-group"><label class="form-label">Data</label><input id="empSaidaData" type="date"></div>
+    <div class="form-group"><label class="form-label">Status</label><select id="empSaidaPago"><option value="0">Pendente</option><option value="1">Pago</option></select></div>
+    <div style="padding:10px 0;border-top:1px solid var(--border);margin-bottom:12px">${_empSaidaPersBtnHtml(false)}</div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarSaidaEmp()">Adicionar</button></div>`);
 }
 function salvarSaidaEmp(){
   const desc=document.getElementById('empSaidaDesc').value.trim();
   const valor=parseFloat(document.getElementById('empSaidaValor').value)||0;
   const data=document.getElementById('empSaidaData').value;
+  const pago=document.getElementById('empSaidaPago')?.value==='1';
+  const persistente=document.getElementById('empSaidaPers')?.value==='1';
   if(!desc){showFieldError('empSaidaDesc','Informe a descrição');return;}
   const md=getMonthData();
   if(!md.contaEmp) md.contaEmp={saidas:[],retiradas:[]};
-  md.contaEmp.saidas.push({desc,valor,data});
+  md.contaEmp.saidas.push({id:uid(),desc,valor,data,pago,persistente,ts:Date.now()});
   saveData();closeModal();renderContaEmpresarial(md);
+}
+function editSaidaEmp(i){
+  if(guardReadOnly())return;
+  const md=getMonthData();
+  const x=md.contaEmp.saidas[i];if(!x)return;
+  openModal(`<div class="modal-handle"></div><div class="modal-title">EDITAR SAÍDA</div>
+    <div class="form-group"><label class="form-label">Descrição</label><input id="empSaidaDesc" type="text" value="${x.desc||''}"></div>
+    <div class="form-group"><label class="form-label">Valor (R$)</label><input id="empSaidaValor" type="number" step="0.01" min="0" value="${x.valor||0}"></div>
+    <div class="form-group"><label class="form-label">Data</label><input id="empSaidaData" type="date" value="${x.data||''}"></div>
+    <div class="form-group"><label class="form-label">Status</label><select id="empSaidaPago"><option value="0" ${!x.pago?'selected':''}>Pendente</option><option value="1" ${x.pago?'selected':''}>Pago</option></select></div>
+    <div style="padding:10px 0;border-top:1px solid var(--border);margin-bottom:12px">${_empSaidaPersBtnHtml(!!x.persistente)}</div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveEditSaidaEmp(${i})">Salvar</button></div>`);
+}
+function saveEditSaidaEmp(i){
+  const md=getMonthData();
+  const x=md.contaEmp.saidas[i];if(!x)return;
+  x.desc=document.getElementById('empSaidaDesc').value.trim()||x.desc;
+  x.valor=parseFloat(document.getElementById('empSaidaValor').value)||0;
+  x.data=document.getElementById('empSaidaData').value;
+  x.pago=document.getElementById('empSaidaPago')?.value==='1';
+  x.persistente=document.getElementById('empSaidaPers')?.value==='1';
+  saveData();closeModal();renderContaEmpresarial(md);
+}
+function toggleSaidaEmp(i){
+  if(guardReadOnly())return;
+  const md=getMonthData();
+  const x=md.contaEmp.saidas[i];if(!x)return;
+  x.pago=!x.pago;
+  saveData();renderContaEmpresarial(md);
 }
 function removeSaidaEmp(i){
   const md=getMonthData();
