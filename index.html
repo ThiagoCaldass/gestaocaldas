@@ -2808,21 +2808,155 @@ function _renderFluxoLista(dias, todayDay, maxH) {
   return `<div style="padding:0 16px 10px;max-height:${maxH};overflow-y:auto">${html}</div>`;
 }
 
+function _buildFluxoDataEmp() {
+  const md  = getMonthData();
+  const now = new Date();
+  const ano = currentMonth.y, mes = currentMonth.m;
+  const daysInMonth = new Date(ano, mes + 1, 0).getDate();
+  const todayDay = (ano === now.getFullYear() && mes === now.getMonth()) ? now.getDate() : null;
+  function parseDia(str) {
+    if (!str) return null;
+    const s = String(str).toLowerCase().trim();
+    if (s === 'final' || s === 'último' || s === 'ultimo') return daysInMonth;
+    const m = s.match(/\d+/); const n = m ? parseInt(m[0]) : null;
+    return (n && n >= 1 && n <= 31) ? n : null;
+  }
+  function tsDay(ts) {
+    if (!ts) return null;
+    const d = new Date(ts);
+    if (d.getFullYear() !== ano || d.getMonth() !== mes) return null;
+    return d.getDate();
+  }
+  function dateDay(str) {
+    if (!str) return null;
+    const d = new Date(str);
+    if (isNaN(d)) return null;
+    if (d.getFullYear() !== ano || d.getMonth() !== mes) return null;
+    return d.getDate();
+  }
+  if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
+  const caliCalc = calcValoresCali(md.calistenia || []);
+  const allAlunos = [
+    ...caliCalc.filter(a => a.contaPgto === 'emp'),
+    ...[...(md.personal?.online||[]), ...(md.personal?.presencial||[])].filter(a => !a.pausado && a.contaPgto === 'emp')
+  ];
+  const expGanhos  = allAlunos.reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
+  const expGastos  = (md.contaEmp.saidas||[]).reduce((s,x)=>s+(x.valor||0),0)
+                   + (md.contaEmp.retiradas||[]).reduce((s,x)=>s+(x.valor||0),0);
+  const expSaldoFim = expGanhos - expGastos;
+  const entradas = {}, saidas = {};
+  function addEv(map, dia, nome, valor, feito) {
+    if (!dia || valor <= 0) return;
+    const d = Math.min(Math.max(1, dia), daysInMonth);
+    if (!map[d]) map[d] = [];
+    map[d].push({ nome, valor, feito: !!feito });
+  }
+  allAlunos.forEach(a => {
+    let dia;
+    if (a.pago && a.tsPago) { dia = tsDay(a.tsPago) || 1; }
+    else { const d = parseDia(a.diaAcerto) || 1; dia = (todayDay && d < todayDay) ? todayDay : d; }
+    addEv(entradas, dia, a.nome, a.valorFinal||a.valor||0, a.pago);
+  });
+  (md.contaEmp.saidas||[]).forEach(s => {
+    const dia = dateDay(s.data) || daysInMonth;
+    addEv(saidas, dia, s.desc||'Saída', s.valor||0, s.pago);
+  });
+  (md.contaEmp.retiradas||[]).forEach(r => {
+    const dia = dateDay(r.data) || daysInMonth;
+    addEv(saidas, dia, r.desc||'Retirada', r.valor||0, true);
+  });
+  const chartNet = Object.values(entradas).flat().reduce((s,x)=>s+x.valor,0)
+                 - Object.values(saidas).flat().reduce((s,x)=>s+x.valor,0);
+  const ajNet = expSaldoFim - chartNet;
+  if (ajNet >  0.01) { if (!entradas[1]) entradas[1]=[]; entradas[1].push({nome:'Outros',valor: ajNet,feito:false}); }
+  if (ajNet < -0.01) { if (!saidas[1])   saidas[1]  =[]; saidas[1].push({nome:'Outros',valor:-ajNet,feito:false}); }
+  let acc = 0;
+  const dias = Array.from({length: daysInMonth}, (_,i) => {
+    const d   = i + 1;
+    const ent = (entradas[d]||[]).reduce((s,x)=>s+x.valor,0);
+    const sai = (saidas[d]||[]).reduce((s,x)=>s+x.valor,0);
+    acc += ent - sai;
+    return { d, ent, sai, acc, ev: [...(entradas[d]||[]).map(x=>({...x,tipo:'e'})), ...(saidas[d]||[]).map(x=>({...x,tipo:'s'}))] };
+  });
+  return { dias, expGanhos, expGastos, expSaldoFim, todayDay, daysInMonth };
+}
+
+function _renderFluxoSvgDual(diasP, diasE, todayDay, daysInMonth, H) {
+  const valsP = diasP.map(d => d.acc), valsE = diasE.map(d => d.acc);
+  const allVals = [...valsP, ...valsE];
+  const minV = Math.min(0, ...allVals), maxV = Math.max(0, ...allVals);
+  const range = maxV - minV || 1;
+  const VW = 500, PAD = 6;
+  const xOf = d => PAD + (d / daysInMonth) * (VW - PAD*2);
+  const yOf = v => PAD + (1 - (v - minV) / range) * (H - PAD*2);
+  const y0 = yOf(0);
+  const ptsP = diasP.map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
+  const ptsE = diasE.map(d => `${xOf(d.d)},${yOf(d.acc)}`).join(' ');
+  const todayLine = todayDay
+    ? `<line x1="${xOf(todayDay)}" y1="${PAD}" x2="${xOf(todayDay)}" y2="${H-PAD}" stroke="rgba(53,200,241,0.45)" stroke-width="1.5" stroke-dasharray="4,3"/>
+       <text x="${xOf(todayDay)}" y="${PAD-1}" text-anchor="middle" font-size="7" fill="var(--accent3)" font-family="Barlow Condensed">HOJE</text>` : '';
+  const zeroLine = minV < 0
+    ? `<line x1="${PAD}" y1="${y0}" x2="${VW-PAD}" y2="${y0}" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="3,3"/>` : '';
+  return `<svg viewBox="0 0 ${VW} ${H+4}" style="width:100%;display:block;overflow:visible">
+    ${zeroLine}
+    ${ptsP ? `<polyline points="${ptsP}" fill="none" stroke="#4CAF50" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
+    ${ptsE ? `<polyline points="${ptsE}" fill="none" stroke="#35c8f1" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6,3"/>` : ''}
+    ${todayLine}
+  </svg>`;
+}
+
 function renderWidgetFluxo() {
-  const { dias, expGanhos, expGastos, expSaldoFim, todayDay, daysInMonth } = _buildFluxoData();
-  window._fluxoDiasMap['w'] = dias;
-  const svgWrap = _renderFluxoSvg(dias, todayDay, daysInMonth, expSaldoFim, 'w', 90);
+  const pessoal = _buildFluxoData();
+  const emp     = _buildFluxoDataEmp();
+  window._fluxoDiasMap['w']  = pessoal.dias;
+  window._fluxoDiasMap['we'] = emp.dias;
+  const svgP = _renderFluxoSvg(pessoal.dias, pessoal.todayDay, pessoal.daysInMonth, pessoal.expSaldoFim, 'w',  90);
+  const svgE = _renderFluxoSvg(emp.dias,     emp.todayDay,     emp.daysInMonth,     emp.expSaldoFim,     'we', 90);
+  const svgA = _renderFluxoSvgDual(pessoal.dias, emp.dias, pessoal.todayDay, pessoal.daysInMonth, 90);
+  window._fluxoWidgetTab = window._fluxoWidgetTab || 'pessoal';
+  window.setFluxoWidgetTab = function(tab) {
+    window._fluxoWidgetTab = tab;
+    ['pessoal','empresarial','ambos'].forEach(t => {
+      const content = document.getElementById('fw-tab-content-'+t);
+      const btn     = document.getElementById('fw-tbtn-'+t);
+      const stats   = document.getElementById('fw-stats-'+t);
+      if (content) content.style.display = t === tab ? 'block' : 'none';
+      if (stats)   stats.style.display   = t === tab ? 'flex'  : 'none';
+      if (btn) {
+        btn.style.background = t === tab ? 'var(--surface)' : 'transparent';
+        btn.style.color      = t === tab ? 'var(--text)'    : 'var(--text3)';
+        btn.style.boxShadow  = t === tab ? '0 1px 3px rgba(0,0,0,0.3)' : 'none';
+      }
+    });
+  };
+  const t = window._fluxoWidgetTab;
+  const tbtn = (id, label, active) =>
+    `<button id="fw-tbtn-${id}" onclick="setFluxoWidgetTab('${id}')" style="flex:1;padding:4px 6px;border:none;border-radius:5px;font-size:11px;font-family:'Barlow Condensed';font-weight:600;cursor:pointer;transition:all 0.15s;`
+    +(active?`background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.3)`:`background:transparent;color:var(--text3)`)
+    +`">${label}</button>`;
+  const totalSaldo = pessoal.expSaldoFim + emp.expSaldoFim;
+  const fmtStat = (v, c) => `<span style="font-size:11px;color:${c};font-family:'Barlow Condensed'">${fmt(v)}</span>`;
   return `<div class="dg-w">
     <div class="dg-wh">
       Fluxo do Mês
-      <div style="display:flex;gap:12px;align-items:center">
-        <span style="font-size:11px;color:var(--green);font-family:'Barlow Condensed'">↑ ${fmt(expGanhos)}</span>
-        <span style="font-size:11px;color:var(--red);font-family:'Barlow Condensed'">↓ ${fmt(expGastos)}</span>
-        <span style="font-size:11px;color:${expSaldoFim>=0?'var(--green)':'var(--red)'};font-family:'Barlow Condensed';font-weight:700">= ${fmt(expSaldoFim)}</span>
-      </div>
+      <div id="fw-stats-pessoal"     style="display:${t==='pessoal'?'flex':'none'};gap:8px;align-items:center">${fmtStat(pessoal.expGanhos,'var(--green)')} ${fmtStat(pessoal.expGastos,'var(--red)')} ${fmtStat(pessoal.expSaldoFim,pessoal.expSaldoFim>=0?'var(--green)':'var(--red)')}</div>
+      <div id="fw-stats-empresarial" style="display:${t==='empresarial'?'flex':'none'};gap:8px;align-items:center">${fmtStat(emp.expGanhos,'var(--green)')} ${fmtStat(emp.expGastos,'var(--red)')} ${fmtStat(emp.expSaldoFim,emp.expSaldoFim>=0?'var(--green)':'var(--red)')}</div>
+      <div id="fw-stats-ambos"       style="display:${t==='ambos'?'flex':'none'};gap:8px;align-items:center"><span style="font-size:10px;color:#4CAF50;font-family:'Barlow Condensed'">● ${fmt(pessoal.expSaldoFim)}</span><span style="font-size:10px;color:#35c8f1;font-family:'Barlow Condensed'">● ${fmt(emp.expSaldoFim)}</span>${fmtStat(totalSaldo,totalSaldo>=0?'var(--green)':'var(--red)')}</div>
     </div>
-    <div style="padding:10px 16px 4px">${svgWrap}</div>
-    ${_renderFluxoLista(dias, todayDay, '180px')}
+    <div style="padding:4px 8px;display:flex;gap:3px;background:var(--surface2);border-bottom:1px solid var(--border)">
+      ${tbtn('pessoal','💰 Pessoal',t==='pessoal')}
+      ${tbtn('empresarial','🏢 Empresarial',t==='empresarial')}
+      ${tbtn('ambos','⬡ Ambos',t==='ambos')}
+    </div>
+    <div id="fw-tab-content-pessoal"     style="display:${t==='pessoal'?'block':'none'};padding:10px 16px 4px">${svgP}${_renderFluxoLista(pessoal.dias, pessoal.todayDay, '180px')}</div>
+    <div id="fw-tab-content-empresarial" style="display:${t==='empresarial'?'block':'none'};padding:10px 16px 4px">${svgE}${_renderFluxoLista(emp.dias, emp.todayDay, '180px')}</div>
+    <div id="fw-tab-content-ambos"       style="display:${t==='ambos'?'block':'none'};padding:10px 16px 4px">
+      <div style="display:flex;gap:14px;margin-bottom:6px;font-size:10px;color:var(--text3)">
+        <span><span style="display:inline-block;width:14px;height:2px;background:#4CAF50;vertical-align:middle;margin-right:3px;border-radius:2px"></span>Pessoal</span>
+        <span><span style="display:inline-block;width:14px;height:2px;background:#35c8f1;vertical-align:middle;margin-right:3px;border-radius:2px;opacity:0.7"></span>Empresarial</span>
+      </div>
+      ${svgA}
+    </div>
   </div>`;
 }
 
@@ -9435,7 +9569,8 @@ window.DASH_DEFS = {
   hoje:       {label:'Gasto / Presença',   defaultSpan:6 },
   quickadd:   {label:'Registrar Gasto',    defaultSpan:6 },
   fluxo:      {label:'Fluxo do Mês',       defaultSpan:12},
-  saldo:      {label:'Saldo Real',         defaultSpan:8 },
+  saldo:      {label:'Saldo Pessoal',       defaultSpan:6 },
+  saldoemp:   {label:'Saldo Empresarial',  defaultSpan:6 },
   recpago:    {label:'Recebido / Pago',    defaultSpan:4 },
   alunos:     {label:'Alunos & Alertas',   defaultSpan:4 },
   fontes:     {label:'Receita por Fonte',  defaultSpan:4 },
@@ -9449,8 +9584,9 @@ window.DASH_DEFAULT_LAYOUT = [
   {id:'hoje',      span:6,  visible:true},
   {id:'quickadd',  span:6,  visible:false},
   {id:'fluxo',     span:12, visible:true},
-  {id:'saldo',     span:8,  visible:true},
-  {id:'recpago',   span:4,  visible:true},
+  {id:'saldo',    span:6,  visible:true},
+  {id:'saldoemp', span:6,  visible:true},
+  {id:'recpago',  span:4,  visible:true},
   {id:'alunos',    span:4,  visible:true},
   {id:'fontes',    span:4,  visible:true},
   {id:'comparacao',span:4,  visible:true},
@@ -9467,7 +9603,15 @@ window.dashGetLayout = function() {
   if (!_dashLayout) {
     try {
       const s = localStorage.getItem('gestor_dash_layout');
-      if (s) _dashLayout = JSON.parse(s);
+      if (s) {
+        const parsed = JSON.parse(s);
+        // Reseta se layout não contém saldoemp (migração para widgets separados por conta)
+        if (!parsed.find(w => w.id === 'saldoemp')) {
+          _dashLayout = null;
+        } else {
+          _dashLayout = parsed;
+        }
+      }
     } catch(e) {}
     if (!_dashLayout) _dashLayout = DASH_DEFAULT_LAYOUT.map(w => ({...w}));
   }
@@ -9799,7 +9943,8 @@ renderDashboard = (function(_orig) {
 
     // ── Conta Empresarial ──
     if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
-    const empAllAlunos = [...(md.calistenia||[]), ...(md.personal?.online||[]), ...(md.personal?.presencial||[])];
+    const caliCalcEmp  = calcValoresCali(md.calistenia || []);
+    const empAllAlunos = [...caliCalcEmp, ...(md.personal?.online||[]), ...(md.personal?.presencial||[])];
     const empEntradas  = empAllAlunos.filter(a => a.pago && a.contaPgto === 'emp');
     const empTotalEnt  = empEntradas.reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
     const empTotalSai  = (md.contaEmp.saidas||[]).reduce((s,x) => s + (x.valor||0), 0);
@@ -9807,6 +9952,9 @@ renderDashboard = (function(_orig) {
     const empSaldo     = empTotalEnt - empTotalSai - empTotalRet;
     if (!md.cartao.emp) md.cartao.emp = { fechamento:null, parceladas:[], avista:[], assinaturas:[] };
     const empCartaoT   = [...md.cartao.emp.parceladas, ...md.cartao.emp.avista, ...md.cartao.emp.assinaturas.filter(a=>!a.pausada)].reduce((s,x) => s + (x.valor||0), 0);
+    const expEmpEnt    = empAllAlunos.filter(a => !a.pausado && a.contaPgto === 'emp').reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
+    const expEmpSaldo  = expEmpEnt - empTotalSai - empTotalRet;
+    const empVsExp     = expEmpSaldo - empSaldo;
 
     const alunosCali   = md.calistenia.length;
     const alunosOnline = md.personal.online.length;
@@ -9955,7 +10103,7 @@ renderDashboard = (function(_orig) {
     const saldoVsExp  = expSaldo - realSaldo;
     const saldoColor  = realSaldo >= 0 ? 'var(--green)' : 'var(--red)';
 
-    const MOB = {hoje:'', quickadd:'', fluxo:'', saldo:'', alunos:'', chart:'', empresarial:''}; // sem order fixo — usa ordem do DOM
+    const MOB = {hoje:'', quickadd:'', fluxo:'', saldo:'', saldoemp:'', alunos:'', chart:'', empresarial:''}; // sem order fixo — usa ordem do DOM
 
     const W = {
       lembretes: () => renderLembretesDashboard(),
@@ -9963,32 +10111,38 @@ renderDashboard = (function(_orig) {
       quickadd:  () => renderQuickAdd('dashboard'),
       fluxo:     () => renderWidgetFluxo(),
 
-      saldo: () => {
-        const totalSaldo = realSaldo + empSaldo;
-        const totalColor = totalSaldo >= 0 ? 'var(--green)' : 'var(--red)';
-        return '<div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid '
-          +saldoColor+';border-radius:var(--radius);padding:12px 16px;cursor:pointer;height:100%;box-sizing:border-box" onclick="navigate(\'financas\')">'
-          +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:4px">Saldo Real — Pessoal</div>'
-          +'<div style="font-family:\'Bebas Neue\';font-size:36px;line-height:1;color:'+saldoColor+';margin-bottom:10px">'+fmt(realSaldo)+'</div>'
-          +'<div style="height:1px;background:var(--border);margin-bottom:8px"></div>'
-          +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-          +'<div><div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:2px">Expectativa</div>'
-          +'<div style="font-family:\'Barlow Condensed\';font-size:17px;color:var(--text2)">'+fmt(expSaldo)+'</div></div>'
-          +'<div style="text-align:right">'
-          +(saldoVsExp<0
-            ? '<div style="font-size:11px;color:var(--green);font-family:\'Barlow Condensed\'">▲ '+fmt(Math.abs(saldoVsExp))+'</div><div style="font-size:10px;color:var(--text3)">acima da expectativa</div>'
-            : saldoVsExp>0
-            ? '<div style="font-size:11px;color:var(--text3);font-family:\'Barlow Condensed\'">− '+fmt(saldoVsExp)+'</div><div style="font-size:10px;color:var(--text3)">para bater expectativa</div>'
-            : '<div style="font-size:11px;color:var(--green)">✓ exatamente</div>')
-          +'</div></div>'
+      saldo: () => '<div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid '
+        +saldoColor+';border-radius:var(--radius);padding:12px 16px;cursor:pointer;height:100%;box-sizing:border-box" onclick="navigate(\'financas\')">'
+        +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:4px">Saldo Real — Pessoal</div>'
+        +'<div style="font-family:\'Bebas Neue\';font-size:36px;line-height:1;color:'+saldoColor+';margin-bottom:10px">'+fmt(realSaldo)+'</div>'
+        +'<div style="height:1px;background:var(--border);margin-bottom:8px"></div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center">'
+        +'<div><div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:2px">Expectativa</div>'
+        +'<div style="font-family:\'Barlow Condensed\';font-size:17px;color:var(--text2)">'+fmt(expSaldo)+'</div></div>'
+        +'<div style="text-align:right">'
+        +(saldoVsExp<0
+          ? '<div style="font-size:11px;color:var(--green);font-family:\'Barlow Condensed\'">▲ '+fmt(Math.abs(saldoVsExp))+'</div><div style="font-size:10px;color:var(--text3)">acima da expectativa</div>'
+          : saldoVsExp>0
+          ? '<div style="font-size:11px;color:var(--text3);font-family:\'Barlow Condensed\'">− '+fmt(saldoVsExp)+'</div><div style="font-size:10px;color:var(--text3)">para bater expectativa</div>'
+          : '<div style="font-size:11px;color:var(--green)">✓ exatamente</div>')
+        +'</div></div></div>',
+
+      saldoemp: () => {
+        const empColor = empSaldo >= 0 ? 'var(--green)' : 'var(--red)';
+        return '<div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid #35c8f1;border-radius:var(--radius);padding:12px 16px;cursor:pointer;height:100%;box-sizing:border-box" onclick="financasTab=\'empresarial\';navigate(\'financas\')">'
+          +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:4px">Saldo Real — Empresarial</div>'
+          +'<div style="font-family:\'Bebas Neue\';font-size:36px;line-height:1;color:'+empColor+';margin-bottom:10px">'+fmt(empSaldo)+'</div>'
           +'<div style="height:1px;background:var(--border);margin-bottom:8px"></div>'
           +'<div style="display:flex;justify-content:space-between;align-items:center">'
-          +'<div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Total Consolidado</div>'
-          +'<div style="font-family:\'Barlow Condensed\';font-size:18px;color:'+totalColor+'">'+fmt(totalSaldo)+'</div>'
-          +'</div>'
-          +'<div style="font-size:9px;color:var(--text3);text-align:right;margin-top:1px">'
-          +'Pessoal '+fmt(realSaldo)+' + Emp '+fmt(empSaldo)+'</div>'
-          +'</div>';
+          +'<div><div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:2px">Expectativa</div>'
+          +'<div style="font-family:\'Barlow Condensed\';font-size:17px;color:var(--text2)">'+fmt(expEmpSaldo)+'</div></div>'
+          +'<div style="text-align:right">'
+          +(empVsExp<0
+            ? '<div style="font-size:11px;color:var(--green);font-family:\'Barlow Condensed\'">▲ '+fmt(Math.abs(empVsExp))+'</div><div style="font-size:10px;color:var(--text3)">acima da expectativa</div>'
+            : empVsExp>0
+            ? '<div style="font-size:11px;color:var(--text3);font-family:\'Barlow Condensed\'">− '+fmt(empVsExp)+'</div><div style="font-size:10px;color:var(--text3)">para bater expectativa</div>'
+            : '<div style="font-size:11px;color:var(--green)">✓ exatamente</div>')
+          +'</div></div></div>';
       },
 
       recpago: () => '<div class="dg-w" style="padding:14px 16px;cursor:pointer" onclick="navigate(\'financas\')">'
