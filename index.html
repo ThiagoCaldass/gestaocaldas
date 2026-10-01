@@ -4377,14 +4377,9 @@ function renderTodosContent(md) {
 
     // Célula Treino
     const treinoCell = a._tipo==='cali'
-      ? `<td><span style="color:var(--text3);font-size:12px">—</span></td>`
-      : `<td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':` attTreino('${a.id}') `}" title="Atualizar treino">
-          ${a.pausado?'—':aV
-            ?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(a.proxAtt)} !</span>`
-            :aP?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(a.proxAtt)}</span>`
-            :a7?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(a.proxAtt)}</span>`
-            :a.proxAtt?`<span style="color:var(--text2);font-size:12px">${fmtDate(a.proxAtt)}</span>`
-            :`<span style="color:var(--text3);font-size:11px">Definir</span>`}
+      ? `<td style="text-align:center"><span style="color:var(--text3);font-size:12px">—</span></td>`
+      : `<td style="text-align:center${ro?'':';cursor:pointer'}" onclick="${ro?'':` attTreino('${a.id}') `}" title="Atualizar treino">
+          ${a.pausado?'—':`<span style="font-size:16px;line-height:1">${_treinoEmoji(a.proxAtt)}</span>`}
         </td>`;
 
     return `<tr data-nome="${a.nome}" data-tipo="${a._tipo}" data-valor="${a._valor}" data-pago="${a.pago?'1':'0'}" data-acerto="${a.diaAcerto||''}" data-att="${a.proxAtt||''}" data-belongs="${a._tipo}" style="${a.pausado?'opacity:0.45':''}">
@@ -5003,9 +4998,9 @@ function renderPersonalContent(md, tab) {
               </div>`;
             })():(()=>{const n=(a.aulasDatas||[]).length;return `<span style="font-family:'Barlow Condensed';font-size:15px;font-weight:700;color:${n>0?'var(--accent)':'var(--text3)'}">${n}</span><span style="font-size:10px;color:var(--text3);margin-left:2px">aula${n!==1?'s':''}</span>`;})()}
           </td>
-          ${(tab==='online'||tab==='presencial')?`<td style="${ro?'':'cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
-            <div style="display:flex;align-items:center;gap:5px">
-              ${a.pausado?'—':aV?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(a.proxAtt)} !</span>`:aP?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(a.proxAtt)}</span>`:a7?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(a.proxAtt)}</span>`:a.proxAtt?`<span style="color:var(--text2);font-size:12px">${fmtDate(a.proxAtt)}</span>`:`<span style="color:var(--text3);font-size:11px">Definir</span>`}
+          ${(tab==='online'||tab==='presencial')?`<td style="text-align:center${ro?'':';cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
+            <div style="display:flex;align-items:center;justify-content:center;gap:5px">
+              ${a.pausado?'—':`<span style="font-size:16px;line-height:1">${_treinoEmoji(a.proxAtt)}</span>`}
               ${tab==='online'&&!ro?`<span onclick="event.stopPropagation();cycleFormStatus('${a.id}')" title="Ciclar status do forms" style="font-size:14px;line-height:1;cursor:pointer">${_formEmoji(a)}</span>`:''}
             </div>
           </td>
@@ -5611,6 +5606,14 @@ function cycleFormStatus(id) {
   a.formStatus = cur === '✅' ? 'pendente' : cur === '🔴' ? 'aguardando' : 'ok';
   saveData(); setAlunosTab('online');
 }
+function _treinoEmoji(proxAtt) {
+  if (!proxAtt) return '🔴';
+  const h0 = new Date(); h0.setHours(0,0,0,0);
+  const dpV = Math.floor((new Date(proxAtt) - h0) / 86400000);
+  if (dpV < 0) return '🔴';
+  if (dpV <= 7) return '🟡';
+  return '🟢';
+}
 function attTreino(id){
   if(guardReadOnly())return;
   const md=getMonthData();
@@ -5619,21 +5622,32 @@ function attTreino(id){
   const today=new Date().toISOString().split('T')[0];
   const prox45=new Date();prox45.setDate(prox45.getDate()+45);
   const prox45Str=prox45.toISOString().split('T')[0];
-  openModal(`<div class="modal-handle"></div><div class="modal-title">ATT TREINO — ${a.nome}</div>
-    <div class="form-group"><label class="form-label">Data da atualização</label>
-      <input id="mD" type="date" value="${today}">
-    </div>
-    <div class="form-group"><label class="form-label">Próxima atualização</label>
-      <input id="mProx" type="date" value="${a.proxAtt||prox45Str}">
-      <div style="font-size:11px;color:var(--text3);margin-top:4px">Sugestão: 45 dias a partir de hoje</div>
-    </div>
-    <div class="form-group"><label class="form-label">Observações</label>
-      <input id="mO" value="${a.obs||''}" placeholder="Ex: 4 dias, musculação...">
-    </div>
-    <div class="form-actions">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveAtt('${id}')">Salvar</button>
-    </div>`);
+  const emoji = _treinoEmoji(a.proxAtt);
+  if (emoji === '🟢') {
+    openModal(`<div class="modal-handle"></div><div class="modal-title">TREINO — ${a.nome}</div>
+      <div class="form-group"><label class="form-label">Próxima atualização</label>
+        <input id="mProx" type="date" value="${a.proxAtt||prox45Str}">
+      </div>
+      <div class="form-group"><label class="form-label">Observações</label>
+        <input id="mO" value="${a.obs||''}" placeholder="Ex: 4 dias, musculação...">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveAtt('${id}')">Salvar</button>
+      </div>`);
+  } else {
+    openModal(`<div class="modal-handle"></div><div class="modal-title">✅ ATT TREINO — ${a.nome}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Treino atualizado hoje. Qual é a próxima data de atualização?</div>
+      <div class="form-group"><label class="form-label">Próxima atualização</label>
+        <input id="mProx" type="date" value="${prox45Str}">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Sugestão: 45 dias a partir de hoje</div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveAttRapido('${id}')">Salvar</button>
+      </div>`);
+  }
+  setTimeout(()=>document.getElementById('mProx')?.focus(),100);
 }
 function saveAtt(id){
   if(guardReadOnly())return;
@@ -5645,6 +5659,17 @@ function saveAtt(id){
   a.attTreino=document.getElementById('mD').value;
   a.proxAtt=document.getElementById('mProx').value;
   a.obs=document.getElementById('mO').value;
+  a.formStatus='ok';
+  saveData();closeModal();setAlunosTab(alunosTab);
+}
+function saveAttRapido(id){
+  if(guardReadOnly())return;
+  if(!validateDate('mProx','Próxima atualização')) return;
+  const md=getMonthData();
+  const a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);
+  if(!a)return;
+  a.attTreino=new Date().toISOString().split('T')[0];
+  a.proxAtt=document.getElementById('mProx').value;
   a.formStatus='ok';
   saveData();closeModal();setAlunosTab(alunosTab);
 }
@@ -5903,8 +5928,8 @@ function renderParceriasContent(md) {
               ${ro?'':`<button onclick="adjDivulg('${p.id}',1)" style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>`}
             </div>
           </td>
-          <td style="${ro?'':'cursor:pointer'}" onclick="attTreinoParceria('${p.id}')" title="Atualizar treino">
-            ${aV?`<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;background:#0a0a0a;color:var(--text);border:1.5px solid var(--red)">${fmtDate(p.proxAtt)} !</span>`:aP?`<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(232,32,10,0.15);color:var(--red)">${fmtDate(p.proxAtt)}</span>`:a7?`<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(241,193,53,0.15);color:#f1c135">${fmtDate(p.proxAtt)}</span>`:p.proxAtt?`<span style="font-size:11px;color:var(--text2)">${fmtDate(p.proxAtt)}</span>`:`<span style="font-size:11px;color:var(--text3)">Definir</span>`}
+          <td style="text-align:center${ro?'':';cursor:pointer'}" onclick="attTreinoParceria('${p.id}')" title="Atualizar treino">
+            <span style="font-size:16px;line-height:1">${_treinoEmoji(p.proxAtt)}</span>
           </td>
           <td>
             ${waPhone?`<a href="https://wa.me/${waPhone}?text=${waMsg}" target="_blank" style="background:#25D366;color:#fff;border-radius:5px;padding:3px 8px;font-size:11px;text-decoration:none;font-weight:600">WA</a>`:'—'}
@@ -5993,32 +6018,52 @@ function attTreinoParceria(id) {
   const md = getMonthData();
   const p = (md.parcerias||[]).find(x=>x.id===id);
   if (!p) return;
-  const today = new Date().toISOString().split('T')[0];
-  const prox = new Date(); prox.setDate(prox.getDate()+45);
-  openModal(`<div class="modal-handle"></div><div class="modal-title">ATT TREINO — ${p.nome}</div>
-    <div class="form-group"><label class="form-label">Data da atualização</label>
-      <input id="mD" type="date" value="${today}">
-    </div>
-    <div class="form-group"><label class="form-label">Próxima atualização</label>
-      <input id="mProx" type="date" value="${p.proxAtt||prox.toISOString().split('T')[0]}">
-    </div>
-    <div class="form-group"><label class="form-label">Observações</label>
-      <input id="mO" value="${p.obs||''}">
-    </div>
-    <div class="form-actions">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveAttParceria('${id}')">Salvar</button>
-    </div>`);
+  const prox45 = new Date(); prox45.setDate(prox45.getDate()+45);
+  const prox45Str = prox45.toISOString().split('T')[0];
+  const emoji = _treinoEmoji(p.proxAtt);
+  if (emoji === '🟢') {
+    openModal(`<div class="modal-handle"></div><div class="modal-title">TREINO — ${p.nome}</div>
+      <div class="form-group"><label class="form-label">Próxima atualização</label>
+        <input id="mProx" type="date" value="${p.proxAtt||prox45Str}">
+      </div>
+      <div class="form-group"><label class="form-label">Observações</label>
+        <input id="mO" value="${p.obs||''}">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveAttParceria('${id}')">Salvar</button>
+      </div>`);
+  } else {
+    openModal(`<div class="modal-handle"></div><div class="modal-title">✅ ATT TREINO — ${p.nome}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Treino atualizado hoje. Qual é a próxima data de atualização?</div>
+      <div class="form-group"><label class="form-label">Próxima atualização</label>
+        <input id="mProx" type="date" value="${prox45Str}">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Sugestão: 45 dias a partir de hoje</div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveAttRapidoParceria('${id}')">Salvar</button>
+      </div>`);
+  }
+  setTimeout(()=>document.getElementById('mProx')?.focus(),100);
 }
 function saveAttParceria(id) {
-  if (!validateDate('mD','Data')) return;
   if (!validateDate('mProx','Próxima att')) return;
   const md = getMonthData();
   const p = (md.parcerias||[]).find(x=>x.id===id);
   if (!p) return;
-  p.attTreino = document.getElementById('mD').value;
+  p.proxAtt = document.getElementById('mProx').value;
+  const mO = document.getElementById('mO');
+  if (mO) p.obs = mO.value;
+  saveData(); closeModal(); setAlunosTab('parcerias');
+}
+function saveAttRapidoParceria(id) {
+  if (!validateDate('mProx','Próxima atualização')) return;
+  const md = getMonthData();
+  const p = (md.parcerias||[]).find(x=>x.id===id);
+  if (!p) return;
+  p.attTreino = new Date().toISOString().split('T')[0];
   p.proxAtt   = document.getElementById('mProx').value;
-  p.obs       = document.getElementById('mO').value;
   saveData(); closeModal(); setAlunosTab('parcerias');
 }
 
