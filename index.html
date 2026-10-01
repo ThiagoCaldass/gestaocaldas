@@ -9441,6 +9441,7 @@ window.DASH_DEFS = {
   fontes:     {label:'Receita por Fonte',  defaultSpan:4 },
   comparacao: {label:'Comparação Meses',   defaultSpan:4 },
   chart:      {label:'Gráfico Anual',      defaultSpan:12},
+  empresarial:{label:'Conta Empresarial',  defaultSpan:12},
 };
 
 window.DASH_DEFAULT_LAYOUT = [
@@ -9454,6 +9455,7 @@ window.DASH_DEFAULT_LAYOUT = [
   {id:'fontes',    span:4,  visible:true},
   {id:'comparacao',span:4,  visible:true},
   {id:'chart',     span:12, visible:true},
+  {id:'empresarial',span:12,visible:true},
 ];
 
 window._dashLayout   = null;
@@ -9779,21 +9781,32 @@ renderDashboard = (function(_orig) {
     const expPersonal     = [...md.personal.online, ...md.personal.presencial]
       .filter(a => !a.pausado).reduce((s,a) => s + (a.valor||0), 0);
     const expBalancoResto = md.balanco.ganhos
-      .filter(g => !CATS.includes((g.categoria||'avulso').toLowerCase()))
+      .filter(g => !CATS.includes((g.categoria||'avulso').toLowerCase()) && g.categoria !== 'retirada_emp')
       .reduce((s,g) => s + g.valor, 0);
     const expGanhos = expCali + expPersonal + expBalancoResto;
     const expGastos = md.balanco.gastos.reduce((a,b) => a + b.valor, 0);
     const expSaldo  = expGanhos - expGastos;
 
-    const realGanhos   = md.balanco.ganhos.reduce((a,b) => a + (b.recebido ? b.valor : 0), 0);
+    const realGanhos   = md.balanco.ganhos.filter(g => g.categoria !== 'retirada_emp').reduce((a,b) => a + (b.recebido ? b.valor : 0), 0);
     const realGastos   = md.balanco.gastos.reduce((a,b) => a + (b.pago ? b.valor : 0), 0);
     const realSaldo    = realGanhos - realGastos;
     const realCali     = caliCalc.filter(a => a.pago).reduce((s,a) => s + a.valorFinal, 0);
     const realPersonal = [...md.personal.online, ...md.personal.presencial]
       .filter(a => a.pago && !a.pausado).reduce((s,a) => s + (a.valor||0), 0);
     const realOutros   = md.balanco.ganhos
-      .filter(g => !CATS.includes((g.categoria||'').toLowerCase()) && g.recebido)
+      .filter(g => !CATS.includes((g.categoria||'').toLowerCase()) && g.categoria !== 'retirada_emp' && g.recebido)
       .reduce((s,g) => s + g.valor, 0);
+
+    // ── Conta Empresarial ──
+    if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
+    const empAllAlunos = [...(md.calistenia||[]), ...(md.personal?.online||[]), ...(md.personal?.presencial||[])];
+    const empEntradas  = empAllAlunos.filter(a => a.pago && a.contaPgto === 'emp');
+    const empTotalEnt  = empEntradas.reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
+    const empTotalSai  = (md.contaEmp.saidas||[]).reduce((s,x) => s + (x.valor||0), 0);
+    const empTotalRet  = (md.contaEmp.retiradas||[]).reduce((s,x) => s + (x.valor||0), 0);
+    const empSaldo     = empTotalEnt - empTotalSai - empTotalRet;
+    if (!md.cartao.emp) md.cartao.emp = { fechamento:null, parceladas:[], avista:[], assinaturas:[] };
+    const empCartaoT   = [...md.cartao.emp.parceladas, ...md.cartao.emp.avista, ...md.cartao.emp.assinaturas.filter(a=>!a.pausada)].reduce((s,x) => s + (x.valor||0), 0);
 
     const alunosCali   = md.calistenia.length;
     const alunosOnline = md.personal.online.length;
@@ -9851,7 +9864,7 @@ renderDashboard = (function(_orig) {
       const mData = cachedData[mk];
       let mGanhos=null, mGastos=null, mSaldo=null;
       if (mData) {
-        mGanhos = (mData.balanco?.ganhos||[]).reduce((s,g) => s+(g.recebido?g.valor:0), 0);
+        mGanhos = (mData.balanco?.ganhos||[]).filter(g => g.categoria !== 'retirada_emp').reduce((s,g) => s+(g.recebido?g.valor:0), 0);
         mGastos = (mData.balanco?.gastos||[]).reduce((s,g) => s+(g.pago?g.valor:0), 0);
         mSaldo  = mGanhos - mGastos;
       }
@@ -9942,7 +9955,7 @@ renderDashboard = (function(_orig) {
     const saldoVsExp  = expSaldo - realSaldo;
     const saldoColor  = realSaldo >= 0 ? 'var(--green)' : 'var(--red)';
 
-    const MOB = {hoje:'', quickadd:'', fluxo:'', saldo:'', alunos:'', chart:''}; // sem order fixo — usa ordem do DOM
+    const MOB = {hoje:'', quickadd:'', fluxo:'', saldo:'', alunos:'', chart:'', empresarial:''}; // sem order fixo — usa ordem do DOM
 
     const W = {
       lembretes: () => renderLembretesDashboard(),
@@ -10079,6 +10092,78 @@ renderDashboard = (function(_orig) {
         }).join('')
         +'</div></div>'
         +'<div style="padding:8px 14px 6px">'+chartSvg+'</div></div>',
+
+      empresarial: () => {
+        const empSaldoColor = empSaldo >= 0 ? 'var(--green)' : 'var(--red)';
+        const empUsoPct = empTotalEnt > 0 ? Math.min(100, Math.round((empTotalSai + empTotalRet + empCartaoT) / empTotalEnt * 100)) : 0;
+        // Pie chart entradas empresariais por aluno (top 5)
+        const empEntradasByAluno = empEntradas.slice(0,8).map(a => ({
+          nome: (a.nome||'?').split(' ')[0],
+          val:  a.valorFinal||a.valor||0
+        })).filter(x => x.val > 0);
+        const pieEmp = (items, title, colors) => {
+          if (!items.length) return '<div style="padding:12px;font-size:11px;color:var(--text3);text-align:center">Sem dados</div>';
+          const total = items.reduce((s,x) => s + x.val, 0);
+          let start = -Math.PI/2;
+          const R=40, cx=50, cy=50;
+          const paths = items.map((item, i) => {
+            const angle = (item.val / total) * Math.PI * 2;
+            const x1=cx+R*Math.cos(start), y1=cy+R*Math.sin(start);
+            const x2=cx+R*Math.cos(start+angle), y2=cy+R*Math.sin(start+angle);
+            const lg = angle > Math.PI ? 1 : 0;
+            const d = `M${cx},${cy} L${x1},${y1} A${R},${R} 0 ${lg} 1 ${x2},${y2} Z`;
+            const col = colors[i % colors.length];
+            start += angle;
+            return `<path d="${d}" fill="${col}" stroke="var(--surface)" stroke-width="1.5"/>`;
+          }).join('');
+          const legend = items.map((item, i) => {
+            const col = colors[i % colors.length];
+            const p = Math.round(item.val / total * 100);
+            return `<div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">`
+              +`<span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>`
+              +`<span style="font-size:10px;color:var(--text2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.nome}</span>`
+              +`<span style="font-size:10px;color:var(--text3);font-family:'Barlow Condensed'">${p}%</span></div>`;
+          }).join('');
+          return `<div style="display:flex;gap:10px;align-items:center;padding:10px 12px">`
+            +`<div style="flex-shrink:0"><svg viewBox="0 0 100 100" style="width:70px;height:70px"><circle cx="50" cy="50" r="40" fill="var(--surface2)"/>${paths}</svg></div>`
+            +`<div style="flex:1;min-width:0">`
+            +`<div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:6px">${title}</div>`
+            +legend+'</div></div>';
+        };
+        const pieColors1 = ['#4CAF50','#35c8f1','var(--accent)','#f1c135','#e8200a','#a78bfa','#fb923c'];
+        const pieColors2 = ['#e8200a','#f97316','#f1c135','#a78bfa','var(--accent)'];
+        const empSaidasItems = (md.contaEmp.saidas||[]).map(s => ({nome:s.desc||'?', val:s.valor||0})).filter(x=>x.val>0);
+        return '<div class="dg-w">'
+          +'<div class="dg-wh" style="border-top:3px solid #35c8f1;background:rgba(53,200,241,0.04)">🏢 Conta Empresarial'
+          +'<span onclick="financasTab=\'empresarial\';navigate(\'financas\')" style="cursor:pointer;font-size:10px;font-family:\'Barlow Condensed\';text-transform:none;letter-spacing:0;color:var(--accent)">ver detalhes →</span></div>'
+          +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border)">'
+          +[
+            {l:'Entradas', v:empTotalEnt, c:'var(--green)'},
+            {l:'Saídas',   v:empTotalSai, c:'var(--red)'},
+            {l:'Retiradas',v:empTotalRet, c:'var(--red)'},
+            {l:'Saldo',    v:empSaldo,    c:empSaldoColor},
+          ].map(x => '<div style="background:var(--surface);padding:10px 8px;text-align:center">'
+            +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">'+x.l+'</div>'
+            +'<div style="font-family:\'Barlow Condensed\';font-size:16px;color:'+x.c+'">'+fmt(x.v)+'</div></div>'
+          ).join('')
+          +'</div>'
+          +(empTotalEnt > 0
+            ? '<div style="padding:6px 12px 8px">'
+              +'<div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">'
+              +'<div style="height:100%;width:'+empUsoPct+'%;background:'+(empUsoPct>=90?'var(--red)':empUsoPct>=60?'#f1c135':'var(--green)')+';border-radius:3px;transition:width .4s"></div></div>'
+              +'<div style="font-size:10px;color:var(--text3);margin-top:3px">'+empUsoPct+'% dos recursos utilizados</div></div>'
+            : '')
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)">'
+          +'<div style="border-right:1px solid var(--border)">'+pieEmp(empEntradasByAluno, 'Entradas por Aluno', pieColors1)+'</div>'
+          +'<div>'+pieEmp(empSaidasItems.length ? empSaidasItems : [{nome:'Saídas',val:empTotalSai||1}], 'Saídas Empresariais', pieColors2)+'</div>'
+          +'</div>'
+          +(empCartaoT > 0
+            ? '<div style="padding:6px 12px 8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'
+              +'<span style="font-size:10px;color:var(--text3)">💳 Cartão Empresarial</span>'
+              +'<span style="font-family:\'Barlow Condensed\';font-size:14px;color:var(--red)">'+fmt(empCartaoT)+'</span></div>'
+            : '')
+          +'</div>';
+      },
     };
 
     const layout = dashGetLayout();
