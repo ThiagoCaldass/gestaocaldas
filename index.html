@@ -6421,7 +6421,7 @@ function renderContaEmpresarial(md) {
   const fInner = document.getElementById('financasInner') || document.getElementById('content');
   fInner.innerHTML = `<div>
     <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card green"><div class="stat-label">Entradas</div><div class="stat-value stat-green">${fmt(totalEntradas)}</div><div class="stat-sub">${totalEntradasPrev>0?`Prev. ${fmt(totalEntradasExp)} · `:''}Cali ${fmt(empCali)} · Online ${fmt(empOnline)} · Pres. ${fmt(empPres)}</div></div>
+      <div class="stat-card green"><div class="stat-label">Entradas</div><div class="stat-value stat-green">${fmt(totalEntradas)}</div><div class="stat-sub">${totalEntradasPrev>0?`Prev. ${fmt(totalEntradasExp)}`:'Tudo recebido'}</div></div>
       <div class="stat-card red"><div class="stat-label">Saídas + Retiradas</div><div class="stat-value stat-red">${fmt(totalSaidasAll)}</div><div class="stat-sub">${totalSaidasPrev>0?`Prev. ${fmt(totalSaidasPrev)} · `:''}${md.contaEmp.saidas.length} saída${md.contaEmp.saidas.length!==1?'s':''} · ${md.contaEmp.retiradas.length} retirada${md.contaEmp.retiradas.length!==1?'s':''}</div></div>
       <div class="stat-card accent"><div class="stat-label">Saldo</div><div class="stat-value ${saldo>=0?'stat-green':'stat-red'}">${fmt(saldo)}</div></div>
     </div>
