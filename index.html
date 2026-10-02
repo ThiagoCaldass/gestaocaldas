@@ -5607,12 +5607,9 @@ function cycleFormStatus(id) {
   saveData(); setAlunosTab('online');
 }
 function _treinoEmoji(proxAtt) {
-  if (!proxAtt) return '🔴';
+  if (!proxAtt) return '📋';
   const h0 = new Date(); h0.setHours(0,0,0,0);
-  const dpV = Math.floor((new Date(proxAtt) - h0) / 86400000);
-  if (dpV < 0) return '🔴';
-  if (dpV <= 7) return '🟡';
-  return '🟢';
+  return new Date(proxAtt) < h0 ? '🔴' : '✅';
 }
 function attTreino(id){
   if(guardReadOnly())return;
@@ -5623,7 +5620,7 @@ function attTreino(id){
   const prox45=new Date();prox45.setDate(prox45.getDate()+45);
   const prox45Str=prox45.toISOString().split('T')[0];
   const emoji = _treinoEmoji(a.proxAtt);
-  if (emoji === '🟢') {
+  if (emoji === '✅') {
     openModal(`<div class="modal-handle"></div><div class="modal-title">TREINO — ${a.nome}</div>
       <div class="form-group"><label class="form-label">Próxima atualização</label>
         <input id="mProx" type="date" value="${a.proxAtt||prox45Str}">
@@ -6021,7 +6018,7 @@ function attTreinoParceria(id) {
   const prox45 = new Date(); prox45.setDate(prox45.getDate()+45);
   const prox45Str = prox45.toISOString().split('T')[0];
   const emoji = _treinoEmoji(p.proxAtt);
-  if (emoji === '🟢') {
+  if (emoji === '✅') {
     openModal(`<div class="modal-handle"></div><div class="modal-title">TREINO — ${p.nome}</div>
       <div class="form-group"><label class="form-label">Próxima atualização</label>
         <input id="mProx" type="date" value="${p.proxAtt||prox45Str}">
