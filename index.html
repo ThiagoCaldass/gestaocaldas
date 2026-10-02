@@ -4999,10 +4999,7 @@ function renderPersonalContent(md, tab) {
             })():(()=>{const n=(a.aulasDatas||[]).length;return `<span style="font-family:'Barlow Condensed';font-size:15px;font-weight:700;color:${n>0?'var(--accent)':'var(--text3)'}">${n}</span><span style="font-size:10px;color:var(--text3);margin-left:2px">aula${n!==1?'s':''}</span>`;})()}
           </td>
           ${(tab==='online'||tab==='presencial')?`<td style="text-align:center${ro?'':';cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
-            <div style="display:flex;align-items:center;justify-content:center;gap:5px">
-              ${a.pausado?'—':`<span style="font-size:16px;line-height:1">${_treinoEmoji(a.proxAtt)}</span>`}
-              ${tab==='online'&&!ro?`<span onclick="event.stopPropagation();cycleFormStatus('${a.id}')" title="Ciclar status do forms" style="font-size:14px;line-height:1;cursor:pointer">${_formEmoji(a)}</span>`:''}
-            </div>
+            ${a.pausado?'—':`<span ${tab==='online'&&!ro?`onclick="event.stopPropagation();cycleFormStatus('${a.id}')" title="Ciclar status do forms"`:''}style="font-size:16px;line-height:1;cursor:pointer">${_formEmoji(a)}</span>`}
           </td>
 `:''}
           <td style="${ro?'':'cursor:pointer'}" onclick="${a.pausado?`togglePausadoPersonal('${a.id}')`:`togglePersonal('${a.id}')`}">
