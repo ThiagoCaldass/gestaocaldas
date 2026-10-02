@@ -6401,6 +6401,12 @@ function renderContaEmpresarial(md) {
   const empOnline= (md.personal?.online||[]).filter(a => a.pago && a.contaPgto === 'emp').reduce((s,a) => s + (a.valor||0), 0);
   const empPres  = (md.personal?.presencial||[]).filter(a => a.pago && a.contaPgto === 'emp').reduce((s,a) => s + (a.valor||0), 0);
   const totalEntradas = empCali + empOnline + empPres;
+  // Previsto: alunos ativos que ainda não pagaram (ou pagaram para emp) — mesma lógica do fluxo
+  const expCali  = caliCalcEmp.filter(a => !a.pausado && (!a.pago || a.contaPgto === 'emp')).reduce((s,a) => s + (a.valorFinal||0), 0);
+  const expOnline= (md.personal?.online||[]).filter(a => !a.pausado && (!a.pago || a.contaPgto === 'emp')).reduce((s,a) => s + (a.valor||0), 0);
+  const expPres  = (md.personal?.presencial||[]).filter(a => !a.pausado && (!a.pago || a.contaPgto === 'emp')).reduce((s,a) => s + (a.valor||0), 0);
+  const totalEntradasExp = expCali + expOnline + expPres;
+  const totalEntradasPrev = totalEntradasExp - totalEntradas;
   const totalSaidasPagas = md.contaEmp.saidas.filter(x=>x.pago).reduce((s,x) => s + (x.valor||0), 0);
   const totalSaidasPrev  = md.contaEmp.saidas.filter(x=>!x.pago).reduce((s,x) => s + (x.valor||0), 0);
   const totalRetiradas = md.contaEmp.retiradas.reduce((s,x) => s + (x.valor||0), 0);
@@ -6415,7 +6421,7 @@ function renderContaEmpresarial(md) {
   const fInner = document.getElementById('financasInner') || document.getElementById('content');
   fInner.innerHTML = `<div>
     <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card green"><div class="stat-label">Entradas</div><div class="stat-value stat-green">${fmt(totalEntradas)}</div><div class="stat-sub">Cali ${fmt(empCali)} · Online ${fmt(empOnline)} · Pres. ${fmt(empPres)}</div></div>
+      <div class="stat-card green"><div class="stat-label">Entradas</div><div class="stat-value stat-green">${fmt(totalEntradas)}</div><div class="stat-sub">${totalEntradasPrev>0?`Prev. ${fmt(totalEntradasExp)} · `:''}Cali ${fmt(empCali)} · Online ${fmt(empOnline)} · Pres. ${fmt(empPres)}</div></div>
       <div class="stat-card red"><div class="stat-label">Saídas + Retiradas</div><div class="stat-value stat-red">${fmt(totalSaidasAll)}</div><div class="stat-sub">${totalSaidasPrev>0?`Prev. ${fmt(totalSaidasPrev)} · `:''}${md.contaEmp.saidas.length} saída${md.contaEmp.saidas.length!==1?'s':''} · ${md.contaEmp.retiradas.length} retirada${md.contaEmp.retiradas.length!==1?'s':''}</div></div>
       <div class="stat-card accent"><div class="stat-label">Saldo</div><div class="stat-value ${saldo>=0?'stat-green':'stat-red'}">${fmt(saldo)}</div></div>
     </div>
@@ -6434,20 +6440,26 @@ function renderContaEmpresarial(md) {
         <div class="table-card">
           <div class="table-scroll"><table style="table-layout:fixed">
           <thead><tr>
-            <th style="width:60%">Categoria</th>
-            <th style="width:40%">Recebido</th>
+            <th style="width:45%">Categoria</th>
+            <th style="width:27.5%">Recebido</th>
+            <th style="width:27.5%">Previsto</th>
           </tr></thead>
           <tbody>${[
-            { label:'Calistenia', real: empCali  },
-            { label:'Online',     real: empOnline },
-            { label:'Presencial', real: empPres   },
+            { label:'Calistenia', real: empCali,   exp: expCali   },
+            { label:'Online',     real: empOnline, exp: expOnline },
+            { label:'Presencial', real: empPres,   exp: expPres   },
           ].map(row => `<tr>
             <td><span class="badge badge-blue" style="font-size:10px">${row.label}</span></td>
             <td class="mono stat-green">${row.real > 0 ? fmt(row.real) : '<span style="color:var(--text3)">—</span>'}</td>
+            <td class="mono" style="color:var(--text2)">${row.exp > 0 ? fmt(row.exp) : '<span style="color:var(--text3)">—</span>'}</td>
           </tr>`).join('')}
           </tbody></table></div>
           <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
-            <span style="color:var(--text3)">Total</span><span class="mono stat-green">${fmt(totalEntradas)}</span>
+            <span style="color:var(--text3)">Total</span>
+            <span style="display:flex;gap:16px">
+              <span class="mono stat-green">${fmt(totalEntradas)}</span>
+              <span class="mono" style="color:var(--text2)">${fmt(totalEntradasExp)}</span>
+            </span>
           </div>
         </div>
       </div>
