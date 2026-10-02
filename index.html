@@ -4501,7 +4501,7 @@ function renderTodosContent(md) {
           <th style="width:8%;cursor:pointer"  data-col="tipo" onclick="sortTodos('tipo','str')">Tipo${arrowFor('tipo')}</th>
           <th style="width:10%;cursor:pointer" data-col="valor" onclick="sortTodos('valor','num')">Valor${arrowFor('valor')}</th>
           <th class="hide-mobile" style="width:10%;cursor:pointer" data-col="acerto" onclick="sortTodos('acerto','str')">Renov.${arrowFor('acerto')}</th>
-          <th style="width:10%;cursor:pointer" data-col="att" onclick="sortTodos('att','str')">Treino${arrowFor('att')}</th>
+          <th style="width:10%;cursor:pointer;text-align:center" data-col="att" onclick="sortTodos('att','str')">Treino${arrowFor('att')}</th>
           <th style="width:10%;cursor:pointer" data-col="pago" onclick="sortTodos('pago','bool')">Status${arrowFor('pago')}</th>
           <th style="width:8%">Ações</th>
         </tr></thead>
@@ -4914,7 +4914,7 @@ function renderPersonalContent(md, tab) {
         <th style="width:11%" data-col="valor" onclick="sortTable('tblPersonal','valor','num')">Valor</th>
         <th class="hide-mobile" style="width:10%" data-col="plano" onclick="sortTable('tblPersonal','plano')">${tab==='online'?'Plano':'Dia Pgto'}</th>
         <th class="hide-mobile" style="width:9%" data-col="acerto" onclick="sortTable('tblPersonal','acerto')">${tab==='online'?'Renov.':'Aulas'}</th>
-        ${(tab==='online'||tab==='presencial')?`<th style="width:10%" data-col="att" onclick="sortTable('tblPersonal','att')">Treino</th>`:''}
+        ${(tab==='online'||tab==='presencial')?`<th style="width:10%;text-align:center" data-col="att" onclick="sortTable('tblPersonal','att')">Treino</th>`:''}
         <th style="width:8%" data-col="pago" onclick="sortTable('tblPersonal','pago','bool')">Status</th>
         <th style="width:10%"></th>
       </tr></thead>
@@ -5898,7 +5898,7 @@ function renderParceriasContent(md) {
       <thead><tr>
         <th style="width:25%">Aluno</th>
         <th style="width:14%" title="Divulgações">Divulg.</th>
-        <th style="width:14%">Treino</th>
+        <th style="width:14%;text-align:center">Treino</th>
         <th style="width:10%">WA</th>
         <th style="width:${list.length?'37%':'37%'}">Ações</th>
       </tr></thead>
