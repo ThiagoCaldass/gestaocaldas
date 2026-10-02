@@ -52,7 +52,7 @@
     overflow-x: hidden;
   }
 
-  .app { display: flex; min-height: 100vh; min-height: -webkit-fill-available; }
+  .app { display: flex; height: 100vh; height: 100dvh; min-height: 100vh; min-height: 100dvh; }
 
   /* SIDEBAR — desktop */
   .sidebar {
@@ -125,7 +125,7 @@
   .month-badge:hover { border-color: var(--accent); color: var(--text); }
 
   /* MAIN */
-  .main { margin-left: 240px; flex: 1; display: flex; flex-direction: column; }
+  .main { margin-left: 240px; flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 
   .topbar {
     padding: 18px 32px;
@@ -141,7 +141,7 @@
   .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 2px; color: var(--text); }
   .topbar-actions { display: flex; gap: 8px; align-items: center; }
 
-  .content { padding: 28px 32px; flex: 1; }
+  .content { padding: 28px 32px; flex: 1; overflow-y: auto; min-height: 0; }
 
   /* BOTTOM NAV — mobile */
   .bottom-nav {
@@ -6484,7 +6484,7 @@ function renderContaEmpresarial(md) {
               </tr>`).join('')}
           </tbody></table></div>
           <div style="padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid var(--border);font-size:12px">
-            <span style="color:var(--text3)">Total</span><span class="mono stat-red">${fmt(totalSaidas)}</span>
+            <span style="color:var(--text3)">Total</span><span class="mono stat-red">${fmt(totalSaidasPagas + totalSaidasPrev)}</span>
           </div>
         </div>
 
