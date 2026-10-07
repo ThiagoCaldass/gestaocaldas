@@ -10156,14 +10156,14 @@ renderDashboard = (function(_orig) {
     const expGastos = md.balanco.gastos.reduce((a,b) => a + b.valor, 0);
     const expSaldo  = expGanhos - expGastos;
 
-    const realGanhos   = md.balanco.ganhos.filter(g => g.categoria !== 'retirada_emp').reduce((a,b) => a + (b.recebido ? b.valor : 0), 0);
+    const realGanhos   = md.balanco.ganhos.reduce((a,b) => a + (b.recebido ? b.valor : 0), 0);
     const realGastos   = md.balanco.gastos.reduce((a,b) => a + (b.pago ? b.valor : 0), 0);
     const realSaldo    = realGanhos - realGastos;
     const realCali     = caliCalc.filter(a => a.pago).reduce((s,a) => s + a.valorFinal, 0);
     const realPersonal = [...md.personal.online, ...md.personal.presencial]
       .filter(a => a.pago && !a.pausado).reduce((s,a) => s + (a.valor||0), 0);
     const realOutros   = md.balanco.ganhos
-      .filter(g => !CATS.includes((g.categoria||'').toLowerCase()) && g.categoria !== 'retirada_emp' && g.recebido)
+      .filter(g => !CATS.includes((g.categoria||'').toLowerCase()) && g.recebido)
       .reduce((s,g) => s + g.valor, 0);
 
     // ── Conta Empresarial ──
