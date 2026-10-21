@@ -332,6 +332,8 @@
   .selection-bar.has-selection .sel-sum { color:inherit }
   .selection-bar .btn-danger { opacity:0.35;pointer-events:none;transition:opacity 0.15s }
   .selection-bar.has-selection .btn-danger { opacity:1;pointer-events:auto }
+  .selection-bar .sel-action { opacity:0.35;pointer-events:none;transition:opacity 0.15s }
+  .selection-bar.has-selection .sel-action { opacity:1;pointer-events:auto }
   .selection-bar .btn-wa { opacity:0.35;pointer-events:none;transition:opacity 0.15s;background:transparent;border:1px solid #25D366;color:#25D366;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'Barlow Condensed';letter-spacing:0.5px }
   .selection-bar.has-selection .btn-wa { opacity:1;pointer-events:auto }
 
@@ -3425,7 +3427,8 @@ function renderBalancoOriginal(md) {
           ${ro ? '' : `<div id="tblGanhos-selbar" class="selection-bar">
             <span class="sel-count">0 selecionado(s)</span>
             <span class="sel-sum"></span>
-            <button class="btn btn-danger btn-sm" onclick="deleteSelectedGanhos()" style="margin-left:auto">Excluir</button>
+            <button class="btn btn-ghost btn-sm sel-action" onclick="zerarSelectedGanhos()" style="margin-left:auto">Zerar</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteSelectedGanhos()">Excluir</button>
           </div>`}
           <div class="table-scroll"><table id="tblGanhos" style="table-layout:fixed">
           <thead><tr>
@@ -3471,7 +3474,8 @@ function renderBalancoOriginal(md) {
           ${ro ? '' : `<div id="tblGastos-selbar" class="selection-bar">
             <span class="sel-count">0 selecionado(s)</span>
             <span class="sel-sum"></span>
-            <button class="btn btn-danger btn-sm" onclick="deleteSelectedGastos()" style="margin-left:auto">Excluir</button>
+            <button class="btn btn-ghost btn-sm sel-action" onclick="zerarSelectedGastos()" style="margin-left:auto">Zerar</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteSelectedGastos()">Excluir</button>
           </div>`}
           <div class="table-scroll"><table id="tblGastos" style="table-layout:fixed">
           <thead><tr>
@@ -3698,6 +3702,19 @@ function deleteSelectedGastos() {
   md.balanco.gastos = md.balanco.gastos.filter(g=>!ids.includes(g.id));
   saveData(); renderBalancoOriginal(md);
 }
+// Zera o valor das linhas selecionadas (limpa o histórico de somas para o fluxo não recontar)
+function zerarSelectedBalanco(tableId, lista, label) {
+  if(guardReadOnly())return;
+  const md = getMonthData();
+  const ids = getSelectedIds(tableId);
+  if (!ids.length || !confirm('Zerar o valor de '+ids.length+' '+label+'(s)?')) return;
+  const bk = JSON.parse(JSON.stringify(md.balanco));
+  md.balanco[lista].forEach(g => { if (ids.includes(g.id)) { g.valor = 0; g.historico = []; } });
+  saveData(); setFinancasTab('balanco');
+  showToast(`${ids.length} ${label}(s) zerado(s)`,'warning',5000,'Desfazer',()=>{md.balanco=bk;saveData();setFinancasTab('balanco');});
+}
+function zerarSelectedGanhos() { zerarSelectedBalanco('tblGanhos', 'ganhos', 'ganho'); }
+function zerarSelectedGastos() { zerarSelectedBalanco('tblGastos', 'gastos', 'gasto'); }
 function toggleGanho(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(!g)return;g.recebido=!g.recebido;if(g.recebido)g.ts=Date.now();saveData();setFinancasTab('balanco');}
 function toggleGasto(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(!g)return;g.pago=!g.pago;if(g.pago)g.ts=Date.now();saveData();setFinancasTab('balanco');}
 function setGanhoStatus(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(g&&g.recebido!==val){g.recebido=val;saveData();setFinancasTab('balanco');}}
@@ -4370,7 +4387,7 @@ function renderTodosContent(md) {
 
     // Célula Renovação
     const renovCell = a._tipo==='cali'
-      ? `<td class="hide-mobile"><span style="font-size:12px;color:var(--text2)">${a.diaAcerto||'<span style="color:var(--text3)">—</span>'}</span></td>`
+      ? `<td class="hide-mobile" style="${ro?'':'cursor:pointer'}" onclick="${ro?'':`editCellCali('${a.id}','Dia Pgto','${a.diaAcerto||''}')`}"><span style="font-size:12px;color:var(--text2)">${a.diaAcerto||'<span style="color:var(--text3)">—</span>'}</span></td>`
       : `<td class="hide-mobile" style="${ro?'':'cursor:pointer'}" onclick="${ro?'':` editCellPersonal('${a.id}','Renovação','${a.diaAcerto||''}') `}">
           <span style="${pgtoStyle}">${a.diaAcerto||`<span style="color:var(--text3)">—</span>`}</span>
         </td>`;
@@ -4604,16 +4621,17 @@ function renderCalisteniaContent(md) {
         ${ro?'<th style="width:34px"></th>':`<th style="width:34px"><div class="row-select-cell-all" onclick="toggleSelectAll('tblCali')" title="Selecionar todos"></div></th>`}
         <th style="width:18%" data-col="nome" onclick="sortTable('tblCali','nome')">Aluno</th>
         <th style="width:13%" data-col="final" onclick="sortTable('tblCali','final','num')">Valor</th>
+        <th style="width:10%" data-col="dia" onclick="sortTable('tblCali','dia','num')">Dia</th>
         <th class="hide-mobile" style="width:12%">Plano</th>
         <th style="width:12%" data-col="pago" onclick="sortTable('tblCali','pago','bool')">Status</th>
         <th style="width:10%">Ações</th>
       </tr></thead>
-      <tbody>${lista.length===0&&_sq?`<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--text3);font-size:13px">🔍 Nenhum resultado para "<strong>${_sq}</strong>"</td></tr>`:lista.map(a=>{
+      <tbody>${lista.length===0&&_sq?`<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--text3);font-size:13px">🔍 Nenhum resultado para "<strong>${_sq}</strong>"</td></tr>`:lista.map(a=>{
         const isFam = !!a.familiaId;
         const famNomes = isFam ? familias[a.familiaId].filter(n=>n!==a.nome) : [];
         const p=a.nome.trim().split(' ');
         const nAbrev=p.length<=1?a.nome:p[0]+' '+(p[p.length-1].length>=3?p[p.length-1].slice(0,3)+'.':p[p.length-1]);
-        return `<tr data-nome="${a.nome}" data-valor="${a.valorFinal}" data-final="${a.valorFinal}" data-pago="${a.pago?'1':'0'}" style="${a.pausado?'opacity:0.45':''}">
+        return `<tr data-nome="${a.nome}" data-valor="${a.valorFinal}" data-final="${a.valorFinal}" data-dia="${diaNumCali(a.diaAcerto)||99}" data-pago="${a.pago?'1':'0'}" style="${a.pausado?'opacity:0.45':''}">
           ${ro?'<td></td>':`<td style="padding:4px 6px;width:32px"><input type="checkbox" class="row-select" data-id="${a.id}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblCali')" title="Selecionar"></div></td>`}
           <td style="overflow:hidden" title="${a.nome}">
             <span style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;cursor:pointer;${a.pausado?'text-decoration:line-through;color:var(--text3)':''}" onclick="editCellCali('${a.id}','Nome','${a.nome}')">${nAbrev}</span>
@@ -4623,6 +4641,9 @@ function renderCalisteniaContent(md) {
           <td style="cursor:pointer" onclick="editCellCali('${a.id}','Valor','${a.valorBase}')" title="Editar valor">
             <span class="mono">${a.pausado?'—':fmt(a.valorFinal)}</span>
             ${isFam&&!a.pausado?`<span style="font-size:11px;color:var(--accent3)">-${a.familiaDesconto}%</span>`:''}
+          </td>
+          <td style="${ro?'':'cursor:pointer'}" onclick="${ro?'':`editCellCali('${a.id}','Dia Pgto','${a.diaAcerto||''}')`}" title="Alterar dia de pagamento">
+            <span style="font-size:12px;color:var(--text2)">${a.diaAcerto||'<span style="color:var(--text3)">—</span>'}</span>
           </td>
           <td class="hide-mobile" style="cursor:pointer" onclick="editCali('${a.id}')">
             <span class="badge ${isFam?'badge-blue':'badge-gray'}" style="font-size:10px">${isFam?'Fam.':'Indiv.'}</span>
@@ -4766,6 +4787,7 @@ function editCali(id){
     <div class="form-group"><label class="form-label">Nome</label><input id="mN" value="${a.nome}"></div>
     <div class="form-group"><label class="form-label">Valor Base (R$)</label><input id="mB" type="number" value="${a.valorBase}"></div>
     ${!isFam?`<div class="form-group"><label class="form-label">Valor Final Manual (R$)</label><input id="mF" type="number" value="${a.valorFinal||a.valorBase}"></div>`:''}
+    <div class="form-group"><label class="form-label">Dia de pagamento</label><input id="mDiaCali" type="number" inputmode="numeric" min="1" max="31" placeholder="10" value="${diaNumCali(a.diaAcerto)||''}"></div>
     <div class="form-group"><label class="form-label">Status</label><select id="mS"><option value="0" ${!a.pago?'selected':''}>Pendente</option><option value="1" ${a.pago?'selected':''}>Pago</option></select></div>
 
     <hr style="border-color:var(--border);margin:14px 0">
@@ -4805,6 +4827,8 @@ function saveEditCali(id, isFam){
   const md=getMonthData();const a=md.calistenia.find(x=>x.id===id);if(!a)return;
   a.nome=document.getElementById('mN').value.trim();
   a.valorBase=parseFloat(document.getElementById('mB').value)||0;
+  const diaCali=normDiaCali(document.getElementById('mDiaCali')?.value);
+  if(diaCali) a.diaAcerto=diaCali;
   const pagoAntes=a.pago;a.pago=document.getElementById('mS').value==='1';if(a.pago&&!pagoAntes)a.tsPago=Date.now();else if(!a.pago)delete a.tsPago;
   if(isFam){
     // Already in family — update desconto for all members
@@ -5561,9 +5585,22 @@ function saveEditCell_Personal(id, campo) {
   saveData(); closeModal(); renderAlunos(getMonthData());
 }
 
+// "Dia 05" → 5 (null se não tiver número)
+function diaNumCali(str) {
+  const m = String(str || '').match(/\d+/);
+  return m ? parseInt(m[0]) : null;
+}
+// "5" → "Dia 05"; textos livres são mantidos como estão
+function normDiaCali(v) {
+  v = (v ?? '').toString().trim();
+  if (!v) return '';
+  if (/^\d{1,2}$/.test(v)) { const n = Math.min(31, Math.max(1, parseInt(v))); return 'Dia ' + String(n).padStart(2,'0'); }
+  return v;
+}
 function editCellCali(id, campo, labelAtual) {
   if(guardReadOnly())return;
-  const inputType = campo==='Valor' ? 'number' : 'text';
+  if (campo === 'Dia Pgto') labelAtual = diaNumCali(labelAtual) || '';
+  const inputType = campo==='Valor'||campo==='Dia Pgto' ? 'number' : 'text';
   openModal(`<div class="modal-handle"></div><div class="modal-title">${campo.toUpperCase()}</div>
     <div class="form-group">
       <input id="mCellValC" type="${inputType}" inputmode="${inputType==='number'?'decimal':'text'}" value="${labelAtual||''}" autofocus>
@@ -5583,6 +5620,7 @@ function saveEditCell_Cali(id, campo) {
   if (!a) return;
   if (campo==='Valor') { const v=parseFloat(novo); if(!isNaN(v)){ a.valorBase=v; a.valorFinal=v; } }
   else if (campo==='Nome') { a.nome=novo; }
+  else if (campo==='Dia Pgto') { a.diaAcerto=normDiaCali(novo); }
   calcValoresCali(md.calistenia); saveData(); closeModal(); setAlunosTab(alunosTab);
 }
 
@@ -6466,17 +6504,25 @@ function renderContaEmpresarial(md) {
       <div>
         <div class="section-header"><div class="section-title">SAÍDAS</div>${ro?'':`<button class="btn btn-ghost btn-sm" onclick="openAddSaidaEmp()">+</button>`}</div>
         <div class="table-card">
-          <div class="table-scroll"><table style="table-layout:fixed">
+          ${ro?'':`<div id="tblEmpSaidas-selbar" class="selection-bar">
+            <span class="sel-count">Nenhum selecionado</span>
+            <span class="sel-sum"></span>
+            <button class="btn btn-ghost btn-sm sel-action" onclick="zerarSelectedEmp('saidas')" style="margin-left:auto">Zerar</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteSelectedEmp('saidas')">Excluir</button>
+          </div>`}
+          <div class="table-scroll"><table id="tblEmpSaidas" style="table-layout:fixed">
           <thead><tr>
-            <th style="width:40%">Descrição</th>
+            <th style="width:34px">${ro?'':`<div class="row-select-cell-all" onclick="toggleSelectAll('tblEmpSaidas')" title="Selecionar todos"></div>`}</th>
+            <th style="width:36%">Descrição</th>
             <th style="width:18%">Valor</th>
             <th style="width:16%">Status</th>
             <th style="width:0"></th>
             <th style="width:26%"></th>
           </tr></thead>
           <tbody>${md.contaEmp.saidas.length === 0
-            ? `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px">Nenhuma saída</td></tr>`
-            : md.contaEmp.saidas.map((x,i) => `<tr>
+            ? `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">Nenhuma saída</td></tr>`
+            : md.contaEmp.saidas.map((x,i) => `<tr data-valor="${x.valor||0}">
+                ${ro?'<td></td>':`<td style="padding:4px 6px;width:34px"><input type="checkbox" class="row-select" data-id="${i}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblEmpSaidas')" title="Selecionar"></div></td>`}
                 <td>
                   <div style="display:flex;align-items:center;gap:5px;min-width:0">
                     <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.desc||''}</span>
@@ -6502,16 +6548,24 @@ function renderContaEmpresarial(md) {
 
         <div class="section-header" style="margin-top:16px"><div class="section-title">RETIRADAS</div>${ro?'':`<button class="btn btn-ghost btn-sm" onclick="openAddRetiradaEmp()">+</button>`}</div>
         <div class="table-card">
-          <div class="table-scroll"><table style="table-layout:fixed">
+          ${ro?'':`<div id="tblEmpRetiradas-selbar" class="selection-bar">
+            <span class="sel-count">Nenhum selecionado</span>
+            <span class="sel-sum"></span>
+            <button class="btn btn-ghost btn-sm sel-action" onclick="zerarSelectedEmp('retiradas')" style="margin-left:auto">Zerar</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteSelectedEmp('retiradas')">Excluir</button>
+          </div>`}
+          <div class="table-scroll"><table id="tblEmpRetiradas" style="table-layout:fixed">
           <thead><tr>
-            <th style="width:40%">Descrição</th>
+            <th style="width:34px">${ro?'':`<div class="row-select-cell-all" onclick="toggleSelectAll('tblEmpRetiradas')" title="Selecionar todos"></div>`}</th>
+            <th style="width:36%">Descrição</th>
             <th style="width:20%">Valor</th>
             <th style="width:18%">Data</th>
             <th style="width:22%"></th>
           </tr></thead>
           <tbody>${md.contaEmp.retiradas.length === 0
-            ? `<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Nenhuma retirada</td></tr>`
-            : md.contaEmp.retiradas.map((x,i) => `<tr>
+            ? `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px">Nenhuma retirada</td></tr>`
+            : md.contaEmp.retiradas.map((x,i) => `<tr data-valor="${x.valor||0}">
+                ${ro?'<td></td>':`<td style="padding:4px 6px;width:34px"><input type="checkbox" class="row-select" data-id="${i}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblEmpRetiradas')" title="Selecionar"></div></td>`}
                 <td>${x.desc||'Retirada'}</td>
                 <td class="mono stat-red">${fmt(x.valor||0)}</td>
                 <td style="color:var(--text3);font-size:11px">${fmtDate(x.data)}</td>
@@ -6651,6 +6705,43 @@ function removeSaidaEmp(i){
   const md=getMonthData();
   md.contaEmp.saidas.splice(i,1);
   saveData();renderContaEmpresarial(md);
+}
+
+// Seleção múltipla no Empresarial (as linhas são identificadas pelo índice)
+function _empSelIdx(kind){
+  return getSelectedIds(kind==='saidas'?'tblEmpSaidas':'tblEmpRetiradas').map(Number).filter(n=>!isNaN(n));
+}
+function zerarSelectedEmp(kind){
+  if(guardReadOnly())return;
+  const md=getMonthData();
+  const idx=_empSelIdx(kind);
+  const label=kind==='saidas'?'saída':'retirada';
+  if(!idx.length||!confirm('Zerar o valor de '+idx.length+' '+label+'(s)?'))return;
+  const bk={contaEmp:JSON.parse(JSON.stringify(md.contaEmp)),ganhos:JSON.parse(JSON.stringify(md.balanco.ganhos))};
+  idx.forEach(i=>{
+    const x=md.contaEmp[kind][i];if(!x)return;
+    x.valor=0;
+    // Retirada também aparece como ganho no Pessoal — zera junto
+    if(kind==='retiradas'&&x.id) md.balanco.ganhos.forEach(g=>{if(g.retiradaEmpId===x.id){g.valor=0;g.historico=[];}});
+  });
+  saveData();renderContaEmpresarial(md);
+  showToast(`${idx.length} ${label}(s) zerada(s)`,'warning',5000,'Desfazer',()=>{md.contaEmp=bk.contaEmp;md.balanco.ganhos=bk.ganhos;saveData();renderContaEmpresarial(md);});
+}
+function deleteSelectedEmp(kind){
+  if(guardReadOnly())return;
+  const md=getMonthData();
+  const idx=_empSelIdx(kind);
+  const label=kind==='saidas'?'saída':'retirada';
+  if(!idx.length||!confirm('Excluir '+idx.length+' '+label+'(s)?'))return;
+  const bk={contaEmp:JSON.parse(JSON.stringify(md.contaEmp)),ganhos:JSON.parse(JSON.stringify(md.balanco.ganhos))};
+  const sel=new Set(idx);
+  if(kind==='retiradas'){
+    const retIds=md.contaEmp.retiradas.filter((x,i)=>sel.has(i)&&x.id).map(x=>x.id);
+    md.balanco.ganhos=md.balanco.ganhos.filter(g=>!retIds.includes(g.retiradaEmpId));
+  }
+  md.contaEmp[kind]=md.contaEmp[kind].filter((x,i)=>!sel.has(i));
+  saveData();renderContaEmpresarial(md);
+  showToast(`${idx.length} ${label}(s) excluída(s)`,'warning',5000,'Desfazer',()=>{md.contaEmp=bk.contaEmp;md.balanco.ganhos=bk.ganhos;saveData();renderContaEmpresarial(md);});
 }
 
 function openAddRetiradaEmp(){
