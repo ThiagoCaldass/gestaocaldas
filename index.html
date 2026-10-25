@@ -566,6 +566,7 @@
       <div class="nav-section">Análise</div>
       <div class="nav-item" data-page="historico" onclick="navigate('historico');closeSidebar()"><span class="icon">◷</span> Histórico</div>
       <div class="nav-item" data-page="fluxo" onclick="navigate('fluxo');closeSidebar()"><span class="icon">📈</span> Fluxo do Mês</div>
+      <div class="nav-item" data-page="analise" onclick="navigate('analise');closeSidebar()"><span class="icon">🧠</span> Assistente Financeiro</div>
     </div>
     <div class="sidebar-footer">
       <div class="month-badge" onclick="openMonthPicker()">
@@ -1515,7 +1516,7 @@ async function navigate(page) {
 
   const titles = {
     dashboard:'DASHBOARD', balanco:'BALANÇO', cartao:'CARTÃO',
-    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO', whatsapp:'WHATSAPP', fluxo:'FLUXO DO MÊS'
+    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO', whatsapp:'WHATSAPP', fluxo:'FLUXO DO MÊS', analise:'ASSISTENTE FINANCEIRO'
   };
   document.getElementById('topbarMonthNav').style.display = (page === 'historico' || page === 'whatsapp') ? 'none' : 'flex';
   document.getElementById('pageTitle').textContent = titles[page]||page.toUpperCase();
@@ -1545,6 +1546,96 @@ async function navigate(page) {
     case 'historico':    await renderHistorico(); break;
     case 'fluxo':        await renderFluxoPage(); break;
     case 'whatsapp':     renderWhatsApp(); break;
+    case 'analise':      await renderAnalise(); break;
+  }
+}
+
+// ==================== ASSISTENTE FINANCEIRO ====================
+// A análise é gerada em /api/analise (Vercel + Claude) e salva em __analise_YYYY-MM__.
+let _analiseGerando = false;
+
+function _mdAnaliseHtml(md) {
+  const esc = t => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const inline = t => esc(t).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*(?!\s)(.+?)\*/g,'$1<em>$2</em>');
+  const out = []; let lista = null;
+  const fechaLista = () => { if (lista) { out.push(`</${lista}>`); lista = null; } };
+  md.split('\n').forEach(linha => {
+    const l = linha.trimEnd();
+    let m;
+    if ((m = l.match(/^#{1,3}\s+(.*)/))) { fechaLista(); out.push(`<h3 class="an-h">${inline(m[1])}</h3>`); }
+    else if ((m = l.match(/^\s*[-*•]\s+(.*)/))) { if (lista !== 'ul') { fechaLista(); out.push('<ul>'); lista = 'ul'; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))) { if (lista !== 'ol') { fechaLista(); out.push('<ol>'); lista = 'ol'; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if (!l.trim()) { fechaLista(); }
+    else { fechaLista(); out.push(`<p>${inline(l)}</p>`); }
+  });
+  fechaLista();
+  return out.join('');
+}
+
+async function _carregarAnalise(mk) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data?month_key=eq.__analise_${mk}__&select=data`, { headers: sbHeaders });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows[0]?.data || null;
+  } catch(e) { return null; }
+}
+
+async function renderAnalise() {
+  const mk = monthKey();
+  const cnt = document.getElementById('content');
+  if (!document.getElementById('an-css')) {
+    const st = document.createElement('style'); st.id = 'an-css';
+    st.textContent = `
+      .an-body { font-size:14px; line-height:1.65; color:var(--text2) }
+      .an-body .an-h { font-family:'Bebas Neue'; font-size:20px; letter-spacing:1.5px; color:var(--text); margin:22px 0 8px; font-weight:400 }
+      .an-body .an-h:first-child { margin-top:0 }
+      .an-body p { margin:0 0 10px }
+      .an-body ul, .an-body ol { margin:0 0 12px; padding-left:20px }
+      .an-body li { margin-bottom:6px }
+      .an-body strong { color:var(--text) }`;
+    document.head.appendChild(st);
+  }
+  const salva = await _carregarAnalise(mk);
+  if (mk !== monthKey() || currentPage !== 'analise') return; // usuário trocou de mês/página
+  const quando = salva ? new Date(salva.geradoEm).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+  const ro = isReadOnly();
+  cnt.innerHTML = `<div class="page" style="max-width:820px">
+    <div class="table-card" style="padding:18px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);font-weight:600">${MONTHS[currentMonth.m]} ${currentMonth.y}</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:4px">${salva ? `Análise gerada em ${quando}.` : 'Nenhuma análise deste mês ainda.'} A IA lê ganhos, gastos, cartões, alunos e poupança deste mês e dos 2 anteriores.</div>
+      </div>
+      ${ro ? '' : `<button class="btn btn-primary" id="an-btn" onclick="gerarAnalise()" ${_analiseGerando?'disabled':''}>${_analiseGerando ? 'Analisando…' : salva ? '↻ Gerar de novo' : '🧠 Analisar mês'}</button>`}
+    </div>
+    <div id="an-status"></div>
+    <div class="table-card an-body" id="an-texto" style="padding:20px 22px;${salva?'':'display:none'}">${salva ? _mdAnaliseHtml(salva.texto) : ''}</div>
+  </div>`;
+}
+
+async function gerarAnalise() {
+  if (guardReadOnly() || _analiseGerando) return;
+  const mk = monthKey();
+  _analiseGerando = true;
+  const btn = document.getElementById('an-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analisando…'; }
+  const status = document.getElementById('an-status');
+  if (status) status.innerHTML = `<div class="table-card" style="padding:14px 18px;margin-bottom:16px;font-size:13px;color:var(--text2)">⏳ Lendo seus números e escrevendo a análise. Pode levar até 1 minuto…</div>`;
+  try {
+    await flushSave?.(); // garante que o banco tem as últimas alterações
+    const res = await fetch('/api/analise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mes: mk }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+    _analiseGerando = false;
+    if (currentPage === 'analise' && monthKey() === mk) await renderAnalise();
+    showToast('Análise pronta', 'success');
+  } catch (e) {
+    _analiseGerando = false;
+    if (currentPage === 'analise' && monthKey() === mk) {
+      const b = document.getElementById('an-btn'); if (b) { b.disabled = false; b.textContent = '🧠 Tentar de novo'; }
+      const st = document.getElementById('an-status');
+      if (st) st.innerHTML = `<div class="table-card" style="padding:14px 18px;margin-bottom:16px;font-size:13px;color:var(--red)">Não foi possível gerar a análise: ${String(e.message).replace(/</g,'&lt;')}</div>`;
+    }
   }
 }
 

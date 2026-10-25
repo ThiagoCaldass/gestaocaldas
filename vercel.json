@@ -3,13 +3,24 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/(.*)",     "dest": "/index.html" }
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
   ],
   "crons": [
     {
       "path": "/api/digest",
       "schedule": "0 11 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/analise.js": {
+      "maxDuration": 60
+    }
+  }
 }
