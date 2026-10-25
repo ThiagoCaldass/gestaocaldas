@@ -10236,6 +10236,20 @@ window.dashRefreshPalette = function() {
 };
 
 // ── Main Dashboard Render ──────────────────────────────────────
+// Expectativa pessoal: alunos que pagam na conta empresarial ficam de fora
+// (o dinheiro deles chega ao pessoal via retirada, que entra em "resto")
+function calcExpPessoal(md) {
+  const CATS = ['calistenia','personal','personal_online','personal_presencial'];
+  const naoEmp = a => a.contaPgto !== 'emp';
+  const cali = calcValoresCali(md.calistenia || []).filter(naoEmp).reduce((s,a) => s + a.valorFinal, 0);
+  const personal = [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
+    .filter(a => !a.pausado && naoEmp(a)).reduce((s,a) => s + (a.valor||0), 0);
+  const resto = (md.balanco?.ganhos||[])
+    .filter(g => !CATS.includes((g.categoria||'avulso').toLowerCase()))
+    .reduce((s,g) => s + (g.valor||0), 0);
+  return { cali, personal, resto, ganhos: cali + personal + resto };
+}
+
 renderDashboard = (function(_orig) {
   return function(md) {
     if (!md) md = getMonthData();
@@ -10248,22 +10262,20 @@ renderDashboard = (function(_orig) {
     const CATS     = ['calistenia','personal','personal_online','personal_presencial'];
     const caliCalc = calcValoresCali(md.calistenia);
 
-    const expCali         = caliCalc.reduce((s,a) => s + a.valorFinal, 0);
-    const expPersonal     = [...md.personal.online, ...md.personal.presencial]
-      .filter(a => !a.pausado).reduce((s,a) => s + (a.valor||0), 0);
-    const expBalancoResto = md.balanco.ganhos
-      .filter(g => !CATS.includes((g.categoria||'avulso').toLowerCase()) && g.categoria !== 'retirada_emp')
-      .reduce((s,g) => s + g.valor, 0);
-    const expGanhos = expCali + expPersonal + expBalancoResto;
+    const _exp = calcExpPessoal(md);
+    const expCali         = _exp.cali;
+    const expPersonal     = _exp.personal;
+    const expBalancoResto = _exp.resto;
+    const expGanhos = _exp.ganhos;
     const expGastos = md.balanco.gastos.reduce((a,b) => a + b.valor, 0);
     const expSaldo  = expGanhos - expGastos;
 
     const realGanhos   = md.balanco.ganhos.reduce((a,b) => a + (b.recebido ? b.valor : 0), 0);
     const realGastos   = md.balanco.gastos.reduce((a,b) => a + (b.pago ? b.valor : 0), 0);
     const realSaldo    = realGanhos - realGastos;
-    const realCali     = caliCalc.filter(a => a.pago).reduce((s,a) => s + a.valorFinal, 0);
+    const realCali     = caliCalc.filter(a => a.pago && a.contaPgto !== 'emp').reduce((s,a) => s + a.valorFinal, 0);
     const realPersonal = [...md.personal.online, ...md.personal.presencial]
-      .filter(a => a.pago && !a.pausado).reduce((s,a) => s + (a.valor||0), 0);
+      .filter(a => a.pago && !a.pausado && a.contaPgto !== 'emp').reduce((s,a) => s + (a.valor||0), 0);
     const realOutros   = md.balanco.ganhos
       .filter(g => !CATS.includes((g.categoria||'').toLowerCase()) && g.recebido)
       .reduce((s,g) => s + g.valor, 0);
@@ -10309,14 +10321,10 @@ renderDashboard = (function(_orig) {
     const prevLabel = prevMd ? MONTHS[(()=>{ const p=prevMonthKey.split('-'); return parseInt(p[1])-1; })()] : null;
     let prevRealSaldo=0, prevExpGanhos=0, prevExpGastos=0, prevExpCali=0, prevExpPersonal=0;
     if (prevMd) {
-      const pc = calcValoresCali(prevMd.calistenia||[]);
-      prevExpCali     = pc.reduce((s,a) => s + a.valorFinal, 0);
-      prevExpPersonal = [...(prevMd.personal?.online||[]), ...(prevMd.personal?.presencial||[])]
-        .filter(a => !a.pausado).reduce((s,a) => s + (a.valor||0), 0);
-      const prevExpResto = (prevMd.balanco?.ganhos||[])
-        .filter(g => !CATS.includes((g.categoria||'').toLowerCase()))
-        .reduce((s,g) => s + g.valor, 0);
-      prevExpGanhos = prevExpCali + prevExpPersonal + prevExpResto;
+      const pe = calcExpPessoal(prevMd);
+      prevExpCali     = pe.cali;
+      prevExpPersonal = pe.personal;
+      prevExpGanhos   = pe.ganhos;
       prevExpGastos = (prevMd.balanco?.gastos||[]).reduce((s,g) => s + g.valor, 0);
       prevRealSaldo = (prevMd.balanco?.ganhos||[]).reduce((s,g) => s + (g.recebido ? g.valor : 0), 0)
                    - (prevMd.balanco?.gastos||[]).reduce((s,g) => s + (g.pago ? g.valor : 0), 0);
