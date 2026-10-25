@@ -5637,9 +5637,17 @@ function cycleFormStatus(id) {
   const md = getMonthData();
   const a = md.personal.online.find(x => x.id === id);
   if (!a) return;
-  const cur = _formEmoji(a);
-  a.formStatus = cur === '✅' ? 'pendente' : cur === '🔴' ? 'aguardando' : 'ok';
-  saveData(); setAlunosTab('online');
+  // ✅ → vencido; 🔴 / 📋 → pede a próxima data de atualização
+  if (_formEmoji(a) === '✅') { a.formStatus = 'pendente'; saveData(); setAlunosTab(alunosTab); return; }
+  attTreino(id);
+}
+function marcarFormEnviado(id) {
+  if(guardReadOnly()) return;
+  const md = getMonthData();
+  const a = md.personal.online.find(x => x.id === id);
+  if (!a) return;
+  a.formStatus = 'aguardando';
+  saveData(); closeModal(); setAlunosTab(alunosTab);
 }
 function _treinoEmoji(proxAtt) {
   if (!proxAtt) return '📋';
@@ -5654,7 +5662,8 @@ function attTreino(id){
   const today=new Date().toISOString().split('T')[0];
   const prox45=new Date();prox45.setDate(prox45.getDate()+45);
   const prox45Str=prox45.toISOString().split('T')[0];
-  const emoji = _treinoEmoji(a.proxAtt);
+  const isOnline = md.personal.online.some(x => x.id === id);
+  const emoji = isOnline ? _formEmoji(a) : _treinoEmoji(a.proxAtt);
   if (emoji === '✅') {
     openModal(`<div class="modal-handle"></div><div class="modal-title">TREINO — ${a.nome}</div>
       <div class="form-group"><label class="form-label">Próxima atualização</label>
@@ -5669,7 +5678,7 @@ function attTreino(id){
       </div>`);
   } else {
     openModal(`<div class="modal-handle"></div><div class="modal-title">✅ ATT TREINO — ${a.nome}</div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Treino atualizado hoje. Qual é a próxima data de atualização?</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">${emoji==='📋'?'Formulário enviado. ':''}Treino atualizado hoje. Qual é a próxima data de atualização?</div>
       <div class="form-group"><label class="form-label">Próxima atualização</label>
         <input id="mProx" type="date" value="${prox45Str}">
         <div style="font-size:11px;color:var(--text3);margin-top:4px">Sugestão: 45 dias a partir de hoje</div>
@@ -5677,7 +5686,8 @@ function attTreino(id){
       <div class="form-actions">
         <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
         <button class="btn btn-primary" onclick="saveAttRapido('${id}')">Salvar</button>
-      </div>`);
+      </div>
+      ${isOnline && emoji==='🔴' ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="marcarFormEnviado('${id}')">📋 Só enviei o formulário</button>` : ''}`);
   }
   setTimeout(()=>document.getElementById('mProx')?.focus(),100);
 }
@@ -5688,7 +5698,8 @@ function saveAtt(id){
   const md=getMonthData();
   const a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);
   if(!a)return;
-  a.attTreino=document.getElementById('mD').value;
+  const mD=document.getElementById('mD');
+  if(mD) a.attTreino=mD.value;
   a.proxAtt=document.getElementById('mProx').value;
   a.obs=document.getElementById('mO').value;
   a.formStatus='ok';
