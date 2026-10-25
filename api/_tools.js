@@ -212,7 +212,7 @@ export function runTool(name, input, md) {
       const antes = existing.valor;
       const delta = Number(input.valor);
       existing.valor = Math.round((existing.valor + delta) * 100) / 100;
-      if (input.pago !== undefined) existing.pago = !!input.pago;
+      if (input.pago !== undefined) { if (input.pago && !existing.pago) existing.ts = Date.now(); existing.pago = !!input.pago; }
       existing.historico = existing.historico || [];
       existing.historico.push({ delta, ts: Date.now(), tipo: 'soma' });
       return `✅ *${existing.nome}* atualizado: R$ ${antes.toFixed(2)} → R$ ${existing.valor.toFixed(2)} (+${delta.toFixed(2)})`;
@@ -236,7 +236,7 @@ export function runTool(name, input, md) {
       const antes = existing.valor;
       const delta = Number(input.valor);
       existing.valor = Math.round((existing.valor + delta) * 100) / 100;
-      if (input.recebido !== undefined) existing.recebido = !!input.recebido;
+      if (input.recebido !== undefined) { if (input.recebido && !existing.recebido) existing.ts = Date.now(); existing.recebido = !!input.recebido; }
       existing.historico = existing.historico || [];
       existing.historico.push({ delta, ts: Date.now(), tipo: 'soma' });
       return `✅ *${existing.nome}* atualizado: R$ ${antes.toFixed(2)} → R$ ${existing.valor.toFixed(2)} (+${delta.toFixed(2)})`;
@@ -254,6 +254,7 @@ export function runTool(name, input, md) {
   if (name === 'marcar_gasto_pago') {
     const g = b.gastos.find(x => x.id === input.id);
     if (!g) return '❌ Gasto não encontrado.';
+    if (input.pago && !g.pago) g.ts = Date.now();
     g.pago = input.pago;
     return `✅ *${g.nome}* marcado como ${input.pago ? 'Pago ✓' : 'Pendente'}`;
   }
@@ -261,6 +262,7 @@ export function runTool(name, input, md) {
   if (name === 'marcar_ganho_recebido') {
     const g = b.ganhos.find(x => x.id === input.id);
     if (!g) return '❌ Ganho não encontrado.';
+    if (input.recebido && !g.recebido) g.ts = Date.now();
     g.recebido = input.recebido;
     return `✅ *${g.nome}* marcado como ${input.recebido ? 'Recebido ✓' : 'Pendente'}`;
   }

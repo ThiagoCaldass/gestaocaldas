@@ -3717,8 +3717,8 @@ function zerarSelectedGanhos() { zerarSelectedBalanco('tblGanhos', 'ganhos', 'ga
 function zerarSelectedGastos() { zerarSelectedBalanco('tblGastos', 'gastos', 'gasto'); }
 function toggleGanho(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(!g)return;g.recebido=!g.recebido;if(g.recebido)g.ts=Date.now();saveData();setFinancasTab('balanco');}
 function toggleGasto(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(!g)return;g.pago=!g.pago;if(g.pago)g.ts=Date.now();saveData();setFinancasTab('balanco');}
-function setGanhoStatus(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(g&&g.recebido!==val){g.recebido=val;saveData();setFinancasTab('balanco');}}
-function setGastoPago(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(g&&g.pago!==val){g.pago=val;saveData();setFinancasTab('balanco');}}
+function setGanhoStatus(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(g&&g.recebido!==val){g.recebido=val;if(val)g.ts=Date.now();saveData();setFinancasTab('balanco');}}
+function setGastoPago(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(g&&g.pago!==val){g.pago=val;if(val)g.ts=Date.now();saveData();setFinancasTab('balanco');}}
 function removeGanho(id){if(guardReadOnly())return;const md=getMonthData();const bk=JSON.parse(JSON.stringify(md.balanco));const item=md.balanco.ganhos.find(x=>x.id===id);md.balanco.ganhos=md.balanco.ganhos.filter(x=>x.id!==id);saveData();setFinancasTab('balanco');showToast(`Ganho "${item?.nome||'item'}" removido`,'warning',5000,'Desfazer',()=>{md.balanco=bk;saveData();setFinancasTab('balanco');});}
 function removeGasto(id){if(guardReadOnly())return;const md=getMonthData();const bk=JSON.parse(JSON.stringify(md.balanco));const item=md.balanco.gastos.find(x=>x.id===id);md.balanco.gastos=md.balanco.gastos.filter(x=>x.id!==id);saveData();setFinancasTab('balanco');showToast(`Gasto "${item?.nome||'item'}" removido`,'warning',5000,'Desfazer',()=>{md.balanco=bk;saveData();setFinancasTab('balanco');});}
 
@@ -3743,7 +3743,7 @@ function editGanho(id){
       <select id="mS"><option value="1" ${g.recebido?'selected':''}>Recebido</option><option value="0" ${!g.recebido?'selected':''}>Pendente</option></select>
     </div>
     <div class="form-group"><label class="form-label" style="color:var(--teal)">📅 Data do recebimento <span style="font-weight:400;color:var(--text3)">(define o dia no gráfico)</span></label>
-      <input id="mDia" type="date" value="${g.ts ? new Date(g.ts).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}">
+      <input id="mDia" type="date" value="${_diaPgtoPrefill(g, g.recebido)}">
     </div>
     <div style="padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
       <button id="mPersBtn" onclick="togglePersBtn()" type="button" style="
@@ -3762,8 +3762,28 @@ function editGanho(id){
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveEditGanho('${id}')">Salvar</button></div>`);
 }
+// Data (local, YYYY-MM-DD) de um timestamp
+function _isoLocal(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+// Campo "Data do pagamento": se já está pago mostra a data do pagamento; senão, hoje
+function _diaPgtoPrefill(g, feito) {
+  return (feito && g.ts) ? _isoLocal(g.ts) : _isoLocal(Date.now());
+}
+// Aplica a data do modal: data alterada → usa ela; virou pago sem mexer na data → agora
+function _aplicarDiaPgto(g, prefill, viraFeito) {
+  const dia = document.getElementById('mDia')?.value;
+  if (dia && dia !== prefill) {
+    if (dia === _isoLocal(Date.now())) g.ts = Date.now();
+    else { const [dy,dm,dd] = dia.split('-').map(Number); g.ts = new Date(dy,dm-1,dd,12,0,0).getTime(); }
+  } else if (viraFeito) {
+    g.ts = Date.now();
+  }
+}
 function saveEditGanho(id){
   const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(!g)return;
+  const prefill=_diaPgtoPrefill(g, g.recebido), recebidoAntes=!!g.recebido;
   g.nome=document.getElementById('mN').value.trim();
   const baseVal=parseFloat(document.getElementById('mV').value)||0;
   const somaVal=parseFloat(document.getElementById('mSoma').value)||0;
@@ -3775,8 +3795,7 @@ function saveEditGanho(id){
   g.categoria=document.getElementById('mC').value;
   g.recebido=document.getElementById('mS').value==='1';
   g.persistente=document.getElementById('mPers')?.value==='1';
-  const diaStr=document.getElementById('mDia')?.value;
-  if(diaStr){const[dy,dm,dd]=diaStr.split('-').map(Number);g.ts=new Date(dy,dm-1,dd,12,0,0).getTime();}
+  _aplicarDiaPgto(g, prefill, g.recebido && !recebidoAntes);
   saveData();closeModal();setFinancasTab('balanco');
 }
 
@@ -3802,7 +3821,7 @@ function editGasto(id){
       <select id="mS"><option value="1" ${g.pago?'selected':''}>Pago</option><option value="0" ${!g.pago?'selected':''}>Pendente</option></select>
     </div>
     <div class="form-group"><label class="form-label" style="color:var(--teal)">📅 Data do pagamento <span style="font-weight:400;color:var(--text3)">(define o dia no gráfico)</span></label>
-      <input id="mDia" type="date" value="${g.ts ? new Date(g.ts).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}">
+      <input id="mDia" type="date" value="${_diaPgtoPrefill(g, g.pago)}">
     </div>
     <div style="padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
       <button id="mPersBtn" onclick="togglePersBtn()" type="button" style="
@@ -3821,6 +3840,7 @@ function editGasto(id){
     <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveEditGasto('${id}')">Salvar</button></div>`);}
 function saveEditGasto(id){
   const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(!g)return;
+  const prefill=_diaPgtoPrefill(g, g.pago), pagoAntes=!!g.pago;
   const nomeNovo=(document.getElementById('mN').value.trim())||g.nome;
   const baseVal=parseFloat(document.getElementById('mV').value)||0;
   const somaVal=parseFloat(document.getElementById('mSoma').value)||0;
@@ -3838,8 +3858,7 @@ function saveEditGasto(id){
   const dv2 = parseInt(document.getElementById('mDiaVenc')?.value) || null;
   g.tipoGasto   = tp2;
   g.diaVencimento = tp2 === 'conta' ? dv2 : null;
-  const diaStr2=document.getElementById('mDia')?.value;
-  if(diaStr2){const[dy,dm,dd]=diaStr2.split('-').map(Number);g.ts=new Date(dy,dm-1,dd,12,0,0).getTime();}
+  _aplicarDiaPgto(g, prefill, g.pago && !pagoAntes);
   saveData();closeModal();setFinancasTab('balanco');
 }
 
@@ -10925,6 +10944,20 @@ Exemplos: {entidade:"parceria", nome_parcial:"priscila", campo:"divulgacoes", op
 ];
 
 // ── Executor de ferramentas ────────────────────────────────────────────────────
+// Marca como pago/recebido registrando a data (só se ainda não estava)
+function _aiMarcar(item, campo, val) {
+  if (val === undefined) return;
+  if (val && !item[campo]) item.ts = Date.now();
+  item[campo] = !!val;
+}
+// Soma ao valor guardando a data da soma (o fluxo usa essa data)
+function _aiSomar(item, delta) {
+  item.valor = Math.round((item.valor + delta) * 100) / 100;
+  if (delta > 0) {
+    if (!item.historico) item.historico = [];
+    item.historico.push({ delta, ts: Date.now(), tipo: 'soma' });
+  }
+}
 function aiExecuteTool(name, input) {
   const md = getMonthData();
 
@@ -10933,12 +10966,12 @@ function aiExecuteTool(name, input) {
     const existing = md.balanco.gastos.find(g => g.nome.toLowerCase().includes(q) || q.includes(g.nome.toLowerCase()));
     if (existing) {
       const antes = existing.valor;
-      existing.valor = Math.round((existing.valor + Number(input.valor)) * 100) / 100;
-      if (input.pago !== undefined) existing.pago = !!input.pago;
+      _aiSomar(existing, Number(input.valor));
+      _aiMarcar(existing, 'pago', input.pago);
       saveData();
             return `✓ "${existing.nome}" atualizado: R$${antes} → R$${existing.valor} (+${input.valor})`;
     }
-    const item = { id: uid(), nome: input.nome, valor: Number(input.valor), categoria: input.categoria||'outros', pago: !!input.pago, persistente: false, historico: [] };
+    const item = { id: uid(), nome: input.nome, valor: Number(input.valor), categoria: input.categoria||'outros', pago: !!input.pago, persistente: false, historico: [], ts: Date.now() };
     md.balanco.gastos.push(item);
     saveData();
         return `✓ Gasto criado: ${item.nome} R$${item.valor} (${item.pago?'pago':'pendente'})`;
@@ -10949,12 +10982,12 @@ function aiExecuteTool(name, input) {
     const existing = md.balanco.ganhos.find(g => g.nome.toLowerCase().includes(q) || q.includes(g.nome.toLowerCase()));
     if (existing) {
       const antes = existing.valor;
-      existing.valor = Math.round((existing.valor + Number(input.valor)) * 100) / 100;
-      if (input.recebido !== undefined) existing.recebido = !!input.recebido;
+      _aiSomar(existing, Number(input.valor));
+      _aiMarcar(existing, 'recebido', input.recebido);
       saveData();
             return `✓ "${existing.nome}" atualizado: R$${antes} → R$${existing.valor} (+${input.valor})`;
     }
-    const item = { id: uid(), nome: input.nome, valor: Number(input.valor), recebido: !!input.recebido, persistente: false };
+    const item = { id: uid(), nome: input.nome, valor: Number(input.valor), recebido: !!input.recebido, persistente: false, historico: [], ts: Date.now() };
     md.balanco.ganhos.push(item);
     saveData();
         return `✓ Ganho criado: ${input.nome} R$${input.valor} (${input.recebido?'recebido':'pendente'})`;
@@ -10968,7 +11001,7 @@ function aiExecuteTool(name, input) {
     if (input.valor_novo !== undefined) {
       item.valor = Math.round(Number(input.valor_novo) * 100) / 100;
     } else if (input.delta !== undefined) {
-      item.valor = Math.round((item.valor + Number(input.delta)) * 100) / 100;
+      _aiSomar(item, Number(input.delta));
     }
     if (item.valor < 0) item.valor = 0;
     saveData();
@@ -10983,7 +11016,7 @@ function aiExecuteTool(name, input) {
     if (input.valor_novo !== undefined) {
       item.valor = Math.round(Number(input.valor_novo) * 100) / 100;
     } else if (input.delta !== undefined) {
-      item.valor = Math.round((item.valor + Number(input.delta)) * 100) / 100;
+      _aiSomar(item, Number(input.delta));
     }
     if (item.valor < 0) item.valor = 0;
     saveData();
@@ -10994,7 +11027,7 @@ function aiExecuteTool(name, input) {
     const q = input.nome_parcial.toLowerCase();
     const item = md.balanco.gastos.find(g => g.nome.toLowerCase().includes(q));
     if (!item) return `✗ Gasto com "${input.nome_parcial}" não encontrado. Gastos disponíveis: ${md.balanco.gastos.map(g=>g.nome).join(', ')}`;
-    item.pago = true;
+    _aiMarcar(item, 'pago', true);
     saveData();
     return `✓ "${item.nome}" marcado como pago`;
   }
@@ -11003,7 +11036,7 @@ function aiExecuteTool(name, input) {
     const q = input.nome_parcial.toLowerCase();
     const item = md.balanco.ganhos.find(g => g.nome.toLowerCase().includes(q));
     if (!item) return `✗ Ganho com "${input.nome_parcial}" não encontrado. Ganhos disponíveis: ${md.balanco.ganhos.map(g=>g.nome).join(', ')}`;
-    item.recebido = true;
+    _aiMarcar(item, 'recebido', true);
     saveData();
     return `✓ "${item.nome}" marcado como recebido`;
   }
