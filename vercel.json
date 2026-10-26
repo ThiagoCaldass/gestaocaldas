@@ -20,7 +20,7 @@
   ],
   "functions": {
     "api/analise.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   }
 }

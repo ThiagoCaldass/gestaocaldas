@@ -1620,7 +1620,7 @@ async function gerarAnalise() {
   const btn = document.getElementById('an-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Analisando…'; }
   const status = document.getElementById('an-status');
-  if (status) status.innerHTML = `<div class="table-card" style="padding:14px 18px;margin-bottom:16px;font-size:13px;color:var(--text2)">⏳ Lendo seus números e escrevendo a análise. Pode levar até 1 minuto…</div>`;
+  if (status) status.innerHTML = `<div class="table-card" style="padding:14px 18px;margin-bottom:16px;font-size:13px;color:var(--text2)">⏳ Lendo seus números e escrevendo a análise. Pode levar 1 a 2 minutos…</div>`;
   try {
     await flushSave?.(); // garante que o banco tem as últimas alterações
     const res = await fetch('/api/analise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mes: mk }) });
