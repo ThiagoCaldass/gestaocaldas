@@ -10485,8 +10485,13 @@ renderDashboard = (function(_orig) {
     const empCartaoT   = [...md.cartao.emp.parceladas, ...md.cartao.emp.avista, ...md.cartao.emp.assinaturas.filter(a=>!a.pausada)].reduce((s,x) => s + (x.valor||0), 0);
     const expEmpEnt    = empAllAlunos.filter(a => !a.pausado && a.contaPgto === 'emp').reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
     const expEmpSai    = (md.contaEmp.saidas||[]).reduce((s,x) => s + (x.valor||0), 0);
-    const expEmpSaldo  = empSaldoIni + expEmpEnt - expEmpSai - empTotalRet;
+    const expEmpSaldoBase = empSaldoIni + expEmpEnt - expEmpSai - empTotalRet;
+    // Retirada prevista: o que faltar para fechar as contas pessoais sai da conta empresarial
+    const retiradaPrev = Math.max(0, -expSaldo);
+    const expSaldoP    = expSaldo + retiradaPrev;
+    const expEmpSaldo  = expEmpSaldoBase - retiradaPrev;
     const empVsExp     = expEmpSaldo - empSaldo;
+    const notaRetPrev  = txt => retiradaPrev > 0.005 ? '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+txt+' retirada prevista de '+fmt(retiradaPrev)+'</div>' : '';
 
     const alunosCali   = md.calistenia.length;
     const alunosOnline = md.personal.online.length;
@@ -10628,7 +10633,7 @@ renderDashboard = (function(_orig) {
       document.head.appendChild(s);
     }
 
-    const saldoVsExp  = expSaldo - realSaldo;
+    const saldoVsExp  = expSaldoP - realSaldo;
     const saldoColor  = realSaldo >= 0 ? 'var(--green)' : 'var(--red)';
 
     const MOB = {hoje:'', quickadd:'', fluxo:'', saldo:'', saldoemp:'', alunos:'', chart:'', empresarial:''}; // sem order fixo — usa ordem do DOM
@@ -10646,7 +10651,7 @@ renderDashboard = (function(_orig) {
         +'<div style="height:1px;background:var(--border);margin-bottom:8px"></div>'
         +'<div style="display:flex;justify-content:space-between;align-items:center">'
         +'<div><div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:2px">Expectativa</div>'
-        +'<div style="font-family:\'Barlow Condensed\';font-size:17px;color:var(--text2)">'+fmt(expSaldo)+'</div></div>'
+        +'<div style="font-family:\'Barlow Condensed\';font-size:17px;color:var(--text2)">'+fmt(expSaldoP)+'</div>'+notaRetPrev('inclui')+'</div>'
         +'<div style="text-align:right">'
         +(saldoVsExp<0
           ? '<div style="font-size:11px;color:var(--green);font-family:\'Barlow Condensed\'">▲ '+fmt(Math.abs(saldoVsExp))+'</div><div style="font-size:10px;color:var(--text3)">acima da expectativa</div>'
@@ -10663,7 +10668,7 @@ renderDashboard = (function(_orig) {
           +'<div style="height:1px;background:var(--border);margin-bottom:8px"></div>'
           +'<div style="display:flex;justify-content:space-between;align-items:center">'
           +'<div><div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:2px">Expectativa</div>'
-          +'<div style="font-family:\'Barlow Condensed\';font-size:17px;color:var(--text2)">'+fmt(expEmpSaldo)+'</div></div>'
+          +'<div style="font-family:\'Barlow Condensed\';font-size:17px;color:var(--text2)">'+fmt(expEmpSaldo)+'</div>'+notaRetPrev('desconta')+'</div>'
           +'<div style="text-align:right">'
           +(empVsExp<0
             ? '<div style="font-size:11px;color:var(--green);font-family:\'Barlow Condensed\'">▲ '+fmt(Math.abs(empVsExp))+'</div><div style="font-size:10px;color:var(--text3)">acima da expectativa</div>'
