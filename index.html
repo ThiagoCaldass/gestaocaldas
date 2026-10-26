@@ -1525,6 +1525,7 @@ async function navigate(page) {
   updateLockUI();
 
   await loadMonthData();
+  await carregarMesesEmp(monthKey());
   const md = getMonthData();
   if (!md.balanco)    md.balanco    = { ganhos:[], gastos:[] };
   if (!md.calistenia) md.calistenia = [];
@@ -2975,7 +2976,8 @@ function _buildFluxoDataEmp() {
   const ajNet = expSaldoFim - chartNet;
   if (ajNet >  0.01) { if (!entradas[1]) entradas[1]=[]; entradas[1].push({nome:'Outros',valor: ajNet,feito:false}); }
   if (ajNet < -0.01) { if (!saidas[1])   saidas[1]  =[]; saidas[1].push({nome:'Outros',valor:-ajNet,feito:false}); }
-  let acc = 0;
+  const saldoIni = empSaldoInicial(monthKey());
+  let acc = saldoIni;
   const dias = Array.from({length: daysInMonth}, (_,i) => {
     const d   = i + 1;
     const ent = (entradas[d]||[]).reduce((s,x)=>s+x.valor,0);
@@ -2983,7 +2985,7 @@ function _buildFluxoDataEmp() {
     acc += ent - sai;
     return { d, ent, sai, acc, ev: [...(entradas[d]||[]).map(x=>({...x,tipo:'e'})), ...(saidas[d]||[]).map(x=>({...x,tipo:'s'}))] };
   });
-  return { dias, expGanhos, expGastos, expSaldoFim, todayDay, daysInMonth };
+  return { dias, expGanhos, expGastos, expSaldoFim: expSaldoFim + saldoIni, todayDay, daysInMonth };
 }
 
 function _renderFluxoSvgDual(diasP, diasE, todayDay, daysInMonth, H) {
@@ -6552,6 +6554,78 @@ function saveFechamento(bank) {
 }
 
 // ==================== CONTA EMPRESARIAL ====================
+// ── Saldo da conta empresarial que passa de um mês para o outro ──
+// Saldo inicial = valor manual do mês (se definido) ou saldo final real do mês anterior (em cadeia).
+const _empMesesSemDados = new Set();
+function _empMesKey(mk, delta) {
+  let [y, m] = mk.split('-').map(Number);
+  m += delta;
+  while (m < 1) { m += 12; y--; }
+  while (m > 12) { m -= 12; y++; }
+  return `${y}-${String(m).padStart(2,'0')}`;
+}
+function _empTemManual(md) {
+  const v = md?.contaEmp?.saldoInicialManual;
+  return v !== undefined && v !== null && v !== '';
+}
+// Resultado real do mês na conta empresarial (sem o saldo inicial)
+function empMovimentoMes(md) {
+  if (!md) return 0;
+  const ent = calcValoresCali(md.calistenia || []).filter(a => a.pago && a.contaPgto === 'emp').reduce((s,a) => s + (a.valorFinal||0), 0)
+    + [...(md.personal?.online||[]), ...(md.personal?.presencial||[])].filter(a => a.pago && a.contaPgto === 'emp').reduce((s,a) => s + (a.valor||0), 0);
+  const sai = (md.contaEmp?.saidas||[]).filter(x => x.pago).reduce((s,x) => s + (x.valor||0), 0);
+  const ret = (md.contaEmp?.retiradas||[]).reduce((s,x) => s + (x.valor||0), 0);
+  return ent - sai - ret;
+}
+function empSaldoAutomatico(mk) {
+  const prev = _empMesKey(mk, -1);
+  const pmd = cachedData[prev];
+  return pmd ? empSaldoInicial(prev) + empMovimentoMes(pmd) : 0;
+}
+function empSaldoInicial(mk) {
+  const md = cachedData[mk];
+  return _empTemManual(md) ? (Number(md.contaEmp.saldoInicialManual) || 0) : empSaldoAutomatico(mk);
+}
+// Traz para o cache os meses anteriores necessários para a cadeia de saldos
+async function carregarMesesEmp(mk) {
+  let k = mk;
+  for (let i = 0; i < 36; i++) {
+    if (_empTemManual(cachedData[k])) return;
+    k = _empMesKey(k, -1);
+    if (cachedData[k]) continue;
+    if (_empMesesSemDados.has(k)) return;
+    try {
+      const r = await sbGet(k);
+      if (!r) { _empMesesSemDados.add(k); return; }
+      cachedData[k] = r;
+    } catch(e) { return; }
+  }
+}
+function editSaldoInicialEmp() {
+  if (guardReadOnly()) return;
+  const mk = monthKey(), md = getMonthData();
+  const auto = empSaldoAutomatico(mk), manual = _empTemManual(md);
+  const [py, pm] = _empMesKey(mk, -1).split('-').map(Number);
+  openModal(`<div class="modal-handle"></div><div class="modal-title">SALDO DO MÊS ANTERIOR</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Calculado automaticamente: <strong style="color:var(--text)">${fmt(auto)}</strong> (saldo final de ${MONTHS[pm-1]}/${py}). Use um valor manual só para acertar com o extrato do banco.</div>
+    <div class="form-group"><label class="form-label">Saldo inicial (R$)</label>
+      <input id="empSaldoIni" type="number" step="0.01" inputmode="decimal" value="${manual ? md.contaEmp.saldoInicialManual : ''}" placeholder="${auto.toFixed(2)}">
+    </div>
+    <div class="form-actions">
+      ${manual ? `<button class="btn btn-ghost" onclick="salvarSaldoInicialEmp(true)">Usar automático</button>` : `<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>`}
+      <button class="btn btn-primary" onclick="salvarSaldoInicialEmp(false)">Salvar</button>
+    </div>`);
+  setTimeout(() => document.getElementById('empSaldoIni')?.focus(), 100);
+}
+function salvarSaldoInicialEmp(usarAuto) {
+  const md = getMonthData();
+  if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
+  const v = document.getElementById('empSaldoIni')?.value.trim();
+  if (usarAuto || v === '') delete md.contaEmp.saldoInicialManual;
+  else { const n = parseFloat(v); if (isNaN(n)) { showFieldError('empSaldoIni', 'Valor inválido'); return; } md.contaEmp.saldoInicialManual = n; }
+  saveData(); closeModal(); renderContaEmpresarial(md);
+}
+
 function renderContaEmpresarial(md) {
   if (!md.contaEmp) md.contaEmp = { saidas: [], retiradas: [] };
   const ro = isReadOnly();
@@ -6559,12 +6633,14 @@ function renderContaEmpresarial(md) {
   const empCali  = caliCalcEmp.filter(a => a.pago && a.contaPgto === 'emp').reduce((s,a) => s + (a.valorFinal||0), 0);
   const empOnline= (md.personal?.online||[]).filter(a => a.pago && a.contaPgto === 'emp').reduce((s,a) => s + (a.valor||0), 0);
   const empPres  = (md.personal?.presencial||[]).filter(a => a.pago && a.contaPgto === 'emp').reduce((s,a) => s + (a.valor||0), 0);
-  const totalEntradas = empCali + empOnline + empPres;
+  const saldoIni = empSaldoInicial(monthKey());
+  const saldoIniManual = _empTemManual(md);
+  const totalEntradas = saldoIni + empCali + empOnline + empPres;
   // Previsto: alunos ativos que ainda não pagaram (ou pagaram para emp) — mesma lógica do fluxo
   const expCali  = caliCalcEmp.filter(a => !a.pausado && (!a.pago || a.contaPgto === 'emp')).reduce((s,a) => s + (a.valorFinal||0), 0);
   const expOnline= (md.personal?.online||[]).filter(a => !a.pausado && (!a.pago || a.contaPgto === 'emp')).reduce((s,a) => s + (a.valor||0), 0);
   const expPres  = (md.personal?.presencial||[]).filter(a => !a.pausado && (!a.pago || a.contaPgto === 'emp')).reduce((s,a) => s + (a.valor||0), 0);
-  const totalEntradasExp = expCali + expOnline + expPres;
+  const totalEntradasExp = saldoIni + expCali + expOnline + expPres;
   const totalEntradasPrev = totalEntradasExp - totalEntradas;
   const totalSaidasPagas = md.contaEmp.saidas.filter(x=>x.pago).reduce((s,x) => s + (x.valor||0), 0);
   const totalSaidasPrev  = md.contaEmp.saidas.filter(x=>!x.pago).reduce((s,x) => s + (x.valor||0), 0);
@@ -6603,7 +6679,12 @@ function renderContaEmpresarial(md) {
             <th style="width:27.5%">Recebido</th>
             <th style="width:27.5%">Previsto</th>
           </tr></thead>
-          <tbody>${[
+          <tbody>
+          <tr style="${ro?'':'cursor:pointer'}" onclick="${ro?'':'editSaldoInicialEmp()'}" title="Saldo que sobrou do mês anterior">
+            <td><span class="badge badge-gray" style="font-size:10px">Saldo mês anterior</span>${saldoIniManual?' <span style="font-size:10px;color:var(--accent3)">✎ manual</span>':''}</td>
+            <td class="mono" style="color:${saldoIni<0?'var(--red)':'var(--text)'}">${fmt(saldoIni)}</td>
+            <td class="mono" style="color:var(--text2)">${fmt(saldoIni)}</td>
+          </tr>${[
             { label:'Calistenia', real: empCali,   exp: expCali   },
             { label:'Online',     real: empOnline, exp: expOnline },
             { label:'Presencial', real: empPres,   exp: expPres   },
@@ -10398,12 +10479,13 @@ renderDashboard = (function(_orig) {
     const empTotalEnt  = empEntradas.reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
     const empTotalSai  = (md.contaEmp.saidas||[]).filter(x=>x.pago).reduce((s,x) => s + (x.valor||0), 0);
     const empTotalRet  = (md.contaEmp.retiradas||[]).reduce((s,x) => s + (x.valor||0), 0);
-    const empSaldo     = empTotalEnt - empTotalSai - empTotalRet;
+    const empSaldoIni  = empSaldoInicial(monthKey());
+    const empSaldo     = empSaldoIni + empTotalEnt - empTotalSai - empTotalRet;
     if (!md.cartao.emp) md.cartao.emp = { fechamento:null, parceladas:[], avista:[], assinaturas:[] };
     const empCartaoT   = [...md.cartao.emp.parceladas, ...md.cartao.emp.avista, ...md.cartao.emp.assinaturas.filter(a=>!a.pausada)].reduce((s,x) => s + (x.valor||0), 0);
     const expEmpEnt    = empAllAlunos.filter(a => !a.pausado && a.contaPgto === 'emp').reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
     const expEmpSai    = (md.contaEmp.saidas||[]).reduce((s,x) => s + (x.valor||0), 0);
-    const expEmpSaldo  = expEmpEnt - expEmpSai - empTotalRet;
+    const expEmpSaldo  = empSaldoIni + expEmpEnt - expEmpSai - empTotalRet;
     const empVsExp     = expEmpSaldo - empSaldo;
 
     const alunosCali   = md.calistenia.length;
