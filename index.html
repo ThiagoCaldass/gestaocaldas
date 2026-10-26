@@ -10429,11 +10429,11 @@ window.dashRefreshPalette = function() {
 };
 
 // ── Main Dashboard Render ──────────────────────────────────────
-// Expectativa pessoal: alunos que pagam na conta empresarial ficam de fora
-// (o dinheiro deles chega ao pessoal via retirada, que entra em "resto")
+// Expectativa pessoal: só alunos que JÁ pagaram na conta pessoal; quem ainda não pagou
+// é previsto na conta empresarial (o dinheiro chega ao pessoal via retirada, que entra em "resto")
 function calcExpPessoal(md) {
   const CATS = ['calistenia','personal','personal_online','personal_presencial'];
-  const naoEmp = a => a.contaPgto !== 'emp';
+  const naoEmp = a => a.pago && a.contaPgto !== 'emp';
   const cali = calcValoresCali(md.calistenia || []).filter(naoEmp).reduce((s,a) => s + a.valorFinal, 0);
   const personal = [...(md.personal?.online||[]), ...(md.personal?.presencial||[])]
     .filter(a => !a.pausado && naoEmp(a)).reduce((s,a) => s + (a.valor||0), 0);
@@ -10485,7 +10485,7 @@ renderDashboard = (function(_orig) {
     const empSaldo     = empSaldoIni + empTotalEnt - empTotalSai - empTotalRet;
     if (!md.cartao.emp) md.cartao.emp = { fechamento:null, parceladas:[], avista:[], assinaturas:[] };
     const empCartaoT   = [...md.cartao.emp.parceladas, ...md.cartao.emp.avista, ...md.cartao.emp.assinaturas.filter(a=>!a.pausada)].reduce((s,x) => s + (x.valor||0), 0);
-    const expEmpEnt    = empAllAlunos.filter(a => !a.pausado && a.contaPgto === 'emp').reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
+    const expEmpEnt    = empAllAlunos.filter(a => !a.pausado && (!a.pago || a.contaPgto === 'emp')).reduce((s,a) => s + (a.valorFinal||a.valor||0), 0);
     const expEmpSai    = (md.contaEmp.saidas||[]).reduce((s,x) => s + (x.valor||0), 0);
     const expEmpSaldoBase = empSaldoIni + expEmpEnt - expEmpSai - empTotalRet;
     // Retirada prevista: o que faltar para fechar as contas pessoais sai da conta empresarial
