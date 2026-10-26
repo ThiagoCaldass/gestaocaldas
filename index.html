@@ -3113,7 +3113,9 @@ function _buildFluxoDataConsolidado() {
   const ajNet = expSaldoFim - chartNet;
   if (ajNet >  0.01) { if (!entradas[1]) entradas[1]=[]; entradas[1].push({nome:'Outros',valor: ajNet,feito:false}); }
   if (ajNet < -0.01) { if (!saidas[1])   saidas[1]  =[]; saidas[1].push({nome:'Outros',valor:-ajNet,feito:false}); }
-  let acc = 0;
+  // Saldo anterior da conta empresarial (o do pessoal já entra como ganho "Mês anterior")
+  const saldoIni = empSaldoInicial(monthKey());
+  let acc = saldoIni;
   const dias = Array.from({length: daysInMonth}, (_,i) => {
     const d   = i + 1;
     const ent = (entradas[d]||[]).reduce((s,x)=>s+x.valor,0);
@@ -3121,7 +3123,7 @@ function _buildFluxoDataConsolidado() {
     acc += ent - sai;
     return { d, ent, sai, acc, ev: [...(entradas[d]||[]).map(x=>({...x,tipo:'e'})), ...(saidas[d]||[]).map(x=>({...x,tipo:'s'}))] };
   });
-  return { dias, expGanhos, expGastos, expSaldoFim, todayDay, daysInMonth };
+  return { dias, expGanhos, expGastos, expSaldoFim: expSaldoFim + saldoIni, todayDay, daysInMonth };
 }
 
 function renderWidgetFluxo() {
