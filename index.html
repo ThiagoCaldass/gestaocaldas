@@ -2178,7 +2178,7 @@ function renderDashboard(md) {
   const pendentesGt = md.balanco.gastos.filter(g=>!g.pago);
   const vencidos    = [...md.personal.online,...md.personal.presencial].filter(a=>{
     if(!a.attTreino) return false;
-    return (hoje - new Date(a.attTreino)) / (1000*60*60*24) > 30;
+    return (hoje - _dataLocal(a.attTreino)) / (1000*60*60*24) > 30;
   });
   const alunosPend  = [...caliCalc.filter(a=>!a.pago&&!a.pausado).map(a=>({...a,tipo:'Cali'})),
                        ...md.personal.online.filter(a=>!a.pago&&!a.pausado).map(a=>({...a,tipo:'Online'})),
@@ -2588,7 +2588,7 @@ let _widgetHojeTab = 'gasto'; // persiste entre re-renders
 
 function renderWidgetHoje() {
   const md = getMonthData();
-  const today = new Date().toISOString().split('T')[0];
+  const today = _isoLocal(new Date());
   const presAlunos = (md.personal?.presencial || [])
     .filter(a => !a.pausado)
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
@@ -2650,7 +2650,7 @@ window.widgetHojeAddAula = function() {
   const sel = document.getElementById('wh-pres-select');
   if (!sel || !sel.value) return;
   const alunoId = sel.value;
-  const today = new Date().toISOString().split('T')[0];
+  const today = _isoLocal(new Date());
   const md = getMonthData();
   const a = md.personal.presencial.find(x => String(x.id) === String(alunoId));
   if (!a) return;
@@ -2929,7 +2929,7 @@ function _buildFluxoDataEmp() {
   }
   function dateDay(str) {
     if (!str) return null;
-    const d = new Date(str);
+    const d = _dataLocal(str);
     if (isNaN(d)) return null;
     if (d.getFullYear() !== ano || d.getMonth() !== mes) return null;
     return d.getDate();
@@ -3225,7 +3225,7 @@ async function renderFluxoPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 function renderQuickAdd(onSave) {
   const md = getMonthData();
-  const today = new Date().toISOString().split('T')[0];
+  const today = _isoLocal(new Date());
 
   // Gastos existentes para o dropdown de débito
   const EXCLUIR_CATS = ['cartão de credito','cartão bb','cartão inter'];
@@ -3410,12 +3410,12 @@ function saveQuickCredito(onSave) {
 
   if (isPar) {
     const nparc = parseInt(document.getElementById(`qa-cc-npar-${onSave}`)?.value || '1') || 1;
-    const data  = document.getElementById(`qa-cc-data-${onSave}`)?.value || new Date().toISOString().split('T')[0];
+    const data  = document.getElementById(`qa-cc-data-${onSave}`)?.value || _isoLocal(new Date());
     const fech  = md.cartao[bank]?.fechamento || null;
     const ateQuando = calcAteQuandoCC(data, fech, nparc);
     md.cartao[bank].parceladas.push({ id: uid(), titulo, valor, parcelas: nparc, ateQuando, data });
   } else if (isAv) {
-    const data = document.getElementById(`qa-cc-dataav-${onSave}`)?.value || new Date().toISOString().split('T')[0];
+    const data = document.getElementById(`qa-cc-dataav-${onSave}`)?.value || _isoLocal(new Date());
     md.cartao[bank].avista.push({ id: uid(), titulo, valor, data });
   } else {
     const dia = String(parseInt(document.getElementById(`qa-cc-dia-${onSave}`)?.value || '1')).padStart(2,'0');
@@ -3857,7 +3857,12 @@ function editGanho(id){
     </div>
     <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveEditGanho('${id}')">Salvar</button></div>`);
 }
-// Data (local, YYYY-MM-DD) de um timestamp
+// "YYYY-MM-DD" → meia-noite no horário local (new Date("YYYY-MM-DD") seria meia-noite UTC = 21h do dia anterior em Brasília)
+function _dataLocal(v) {
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) { const [y,m,d] = v.split('-').map(Number); return new Date(y, m-1, d); }
+  return new Date(v);
+}
+// Data (local, YYYY-MM-DD) de um timestamp ou Date
 function _isoLocal(ts) {
   const d = new Date(ts);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -4302,7 +4307,7 @@ function renderTodosContent(md) {
   const _h0f = new Date(); _h0f.setHours(0,0,0,0);
   const FILTROS_DEF = {
     'nao-pago':    { label:'🔴 Não pagos',        fn: a => !a.pago && !a.pausado },
-    'treino-venc': { label:'📋 Treino vencendo',   fn: a => a._tipo!=='cali' && a.proxAtt && Math.floor((new Date(a.proxAtt)-_h0f)/86400000)<=7 },
+    'treino-venc': { label:'📋 Treino vencendo',   fn: a => a._tipo!=='cali' && a.proxAtt && Math.floor((_dataLocal(a.proxAtt)-_h0f)/86400000)<=7 },
     'pausado':     { label:'⏸ Pausados',          fn: a => !!a.pausado },
     'cali':        { label:'Cali',                 fn: a => a._tipo==='cali' },
     'online':      { label:'Online',               fn: a => a._tipo==='online' },
@@ -4375,7 +4380,7 @@ function renderTodosContent(md) {
   // Treinos a vencer nos próximos 7 dias (ou já vencidos), apenas personal
   const treinoAlerta = allStudents
     .filter(a => a._tipo !== 'cali' && !a.pausado && a.proxAtt)
-    .filter(a => Math.floor((new Date(a.proxAtt) - h0a) / 86400000) <= 7)
+    .filter(a => Math.floor((_dataLocal(a.proxAtt) - h0a) / 86400000) <= 7)
     .sort((a,b) => a.proxAtt.localeCompare(b.proxAtt));
 
   const _tipoBadgeSm = a =>
@@ -4399,7 +4404,7 @@ function renderTodosContent(md) {
   }).join('');
 
   const treinoRows = treinoAlerta.map(a => {
-    const diff = Math.floor((new Date(a.proxAtt) - h0a) / 86400000);
+    const diff = Math.floor((_dataLocal(a.proxAtt) - h0a) / 86400000);
     const isVenc = diff < 0;
     const isMuito = diff >= 0 && diff <= 3;
     const cor = isVenc ? 'var(--red)' : isMuito ? '#f1c135' : 'var(--text2)';
@@ -4495,7 +4500,7 @@ function renderTodosContent(md) {
         : '';
 
     // ── Urgência de treino (online/pres) ──
-    const pAD = (a._tipo!=='cali' && a.proxAtt) ? new Date(a.proxAtt) : null;
+    const pAD = (a._tipo!=='cali' && a.proxAtt) ? _dataLocal(a.proxAtt) : null;
     const dpV = pAD ? Math.floor((pAD - h0) / 86400000) : null;
     const aV=dpV!==null&&dpV<0, aP=dpV!==null&&dpV>=0&&dpV<=3, a7=dpV!==null&&dpV>3&&dpV<=7;
 
@@ -5038,7 +5043,7 @@ function renderPersonalContent(md, tab) {
   const hoje0=new Date();hoje0.setHours(0,0,0,0);
   const vencidos=list.filter(a=>{
     if(!a.proxAtt)return false;
-    return new Date(a.proxAtt)<hoje0;
+    return _dataLocal(a.proxAtt)<hoje0;
   });
 
   return `<div>
@@ -5058,7 +5063,7 @@ function renderPersonalContent(md, tab) {
       </tr></thead>
       <tbody>${list.length===0&&_sq2?`<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--text3);font-size:13px">🔍 Nenhum resultado para "<strong>${_sq2}</strong>"</td></tr>`:list.map(a=>{
         const h0=new Date();h0.setHours(0,0,0,0);
-        const pAD=a.proxAtt?new Date(a.proxAtt):null;
+        const pAD=a.proxAtt?_dataLocal(a.proxAtt):null;
         const dpV=pAD?Math.floor((pAD-h0)/86400000):null;
         const _formAguard = tab==='online' && a.formStatus==='aguardando';
         const aV=!_formAguard&&dpV!==null&&dpV<0, aP=!_formAguard&&dpV!==null&&dpV>=0&&dpV<=3, a7=!_formAguard&&dpV!==null&&dpV>3&&dpV<=7;
@@ -5382,7 +5387,7 @@ function renderCalendario(a) {
   const mesNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-  const todayIso = new Date().toISOString().split('T')[0];
+  const todayIso = _isoLocal(new Date());
 
   // Aulas no mês visível
   const aulasNoMes = (a.aulasDatas || []).filter(d => {
@@ -5411,7 +5416,7 @@ function renderCalendario(a) {
 
   const weeksHtml = weeks.map(week => {
     const cells = week.map(day => {
-      const iso      = day.toISOString().split('T')[0];
+      const iso      = _isoLocal(day);
       const isFocus  = day.getMonth() === focusMonth;
       const isTreino = todasDatas.has(iso);
       const isToday  = iso === todayIso;
@@ -5493,7 +5498,7 @@ function zerarPresencasAluno(id) {
 }
 
 function addAulaHoje(alunoId) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = _isoLocal(new Date());
   const md = getMonthData();
   const a = md.personal.presencial.find(x=>x.id===alunoId);
   if (!a) return;
@@ -5517,7 +5522,7 @@ function addAula(alunoId) {
   const md = getMonthData();
   const a = [...md.personal.online, ...md.personal.presencial].find(x=>x.id===alunoId);
   if (!a) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = _isoLocal(new Date());
   openModal(`<div class="modal-handle"></div><div class="modal-title">REGISTRAR AULA — ${a.nome}</div>
     <div class="form-group"><label class="form-label">Data da Aula</label>
       <input id="mAulaData" type="date" value="${today}">
@@ -5742,7 +5747,7 @@ function saveEditCell_Cali(id, campo) {
 function _formEmoji(a) {
   if (a.formStatus === 'aguardando') return '📋';
   const hoje = new Date(); hoje.setHours(0,0,0,0);
-  const atrasado = a.proxAtt && new Date(a.proxAtt) < hoje;
+  const atrasado = a.proxAtt && _dataLocal(a.proxAtt) < hoje;
   if (a.formStatus === 'pendente' || atrasado) return '🔴';
   return '✅';
 }
@@ -5766,16 +5771,16 @@ function marcarFormEnviado(id) {
 function _treinoEmoji(proxAtt) {
   if (!proxAtt) return '📋';
   const h0 = new Date(); h0.setHours(0,0,0,0);
-  return new Date(proxAtt) < h0 ? '🔴' : '✅';
+  return _dataLocal(proxAtt) < h0 ? '🔴' : '✅';
 }
 function attTreino(id){
   if(guardReadOnly())return;
   const md=getMonthData();
   const a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);
   if(!a)return;
-  const today=new Date().toISOString().split('T')[0];
+  const today=_isoLocal(new Date());
   const prox45=new Date();prox45.setDate(prox45.getDate()+45);
-  const prox45Str=prox45.toISOString().split('T')[0];
+  const prox45Str=_isoLocal(prox45);
   const isOnline = md.personal.online.some(x => x.id === id);
   const emoji = isOnline ? _formEmoji(a) : _treinoEmoji(a.proxAtt);
   if (emoji === '✅') {
@@ -5825,7 +5830,7 @@ function saveAttRapido(id){
   const md=getMonthData();
   const a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);
   if(!a)return;
-  a.attTreino=new Date().toISOString().split('T')[0];
+  a.attTreino=_isoLocal(new Date());
   a.proxAtt=document.getElementById('mProx').value;
   a.formStatus='ok';
   saveData();closeModal();setAlunosTab(alunosTab);
@@ -6067,7 +6072,7 @@ function renderParceriasContent(md) {
       </tr></thead>
       <tbody>${list.map(p=>{
         const h0=new Date();h0.setHours(0,0,0,0);
-        const pAD=p.proxAtt?new Date(p.proxAtt):null;
+        const pAD=p.proxAtt?_dataLocal(p.proxAtt):null;
         const dpV=pAD?Math.floor((pAD-h0)/86400000):null;
         const aV=dpV!==null&&dpV<0, aP=dpV!==null&&dpV>=0&&dpV<=3, a7=dpV!==null&&dpV>3&&dpV<=7;
         const waPhone=(p.telefone||'').replace(/\D/g,'');
@@ -6176,7 +6181,7 @@ function attTreinoParceria(id) {
   const p = (md.parcerias||[]).find(x=>x.id===id);
   if (!p) return;
   const prox45 = new Date(); prox45.setDate(prox45.getDate()+45);
-  const prox45Str = prox45.toISOString().split('T')[0];
+  const prox45Str = _isoLocal(prox45);
   const emoji = _treinoEmoji(p.proxAtt);
   if (emoji === '✅') {
     openModal(`<div class="modal-handle"></div><div class="modal-title">TREINO — ${p.nome}</div>
@@ -6219,7 +6224,7 @@ function saveAttRapidoParceria(id) {
   const md = getMonthData();
   const p = (md.parcerias||[]).find(x=>x.id===id);
   if (!p) return;
-  p.attTreino = new Date().toISOString().split('T')[0];
+  p.attTreino = _isoLocal(new Date());
   p.proxAtt   = document.getElementById('mProx').value;
   saveData(); closeModal(); setAlunosTab('parcerias');
 }
@@ -7008,7 +7013,7 @@ function renderCartaoOriginal(md){
         <div class="quick-add-row">
           <input id="cc-parcelas" type="number" inputmode="numeric" placeholder="Nº parcelas" style="max-width:130px"
             oninput="ccCalcAte()">
-          <input id="cc-data-compra" type="date" value="${new Date().toISOString().split('T')[0]}" style="flex:1"
+          <input id="cc-data-compra" type="date" value="${_isoLocal(new Date())}" style="flex:1"
             onchange="ccCalcAte()">
           <div id="cc-ate-preview" style="flex:1;font-size:11px;color:var(--text3);display:flex;align-items:center;padding:0 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;min-height:40px">até —</div>
         </div>
@@ -7228,10 +7233,10 @@ function saveQuickCC() {
   if (!valor || valor <= 0) { showFieldError('cc-valor', 'Valor deve ser maior que zero'); return; }
   const md = getMonthData();
   if (tipo === 'avista') {
-    md.cartao[bank].avista.push({id:uid(),titulo:desc,valor,data:new Date().toISOString().split('T')[0],categoria:cat});
+    md.cartao[bank].avista.push({id:uid(),titulo:desc,valor,data:_isoLocal(new Date()),categoria:cat});
   } else if (tipo === 'parcelada') {
     const parcelas = parseInt(document.getElementById('cc-parcelas')?.value||'1')||1;
-    const data = document.getElementById('cc-data-compra')?.value || new Date().toISOString().split('T')[0];
+    const data = document.getElementById('cc-data-compra')?.value || _isoLocal(new Date());
     const fech = md.cartao[bank]?.fechamento || null;
     const ateQuando = calcAteQuandoCC(data, fech, parcelas);
     md.cartao[bank].parceladas.push({id:uid(),titulo:desc,valor,parcelas,ateQuando,data,categoria:cat});
@@ -7317,7 +7322,7 @@ function deleteSelectedCC(bank,type){
 function openAddCC(bank,type){
   const isP=type==='parcelada', isA=type==='assinatura';
   const catOpts = CATS_CC.map(c=>`<option value="${c.toLowerCase()}">${c}</option>`).join('');
-  const today = new Date().toISOString().split('T')[0];
+  const today = _isoLocal(new Date());
   const md = getMonthData();
   const fech = md.cartao[bank]?.fechamento;
   const fechInfo = fech ? `<span style="font-size:11px;color:var(--text3)">Fecha dia ${fech}</span>` : `<span style="font-size:11px;color:var(--red);cursor:pointer" onclick="closeModal();editFechamento('${bank}')">⚠ Fechamento não definido</span>`;
@@ -7366,7 +7371,7 @@ function addCC(bank,type){
   const md=getMonthData();
   if(type==='parcelada'){
     const p=parseInt(document.getElementById('mP')?.value||'1')||1;
-    const data=document.getElementById('mData')?.value||new Date().toISOString().split('T')[0];
+    const data=document.getElementById('mData')?.value||_isoLocal(new Date());
     const fech=md.cartao[bank]?.fechamento||null;
     const a=calcAteQuandoCC(data,fech,p);
     md.cartao[bank].parceladas.push({id:uid(),titulo:t,valor:v,parcelas:p,ateQuando:a,data,categoria:cat});
@@ -7374,7 +7379,7 @@ function addCC(bank,type){
     const d=(document.getElementById('mD')?.value||'01').toString().padStart(2,'0');
     md.cartao[bank].assinaturas.push({id:uid(),titulo:t,valor:v,dia:d,categoria:cat});
   } else {
-    md.cartao[bank].avista.push({id:uid(),titulo:t,valor:v,data:new Date().toISOString().split('T')[0],categoria:cat});
+    md.cartao[bank].avista.push({id:uid(),titulo:t,valor:v,data:_isoLocal(new Date()),categoria:cat});
   }
   saveData();closeModal();setFinancasTab('cartao');
 }
@@ -10501,7 +10506,7 @@ renderDashboard = (function(_orig) {
 
     const vencidos = [...md.personal.online, ...md.personal.presencial].filter(a => {
       if (!a.attTreino) return false;
-      return (hoje - new Date(a.attTreino)) / (1000*60*60*24) > 30;
+      return (hoje - _dataLocal(a.attTreino)) / (1000*60*60*24) > 30;
     });
     const alunosPend = [
       ...caliCalc.filter(a => !a.pago && !a.pausado).map(a => ({...a, tipo:'Cali'})),
@@ -11269,7 +11274,7 @@ function aiExecuteTool(name, input) {
     // Atualiza poupança
     globalPoupanca.saldo = (globalPoupanca.saldo||0) + v;
     globalPoupanca.movimentos = globalPoupanca.movimentos || [];
-    globalPoupanca.movimentos.push({ id: uid(), tipo: 'deposito', valor: v, data: new Date().toISOString().slice(0,10), desc });
+    globalPoupanca.movimentos.push({ id: uid(), tipo: 'deposito', valor: v, data: _isoLocal(new Date()), desc });
     saveData();
     savePoupanca();
     return `✓ R$${v} depositado na poupança. Saldo: R$${globalPoupanca.saldo}`;

@@ -8,15 +8,23 @@ export function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+// Horário de Brasília (UTC-3, sem horário de verão) — o servidor da Vercel roda em UTC
+function agoraBR() {
+  return new Date(Date.now() - 3 * 3600 * 1000);
+}
+export function hojeBR() {
+  return agoraBR().toISOString().split('T')[0];
+}
+
 export function monthKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const d = agoraBR();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 function calcAteQuando(nParcelas) {
-  const now = new Date();
-  let m = now.getMonth() + 1 + nParcelas - 1;
-  let y = now.getFullYear();
+  const now = agoraBR();
+  let m = now.getUTCMonth() + 1 + nParcelas - 1;
+  let y = now.getUTCFullYear();
   while (m > 12) { m -= 12; y++; }
   return `${y}-${String(m).padStart(2, '0')}`;
 }
@@ -305,7 +313,7 @@ export function runTool(name, input, md) {
       const nomes = md.personal.presencial.map(a => a.nome).join(', ') || 'nenhum';
       return `❌ Aluno presencial "${input.nome_parcial}" não encontrado.\nPresenciais: ${nomes}`;
     }
-    const today = new Date().toISOString().split('T')[0];
+    const today = hojeBR();
     if (!item.aulasDatas) item.aulasDatas = [];
     item.aulasDatas.push(today);
     return `✅ Presença registrada: *${item.nome}* — ${item.aulasDatas.length} aulas no mês`;
@@ -347,7 +355,7 @@ export function runTool(name, input, md) {
   if (name === 'add_cartao_avista') {
     const { titulo, valor, cartao } = input;
     const bank = cartao === 'inter' ? 'inter' : 'bb';
-    const data = new Date().toISOString().split('T')[0];
+    const data = hojeBR();
     if (!md.cartao) md.cartao = emptyMonth().cartao;
     md.cartao[bank].avista.push({ id: uid(), titulo, valor: Number(valor), data });
     const label = bank === 'bb' ? 'BB' : 'Inter';
@@ -357,7 +365,7 @@ export function runTool(name, input, md) {
   if (name === 'add_cartao_parcelado') {
     const { titulo, valor, parcelas, cartao } = input;
     const bank = cartao === 'inter' ? 'inter' : 'bb';
-    const data = new Date().toISOString().split('T')[0];
+    const data = hojeBR();
     const ateQuando = calcAteQuando(Number(parcelas));
     if (!md.cartao) md.cartao = emptyMonth().cartao;
     md.cartao[bank].parceladas.push({
