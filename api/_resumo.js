@@ -53,7 +53,7 @@ export function resumoDetalhado(md) {
       personal_presencial: resumoAlunos(md.personal?.presencial, valorPers),
     },
     outros_ganhos: ganhosOutros.map(g => ({
-      nome: g.nome, valor: r2(g.valor), tipo: g.categoria === 'retirada_emp' ? 'retirada da conta empresarial' : (g.categoria || 'avulso'),
+      nome: g.nome, valor: r2(g.valor), tipo: g.categoria === 'retirada_emp' ? 'retirada da conta empresarial' : g.categoria === 'saldo_anterior' ? 'saldo que sobrou do mês anterior' : (g.categoria || 'avulso'),
       recebido: !!g.recebido, data: g.recebido ? diaBR(g.ts) : null,
     })),
     gastos_pessoais: gastos.map(g => ({

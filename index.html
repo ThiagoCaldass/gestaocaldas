@@ -1526,6 +1526,7 @@ async function navigate(page) {
 
   await loadMonthData();
   await carregarMesesEmp(monthKey());
+  await syncSaldoAnteriorPessoal(monthKey());
   const md = getMonthData();
   if (!md.balanco)    md.balanco    = { ganhos:[], gastos:[] };
   if (!md.calistenia) md.calistenia = [];
@@ -3113,7 +3114,7 @@ function _buildFluxoDataConsolidado() {
   const ajNet = expSaldoFim - chartNet;
   if (ajNet >  0.01) { if (!entradas[1]) entradas[1]=[]; entradas[1].push({nome:'Outros',valor: ajNet,feito:false}); }
   if (ajNet < -0.01) { if (!saidas[1])   saidas[1]  =[]; saidas[1].push({nome:'Outros',valor:-ajNet,feito:false}); }
-  // Saldo anterior da conta empresarial (o do pessoal já entra como ganho "Mês anterior")
+  // Saldo anterior da conta empresarial (o do pessoal entra como ganho saldo_anterior)
   const saldoIni = empSaldoInicial(monthKey());
   let acc = saldoIni;
   const dias = Array.from({length: daysInMonth}, (_,i) => {
@@ -3537,7 +3538,7 @@ function renderBalancoOriginal(md) {
           <tbody id="tblGanhosBody">${md.balanco.ganhos.map(g=>{
             const cat=g.categoria||'avulso';
             const isGerenciada=['calistenia','personal','personal_online','personal_presencial'].includes(cat);
-            const catLabel={'calistenia':'Cali','personal':'Personal','personal_online':'Online','personal_presencial':'Presencial','avulso':'Avulso','retirada_emp':'🏢 Ret.'}[cat]||'Avulso';
+            const catLabel={'calistenia':'Cali','personal':'Personal','personal_online':'Online','personal_presencial':'Presencial','avulso':'Avulso','retirada_emp':'🏢 Ret.','saldo_anterior':'↩ Anterior'}[cat]||'Avulso';
             return `<tr data-nome="${g.nome}" data-valor="${g.valor}" data-status="${g.recebido?'1':'0'}">
               ${ro?'<td></td><td></td>':`<td style="width:20px;padding:0 2px;text-align:center"><span class="drag-handle" title="Arrastar para reordenar">⠿</span></td><td style="padding:4px 6px;width:34px"><input type="checkbox" class="row-select" data-id="${g.id}"><div class="row-select-cell" onclick="toggleRowSelect(this,'tblGanhos')" data-id="${g.id}" title="Selecionar"></div></td>`}
               <td>
@@ -3546,6 +3547,7 @@ function renderBalancoOriginal(md) {
                   ${g.persistente?`<span title="Ganho recorrente" style="font-size:10px;color:var(--green);opacity:0.8">🔁</span>`:''}
                 </div>
                 ${isGerenciada?`<div style="font-size:10px;color:var(--accent3);margin-top:2px">⚠ já incluso na expectativa via tabela</div>`:''}
+                ${cat==='saldo_anterior'?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${g.manual?'✎ valor manual':'automático — saldo real do mês anterior'}</div>`:''}
               </td>
               <td class="mono">${fmt(g.valor)}</td>
               <td><span class="badge ${isGerenciada?'badge-blue':'badge-gray'}" style="font-size:10px">${catLabel}</span></td>
@@ -3554,7 +3556,7 @@ function renderBalancoOriginal(md) {
               </td>
               ${ro?'<td></td>':`<td><div style="display:flex;gap:3px;flex-wrap:nowrap">
                 <button class="btn btn-ghost btn-sm" onclick="editGanho('${g.id}')" style="padding:4px 7px">✎</button>
-                <button class="btn btn-danger btn-sm" onclick="removeGanho('${g.id}')" style="padding:4px 7px">✕</button>
+                ${cat==='saldo_anterior'?'':`<button class="btn btn-danger btn-sm" onclick="removeGanho('${g.id}')" style="padding:4px 7px">✕</button>`}
               </div></td>`}
             </tr>`;
           }).join('')}</tbody>
@@ -3810,7 +3812,7 @@ function zerarSelectedBalanco(tableId, lista, label) {
 }
 function zerarSelectedGanhos() { zerarSelectedBalanco('tblGanhos', 'ganhos', 'ganho'); }
 function zerarSelectedGastos() { zerarSelectedBalanco('tblGastos', 'gastos', 'gasto'); }
-function toggleGanho(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(!g)return;g.recebido=!g.recebido;if(g.recebido)g.ts=Date.now();saveData();setFinancasTab('balanco');}
+function toggleGanho(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(!g)return;if(g.categoria==='saldo_anterior')return editSaldoAnteriorPessoal(id);g.recebido=!g.recebido;if(g.recebido)g.ts=Date.now();saveData();setFinancasTab('balanco');}
 function toggleGasto(id){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(!g)return;g.pago=!g.pago;if(g.pago)g.ts=Date.now();saveData();setFinancasTab('balanco');}
 function setGanhoStatus(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(g&&g.recebido!==val){g.recebido=val;if(val)g.ts=Date.now();saveData();setFinancasTab('balanco');}}
 function setGastoPago(id,val){if(guardReadOnly())return;const md=getMonthData();const g=md.balanco.gastos.find(x=>x.id===id);if(g&&g.pago!==val){g.pago=val;if(val)g.ts=Date.now();saveData();setFinancasTab('balanco');}}
@@ -3820,6 +3822,7 @@ function removeGasto(id){if(guardReadOnly())return;const md=getMonthData();const
 function editGanho(id){
   if(guardReadOnly())return;
   const md=getMonthData();const g=md.balanco.ganhos.find(x=>x.id===id);if(!g)return;
+  if(g.categoria==='saldo_anterior')return editSaldoAnteriorPessoal(id);
   const cats=['avulso','calistenia','personal'];
   const catLabels = {avulso:'Avulso',calistenia:'Calistenia',personal:'Personal',personal_online:'Online',personal_presencial:'Presencial',retirada_emp:'🏢 Retirada'};
   const catOpts=cats.map(c=>'<option value="'+c+'"'+((g.categoria||'avulso')===c?' selected':'')+'>'+catLabels[c]+'</option>').join('');
@@ -6558,6 +6561,69 @@ function saveFechamento(bank) {
   const md = getMonthData();
   md.cartao[bank].fechamento = dia;
   saveData(); closeModal(); setFinancasTab('cartao');
+}
+
+// ==================== SALDO ANTERIOR — CONTA PESSOAL ====================
+// Linha de ganho "Mês anterior" (categoria saldo_anterior) mantida automaticamente com o
+// saldo real final do mês anterior. g.manual = true quando o valor foi ajustado à mão.
+const _ehLinhaSaldoAnt = g => g.categoria === 'saldo_anterior' || ((g.categoria||'avulso') === 'avulso' && /^m[eê]s anterior$/i.test((g.nome||'').trim()));
+// Saldo real do mês (o mesmo "Saldo Real" do dashboard)
+function pessoalSaldoReal(md) {
+  if (!md) return 0;
+  const c = JSON.parse(JSON.stringify(md));
+  if (!c.balanco) c.balanco = { ganhos: [], gastos: [] };
+  if (!c.calistenia) c.calistenia = [];
+  if (!c.personal) c.personal = { online: [], presencial: [] };
+  c.personal.online = c.personal.online || []; c.personal.presencial = c.personal.presencial || [];
+  syncGanhosFromTables(c);
+  return (c.balanco.ganhos||[]).reduce((s,g) => s + (g.recebido ? (g.valor||0) : 0), 0)
+       - (c.balanco.gastos||[]).reduce((s,g) => s + (g.pago ? (g.valor||0) : 0), 0);
+}
+function pessoalSaldoAutomatico(mk) {
+  return pessoalSaldoReal(cachedData[_empMesKey(mk, -1)]);
+}
+// Cria/atualiza a linha do saldo anterior do mês aberto (só meses editáveis)
+async function syncSaldoAnteriorPessoal(mk) {
+  if (isReadOnly()) return;
+  const md = cachedData[mk];
+  if (!md?.balanco) return;
+  const prev = _empMesKey(mk, -1);
+  if (!cachedData[prev] && !_empMesesSemDados.has(prev)) {
+    try { const r = await sbGet(prev); if (r) cachedData[prev] = r; else _empMesesSemDados.add(prev); } catch(e) { return; }
+  }
+  if (!cachedData[prev] || mk !== monthKey()) return;
+  const ganhos = md.balanco.ganhos;
+  let linha = ganhos.find(g => g.categoria === 'saldo_anterior') || ganhos.find(_ehLinhaSaldoAnt);
+  const antes = linha ? JSON.stringify(linha) : null;
+  if (!linha) { linha = { id: uid(), nome: 'Mês anterior', valor: 0 }; ganhos.unshift(linha); }
+  linha.categoria = 'saldo_anterior';
+  linha.recebido = true;
+  delete linha.persistente; delete linha.ts;
+  if (!linha.manual) linha.valor = Math.round(pessoalSaldoAutomatico(mk) * 100) / 100;
+  if (JSON.stringify(linha) !== antes) saveData();
+}
+function editSaldoAnteriorPessoal(id) {
+  if (guardReadOnly()) return;
+  const mk = monthKey(), g = getMonthData().balanco.ganhos.find(x => x.id === id); if (!g) return;
+  const auto = pessoalSaldoAutomatico(mk);
+  const [py, pm] = _empMesKey(mk, -1).split('-').map(Number);
+  openModal(`<div class="modal-handle"></div><div class="modal-title">SALDO DO MÊS ANTERIOR</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Calculado automaticamente: <strong style="color:var(--text)">${fmt(auto)}</strong> (saldo real final de ${MONTHS[pm-1]}/${py}). Use um valor manual só para acertar com o extrato do banco.</div>
+    <div class="form-group"><label class="form-label">Saldo inicial (R$)</label>
+      <input id="pesSaldoIni" type="number" step="0.01" inputmode="decimal" value="${g.manual ? g.valor : ''}" placeholder="${auto.toFixed(2)}">
+    </div>
+    <div class="form-actions">
+      ${g.manual ? `<button class="btn btn-ghost" onclick="salvarSaldoAnteriorPessoal('${id}',true)">Usar automático</button>` : `<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>`}
+      <button class="btn btn-primary" onclick="salvarSaldoAnteriorPessoal('${id}',false)">Salvar</button>
+    </div>`);
+  setTimeout(() => document.getElementById('pesSaldoIni')?.focus(), 100);
+}
+function salvarSaldoAnteriorPessoal(id, usarAuto) {
+  const mk = monthKey(), g = getMonthData().balanco.ganhos.find(x => x.id === id); if (!g) return;
+  const v = document.getElementById('pesSaldoIni')?.value.trim();
+  if (usarAuto || v === '') { delete g.manual; g.valor = Math.round(pessoalSaldoAutomatico(mk) * 100) / 100; }
+  else { const n = parseFloat(v); if (isNaN(n)) { showFieldError('pesSaldoIni', 'Valor inválido'); return; } g.manual = true; g.valor = n; }
+  saveData(); closeModal(); setFinancasTab('balanco');
 }
 
 // ==================== CONTA EMPRESARIAL ====================
