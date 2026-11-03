@@ -635,6 +635,91 @@ const sbHeaders = {
   'Prefer': 'return=representation'
 };
 
+// ==================== LOGIN (Supabase Auth) ====================
+// Com o RLS, a anon key sozinha não lê nada: as chamadas levam o token do usuário em sbHeaders.Authorization.
+const AUTH_KEY = 'gestor_auth';
+let authSession = null;
+try { authSession = JSON.parse(localStorage.getItem(AUTH_KEY)); } catch(e) {}
+if (authSession?.access_token) sbHeaders.Authorization = `Bearer ${authSession.access_token}`;
+
+function clearAuthSession() {
+  authSession = null;
+  sbHeaders.Authorization = `Bearer ${SUPABASE_KEY}`;
+  try { localStorage.removeItem(AUTH_KEY); } catch(e) {}
+}
+
+async function authRequest(grant, body) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=${grant}`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(json.error_description || json.msg || `Auth ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  authSession = { access_token: json.access_token, refresh_token: json.refresh_token, expires_at: json.expires_at };
+  sbHeaders.Authorization = `Bearer ${authSession.access_token}`;
+  try { localStorage.setItem(AUTH_KEY, JSON.stringify(authSession)); } catch(e) {}
+}
+
+// Renova o token quando faltam menos de 2 min. Retorna false só se não há sessão ou o refresh foi recusado
+// (precisa entrar de novo). Sem rede segue com o token atual — as chamadas falham e o app usa o cache local.
+let _authRefreshing = null;
+function ensureAuth() {
+  if (!authSession?.refresh_token) return Promise.resolve(false);
+  if (authSession.expires_at * 1000 - Date.now() > 120000) return Promise.resolve(true);
+  if (!_authRefreshing) {
+    _authRefreshing = authRequest('refresh_token', { refresh_token: authSession.refresh_token })
+      .then(() => true)
+      .catch(e => {
+        if (e.status >= 400 && e.status < 500) { clearAuthSession(); return false; }
+        return true;
+      })
+      .finally(() => { _authRefreshing = null; });
+  }
+  return _authRefreshing;
+}
+
+// Tela de login por cima de tudo; resolve quando o login dá certo
+let _loginPromise = null;
+function showLogin(msg) {
+  if (_loginPromise) return _loginPromise;
+  _loginPromise = new Promise(resolve => {
+    const el = document.createElement('div');
+    el.className = 'loading-screen';
+    el.style.zIndex = '10000';
+    el.innerHTML = `
+      <div class="loading-title">CALDAS</div>
+      <form id="loginForm" style="display:flex;flex-direction:column;gap:10px;width:min(280px,calc(100vw - 32px))">
+        <input id="loginEmail" type="email" autocomplete="username" placeholder="E-mail" required
+          style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:16px">
+        <input id="loginSenha" type="password" autocomplete="current-password" placeholder="Senha" required
+          style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:16px">
+        <button type="submit" class="btn btn-primary" style="padding:10px;border-radius:8px;border:none;font-size:15px;cursor:pointer">Entrar</button>
+        <div class="loading-sub" id="loginMsg" style="text-align:center;text-transform:none;letter-spacing:0.5px">${msg || ''}</div>
+      </form>`;
+    document.body.appendChild(el);
+    const form = el.querySelector('#loginForm');
+    const out = el.querySelector('#loginMsg');
+    form.addEventListener('submit', async ev => {
+      ev.preventDefault();
+      out.textContent = 'Entrando...';
+      try {
+        await authRequest('password', { email: el.querySelector('#loginEmail').value.trim(), password: el.querySelector('#loginSenha').value });
+        el.remove();
+        _loginPromise = null;
+        resolve();
+      } catch(e) {
+        out.textContent = e.status === 400 ? 'E-mail ou senha incorretos' : 'Sem conexão — tente de novo';
+      }
+    });
+  });
+  return _loginPromise;
+}
+
 async function sbGet(monthKey) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data?month_key=eq.${monthKey}&select=*`, { headers: sbHeaders });
   if (!res.ok) throw new Error(await res.text());
@@ -650,6 +735,10 @@ async function sbGet(monthKey) {
 async function sbUpsert(monthKey, data) {
   // Before saving, check if another device updated the remote since our last fetch.
   // If yes, merge our local delta on top of the remote data to avoid blind overwrites.
+  if (!(await ensureAuth())) {
+    showLogin('Sessão expirou — entre de novo para salvar').then(() => saveData());
+    throw new Error('Sem sessão');
+  }
   try {
     const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data?month_key=eq.${monthKey}&select=updated_at,data`, { headers: sbHeaders });
     if (checkRes.ok) {
@@ -10114,6 +10203,7 @@ function rerenderCurrentPage() {
 
 async function checkAndApplyRemoteUpdates() {
   if (!navigator.onLine || dirtyKeys.size > 0 || syncTimeout) return;
+  if (!(await ensureAuth())) return;
   const k = monthKey();
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/gestor_data?month_key=eq.${k}&select=updated_at`, { headers: sbHeaders });
@@ -10965,6 +11055,8 @@ renderDashboard = (function(_orig) {
 // ==================== INIT ====================
 (async()=>{
   try {
+    // Sem sessão válida não carrega nada: com o RLS a leitura viria vazia e o app semearia um mês em branco
+    if (!(await ensureAuth())) await showLogin();
     document.getElementById('loadingMsg').textContent='Carregando dados...';
     await Promise.allSettled([loadMonthData(), loadPoupanca(), loadPlanos(), loadPlanosCali(), loadLembretes()]);
     // Carrega meses anteriores do ano em background para o gráfico anual
@@ -11436,7 +11528,7 @@ Regras:
 
     const response = await fetch('https://cfotefweqhiabkstdppj.supabase.co/functions/v1/hyper-processor', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': sbHeaders.Authorization },
       body: JSON.stringify({
         system: systemPrompt,
         tools: AI_TOOLS,
@@ -11476,7 +11568,7 @@ Regras:
       const typing2 = aiShowTyping();
       const resp2   = await fetch('https://cfotefweqhiabkstdppj.supabase.co/functions/v1/hyper-processor', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': sbHeaders.Authorization },
         body: JSON.stringify({
           system: systemPrompt,
           tools: AI_TOOLS,
