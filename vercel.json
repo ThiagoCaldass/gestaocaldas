@@ -4,6 +4,10 @@
   "outputDirectory": ".",
   "routes": [
     {
+      "src": "/mcp/([^/]+)",
+      "dest": "/api/mcp?chave=$1"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/$1"
     },

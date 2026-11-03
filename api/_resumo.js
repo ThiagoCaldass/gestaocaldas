@@ -38,12 +38,23 @@ function resumoCartao(c) {
   };
 }
 
+const valorCali = a => a.valorFinal ?? a.valorBase ?? a.valor ?? 0;
+
+/** Saldo real da conta pessoal (o "Saldo Real" do dashboard): recebido − pago */
+export function saldoRealPessoal(md) {
+  const b = md.balanco || { ganhos: [], gastos: [] };
+  const naoEmp = a => a.pago && !a.pausado && a.contaPgto !== 'emp';
+  const alunos = soma((md.calistenia || []).filter(naoEmp), valorCali)
+    + soma([...(md.personal?.online || []), ...(md.personal?.presencial || [])].filter(naoEmp));
+  const outros = soma((b.ganhos || []).filter(g => g.recebido && !CATS_ESPELHO.includes((g.categoria || 'avulso').toLowerCase())));
+  return r2(alunos + outros - soma((b.gastos || []).filter(g => g.pago)));
+}
+
 /** Resumo detalhado (mês analisado) */
 export function resumoDetalhado(md) {
   const b = md.balanco || { ganhos: [], gastos: [] };
   const ganhosOutros = (b.ganhos || []).filter(g => !CATS_ESPELHO.includes((g.categoria || 'avulso').toLowerCase()));
   const gastos = b.gastos || [];
-  const valorCali = a => a.valorFinal ?? a.valorBase ?? a.valor ?? 0;
   const valorPers = a => a.valor || 0;
   const emp = md.contaEmp || { saidas: [], retiradas: [] };
   return {
@@ -62,6 +73,7 @@ export function resumoDetalhado(md) {
       somas_no_mes: (g.historico || []).filter(h => h.tipo === 'soma' && h.delta > 0).length || undefined,
     })),
     totais_pessoal: {
+      saldo_real: saldoRealPessoal(md),
       gastos_total: soma(gastos), gastos_pagos: soma(gastos.filter(g => g.pago)),
       gastos_fixos: soma(gastos.filter(g => g.persistente)),
       ganhos_recebidos: soma((b.ganhos || []).filter(g => g.recebido)),
@@ -80,6 +92,7 @@ export function resumoCurto(md) {
   const al = d.alunos;
   const maiores = [...d.gastos_pessoais].sort((a, b) => b.valor - a.valor).slice(0, 12).map(g => ({ nome: g.nome, valor: g.valor }));
   return {
+    saldo_real_pessoal: saldoRealPessoal(md),
     alunos_ativos: al.calistenia.ativos + al.personal_online.ativos + al.personal_presencial.ativos,
     receita_alunos_prevista: r2(al.calistenia.previsto + al.personal_online.previsto + al.personal_presencial.previsto),
     receita_alunos_recebida: r2(al.calistenia.recebido + al.personal_online.recebido + al.personal_presencial.recebido),
