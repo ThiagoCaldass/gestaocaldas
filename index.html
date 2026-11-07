@@ -142,6 +142,7 @@
   .topbar-actions { display: flex; gap: 8px; align-items: center; }
 
   .content { padding: 28px 32px; flex: 1; overflow-y: auto; min-height: 0; }
+  .content.content-full { padding: 0; overflow: hidden; }
 
   /* BOTTOM NAV — mobile */
   .bottom-nav {
@@ -391,6 +392,7 @@
 
     /* Content */
     .content { padding: 12px; padding-bottom: calc(72px + var(--safe-bottom)); }
+    .content.content-full { padding: 0 0 calc(76px + var(--safe-bottom)); }
 
     /* Show hamburger + bottom nav */
     .hamburger { display: flex; }
@@ -562,6 +564,8 @@
       <div class="nav-item" data-page="alunos" onclick="navigate('alunos');closeSidebar()"><span class="icon">◯</span> Alunos<span id="alunos-badge" class="alunos-badge" style="display:none"></span></div>
       <div class="nav-item" data-page="gravacao" onclick="navigate('gravacao');closeSidebar()"><span class="icon">🎥</span> Gravação de exercícios</div>
       <div class="nav-item" data-page="whatsapp" onclick="navigate('whatsapp');closeSidebar()"><span class="icon">📲</span> WhatsApp<span id="wa-nav-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--text3);margin-left:6px;vertical-align:middle;transition:background .3s"></span></div>
+      <div class="nav-section">Pessoal</div>
+      <div class="nav-item" data-page="jiujitsu" onclick="navigate('jiujitsu');closeSidebar()"><span class="icon">🥋</span> Jiu-Jitsu</div>
       <div class="nav-section">Social Media</div>
       <div class="nav-item" data-page="brand" onclick="navigate('brand');closeSidebar()"><span class="icon">◉</span> Identidade Visual</div>
       <div class="nav-section">Análise</div>
@@ -1606,11 +1610,12 @@ async function navigate(page) {
 
   const titles = {
     dashboard:'DASHBOARD', balanco:'BALANÇO', cartao:'CARTÃO',
-    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO', whatsapp:'WHATSAPP', fluxo:'FLUXO DO MÊS', analise:'ASSISTENTE FINANCEIRO', gravacao:'GRAVAÇÃO'
+    calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO', whatsapp:'WHATSAPP', fluxo:'FLUXO DO MÊS', analise:'ASSISTENTE FINANCEIRO', gravacao:'GRAVAÇÃO', jiujitsu:'JIU-JITSU'
   };
-  document.getElementById('topbarMonthNav').style.display = (page === 'historico' || page === 'whatsapp' || page === 'gravacao') ? 'none' : 'flex';
+  document.getElementById('topbarMonthNav').style.display = (page === 'historico' || page === 'whatsapp' || page === 'gravacao' || page === 'jiujitsu') ? 'none' : 'flex';
+  document.getElementById('content').classList.toggle('content-full', page === 'jiujitsu');
   document.getElementById('pageTitle').textContent = titles[page]||page.toUpperCase();
-  document.getElementById('topbarActions').innerHTML = page === 'gravacao' ? '' : `<button class="btn btn-ghost btn-sm" onclick="confirmarResetMes()" title="Resetar mês" style="color:var(--text3);font-size:11px">↺ Reset</button>`;
+  document.getElementById('topbarActions').innerHTML = (page === 'gravacao' || page === 'jiujitsu') ? '' : `<button class="btn btn-ghost btn-sm" onclick="confirmarResetMes()" title="Resetar mês" style="color:var(--text3);font-size:11px">↺ Reset</button>`;
   document.getElementById('content').innerHTML = '';
   updateLockUI();
 
@@ -1640,6 +1645,7 @@ async function navigate(page) {
     case 'whatsapp':     renderWhatsApp(); break;
     case 'analise':      await renderAnalise(); break;
     case 'gravacao':     await renderGravacao(); break;
+    case 'jiujitsu':     await renderJiujitsu(); break;
   }
 }
 
@@ -1890,6 +1896,35 @@ async function renderGravacao() {
     <div id="grav-lista"></div>
   </div>`;
   _renderGravTopo(); _renderGravLista();
+}
+
+// ==================== JIU-JITSU ====================
+// O Mapa de Jiu-Jitsu é uma página à parte (/jiujitsu.html) aberta num iframe. Os dados ficam em
+// __jiujitsu__ e passam pela ponte window.jjPonte: o mapa lê .dados ao abrir e chama .salvar a cada alteração.
+let jjSaveTimeout = null;
+window.jjPonte = {
+  dados: null,
+  salvar(d) {
+    const copia = JSON.parse(JSON.stringify(d));
+    jjPonte.dados = copia;
+    clearTimeout(jjSaveTimeout);
+    jjSaveTimeout = setTimeout(async () => {
+      try {
+        await sbGet('__jiujitsu__'); // atualiza a referência do banco: o mapa salva o documento inteiro
+        await sbUpsert('__jiujitsu__', copia);
+        setSyncStatus('synced', 'Sincronizado');
+      } catch(e) { console.error('salvar jiu-jitsu:', e); setSyncStatus('error', 'Erro ao salvar'); }
+    }, 800);
+  },
+};
+
+async function renderJiujitsu() {
+  const cnt = document.getElementById('content');
+  let dados = null;
+  try { dados = await sbGet('__jiujitsu__'); } catch(e) { console.warn('carregar jiu-jitsu:', e); }
+  if (currentPage !== 'jiujitsu') return;
+  jjPonte.dados = dados;
+  cnt.innerHTML = `<iframe src="/jiujitsu.html" title="Mapa de Jiu-Jitsu" style="display:block;width:100%;height:100%;border:0;background:#f4f2ee"></iframe>`;
 }
 
 // ==================== HISTÓRICO ====================

@@ -12,6 +12,10 @@
       "dest": "/api/$1"
     },
     {
+      "src": "/jiujitsu.html",
+      "dest": "/jiujitsu.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }

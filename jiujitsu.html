@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mapa de Jiu-Jitsu</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style id="css">:root{--bg:#f4f2ee;--card:#fff;--ink:#1b1d22;--mut:#6b6f78;--line:#e3e0da;--acc:#1f3b8a;--acc2:#e8edfb;--fin:#b3261e;--finbg:#fbe9e7;--mov:#1f6f43;--movbg:#e6f4ec;--thr:#8a5a00;--thrbg:#fdf3dc}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Inter,system-ui,sans-serif}
+h1,h2,h3{font-family:"Barlow Condensed",Inter,sans-serif;letter-spacing:.3px;margin:0}
+button{font:inherit;cursor:pointer}
+header{display:flex;gap:12px;align-items:center;padding:12px 18px;background:var(--ink);color:#fff;position:sticky;top:0;z-index:5}
+header h1{font-size:24px;font-weight:700;white-space:nowrap}
+header h1 span{color:#9fb4ff}
+#q{flex:1;max-width:360px;padding:8px 12px;border-radius:8px;border:0;font:inherit}
+#savebar{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:13px}
+#savebar button{background:#9fb4ff;color:var(--ink);border:0;border-radius:8px;padding:7px 12px;font-weight:600}
+.wrap{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 56px)}
+nav{border-right:1px solid var(--line);padding:14px 10px;background:#ebe8e2}
+nav h3{font-size:13px;text-transform:uppercase;color:var(--mut);margin:14px 8px 6px;font-family:Inter,sans-serif;letter-spacing:.6px}
+nav button{display:flex;justify-content:space-between;width:100%;text-align:left;background:none;border:0;padding:7px 10px;border-radius:7px;color:var(--ink)}
+nav button:hover{background:#ddd9d1}
+nav button.on{background:var(--ink);color:#fff}
+nav .cnt{font-size:12px;opacity:.6}
+#navsel{display:none}
+main{padding:20px 26px 60px;max-width:1100px}
+.trail{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:14px;font-size:13px;color:var(--mut)}
+.trail button{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-size:13px}
+.trail button:last-child{background:var(--acc2);border-color:#c8d3f4;color:var(--acc);font-weight:600}
+.ptitle{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.ptitle h2{font-size:38px;line-height:1}
+.desc{color:var(--mut);margin:6px 0 16px;max-width:720px}
+.sides{display:inline-flex;background:#ddd9d1;border-radius:10px;padding:3px;margin-bottom:18px}
+.sides button{border:0;background:none;padding:8px 16px;border-radius:8px;font-weight:600;color:var(--mut)}
+.sides button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px #0002}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.col h3{font-size:20px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.col h3 .n{font-family:Inter;font-size:12px;background:var(--line);border-radius:10px;padding:1px 8px;color:var(--mut)}
+.item{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.item.fin{border-left-color:var(--fin)}
+.item.mov{border-left-color:var(--mov)}
+.item.thr{border-left-color:var(--thr);background:#fffdf8}
+.item .row{display:flex;gap:8px;align-items:flex-start}
+.item .row b{flex:1}
+.tag{font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.t-fin{background:var(--finbg);color:var(--fin)}
+.t-mov{background:var(--movbg);color:var(--mov)}
+.t-thr{background:var(--thrbg);color:var(--thr)}
+.item p{margin:6px 0 0;font-size:14px}
+.item .k{color:#33363d}
+.item .d{color:var(--mut)}
+.item .d em{font-style:normal;font-weight:600;color:var(--thr)}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.go{background:var(--acc);color:#fff;border:0;border-radius:7px;padding:5px 10px;font-size:13px;font-weight:600}
+.go.alt{background:var(--card);color:var(--acc);border:1px solid #c8d3f4}
+.st{border:1px solid var(--line);background:var(--bg);border-radius:20px;padding:2px 9px;font-size:12px;color:var(--mut)}
+.st.s1{background:#fff4d6;border-color:#f0d78c;color:#7a5a00}
+.st.s2{background:#e0ecff;border-color:#b6ccf5;color:#1f3b8a}
+.st.s3{background:#dff3e6;border-color:#a9dcbc;color:#1f6f43}
+.lnk{background:none;border:0;color:var(--mut);font-size:12px;text-decoration:underline;padding:0 2px}
+.empty{color:var(--mut);font-size:14px;padding:8px 0}
+.threats{margin-top:22px}
+.threats>h3{font-size:22px;margin-bottom:4px}
+.threats>p{color:var(--mut);margin:0 0 10px;font-size:14px}
+.notes{margin-top:22px}
+.notes textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;background:var(--card)}
+.addbtn{background:none;border:1px dashed #b9b4aa;border-radius:10px;width:100%;padding:8px;color:var(--mut)}
+form.ed{background:var(--card);border:1px solid #c8d3f4;border-radius:10px;padding:12px;margin-bottom:10px;display:grid;gap:8px}
+form.ed label{font-size:12px;color:var(--mut);display:grid;gap:3px}
+form.ed input,form.ed textarea,form.ed select{font:inherit;border:1px solid var(--line);border-radius:7px;padding:6px 8px;width:100%}
+form.ed .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+form.ed .btns{display:flex;gap:8px}
+form.ed .btns button{border-radius:7px;padding:6px 12px;border:1px solid var(--line);background:var(--bg)}
+form.ed .btns button[type=submit]{background:var(--acc);color:#fff;border-color:var(--acc)}
+.prog{font-size:13px;color:var(--mut);margin-left:auto}
+.bar{height:6px;background:var(--line);border-radius:4px;overflow:hidden;width:140px;display:inline-block;vertical-align:middle;margin-left:6px}
+.bar i{display:block;height:100%;background:var(--mov)}
+.res h3{font-size:16px;margin:16px 0 6px;color:var(--mut)}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:9px;font-size:14px;z-index:9}
+@media (max-width:820px){
+  .wrap{grid-template-columns:1fr}
+  nav{display:none}
+  #navsel{display:block;width:100%;padding:9px;border-radius:9px;border:1px solid var(--line);font:inherit;margin-bottom:12px;background:var(--card)}
+  .grid{grid-template-columns:1fr}
+  main{padding:14px}
+  header{flex-wrap:wrap}
+  header h1{font-size:20px}
+  #q{max-width:none;order:3;flex-basis:100%}
+  .ptitle h2{font-size:30px}
+}
+
+.ath{margin-top:6px;display:flex;gap:8px;align-items:center;font-size:12px}
+.ath a{color:var(--mut)}
+.atl{background:#efe9ff;color:#4b2e9a;border:1px solid #d9ccff;border-radius:20px;padding:1px 9px;font-size:12px;font-weight:600}
+.item.dica{border-left-color:#6b4bd8;background:#fbf9ff}
+.t-dica{background:#efe9ff;color:#4b2e9a}
+.dicas{margin-bottom:18px}
+h2.big{font-size:34px;margin-bottom:2px}
+h3.sec{font-size:22px;margin:24px 0 10px;display:flex;align-items:baseline;gap:10px}
+h3.sec small,h3.sub small{font-family:Inter;font-size:13px;color:var(--mut);font-weight:400}
+h3.sub{font-size:20px;margin-bottom:8px}
+.bdg{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.nv{font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px}
+.nv1{background:#e6f4ec;color:#1f6f43}.nv2{background:#e0ecff;color:#1f3b8a}.nv3{background:#f3e3ff;color:#6a2a9a}
+.proib{font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;background:#fde2e0;color:#b3261e}
+.item p.pr{color:#b3261e;font-size:13px}
+details.passos{margin-top:8px;background:var(--bg);border-radius:8px;padding:6px 10px}
+details.passos summary{cursor:pointer;font-weight:600;color:var(--acc);font-size:14px}
+details.passos ol{margin:8px 0 4px 18px;padding:0;font-size:14px}
+details.passos li{margin-bottom:3px}
+.er-t{font-weight:700;font-size:13px;color:#b3261e;margin:8px 0 2px!important}
+ul.erros{margin:0 0 4px 18px;padding:0;font-size:13px;color:#5c2a26}
+.actions-big{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+.actions-big button{background:var(--ink);color:#fff;border:0;border-radius:12px;padding:16px;text-align:left;font-size:18px;font-weight:700;font-family:"Barlow Condensed",Inter}
+.actions-big small{display:block;font-family:Inter;font-size:13px;font-weight:400;opacity:.75;margin-top:4px}
+.filtros{display:flex;flex-wrap:wrap;gap:14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px}
+.filtros select{font:inherit;padding:3px 6px;border-radius:6px;border:1px solid var(--line)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:left;display:grid;gap:4px}
+.pcard:hover{border-color:#c8d3f4}
+.pcard b{font-size:16px}.pcard span{font-size:13px;color:var(--mut)}.pcard small{font-size:12px;color:var(--mut)}
+.pcard .bar{width:100%;margin:4px 0 0}
+.jogo-ed{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:14px}
+.como{margin-top:26px;background:#fffdf3;border:1px solid #efe3b5;border-radius:12px;padding:12px 16px}
+.como h3{font-size:20px}.como ol{margin:6px 0 0 18px;padding:0;font-size:14px}.como li{margin-bottom:4px}
+.radios{display:flex;flex-wrap:wrap;gap:14px;font-size:14px}
+.radios label{display:flex!important;align-items:center;gap:5px;color:var(--ink)!important;font-size:14px!important}
+.radios input{width:auto!important}
+.resposta{background:#f3f6ff;border:1px solid #c8d3f4;border-radius:12px;padding:14px;margin:16px 0}
+.resposta h3{font-size:24px;margin-bottom:6px}
+.resposta h4{margin:14px 0 6px;font-size:15px;text-transform:uppercase;letter-spacing:.5px;color:var(--acc)}
+.reglog{display:flex;justify-content:space-between;gap:10px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--thr);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:14px}
+.reglog.ok{opacity:.55;border-left-color:var(--mov)}
+.reglog span{color:var(--mut)}.reglog i{color:#33363d}
+.rl-acts{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.foco{display:grid;gap:5px;font-size:14px;max-height:280px;overflow:auto;background:var(--bg);border-radius:8px;padding:8px}
+.foco label{display:flex!important;gap:6px;align-items:center;color:var(--ink)!important;font-size:14px!important}
+.foco input{width:auto!important}
+.plano{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:14px 0;overflow:hidden}
+.pl-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.plano pre{margin:0;padding:14px;white-space:pre-wrap;font:14px/1.5 Inter,system-ui,sans-serif}
+.warn{background:var(--thrbg);color:var(--thr);border-radius:8px;padding:7px 12px;font-size:14px}
+.hid{font-size:13px;color:var(--mut);margin:-8px 0 14px}
+@media (max-width:820px){.actions-big{grid-template-columns:1fr}.reglog{flex-direction:column}.rl-acts{flex-direction:row;align-items:center}}
+
+.perfil{display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px;margin:8px 0 10px}
+.perfil label{display:flex;gap:6px;align-items:center}
+.perfil select{font:inherit;padding:3px 6px;border-radius:6px;border:1px solid var(--line)}
+details.regras{background:#fff6f5;border:1px solid #f3cfcb;border-radius:10px;padding:8px 14px;margin-bottom:10px;font-size:14px}
+details.regras summary{cursor:pointer;font-weight:700;color:#8a1f18}
+details.regras p{margin:8px 0}
+details.regras .src{font-size:12px;color:var(--mut)}
+.gionly{font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;background:#eef0f3;color:#4a5160}
+.hint{font-size:12px;color:var(--mut)}
+nav small{opacity:.6;font-size:11px}
+</style></head><body><div id="root"></div><script type="application/json" id="data">{"v":1,"notas":{},"status":{},"posicoes":[{"id":"em-pe","n":"Em pé","g":"Em pé","desc":"Luta de pegada. Quem impõe a pegada decide se o jogo vai para queda ou para guarda.","a":{"label":"Atacando a queda","fin":[{"n":"Guilhotina em pé","k":"Quando ele entra baixo sem postura: braço por baixo do queixo, quadril para trás, puxe para cima.","d":"Mão no pulso do braço que estrangula, cabeça para o lado, ombro na cara dele e passe para o lado do braço.","nv":1}],"mov":[{"n":"Double leg (baiana)","t":"queda","p":"cem-quilos","l":"a","k":"Nível baixo, joelho no chão entre as pernas, cabeça colada na lateral, empurre e mude a direção.","d":"Sprawl: quadril no chão, pernas para trás, controle a cabeça (ou guilhotina).","nv":1},{"n":"Single leg","t":"queda","p":"cem-quilos","l":"a","k":"Prenda a perna alta no seu quadril, cabeça para dentro, corra o pé dele ou tire a perna de base.","d":"Whizzer (sobrebraço), quadril para trás, pule para tirar a perna e empurre a cabeça.","nv":1},{"n":"O-soto-gari","t":"queda","p":"cem-quilos","l":"a","k":"Quebre o equilíbrio para trás, peito colado, ceife a perna de apoio.","d":"Base baixa e quadril para frente; contra-ataque com o mesmo golpe.","nv":1},{"n":"Pegar as costas em pé (arm drag)","t":"avanço","p":"costas","l":"a","k":"Puxe o braço cruzando o corpo, passe para trás, trave as mãos na cintura.","d":"Tire o braço cedo e gire de frente; não deixe travar as mãos.","nv":1},{"n":"Puxar para a guarda","t":"puxada","p":"guarda-fechada","l":"b","k":"Com pegada (gola/manga) firme, sente perto dele e feche as pernas.","d":"Postura e base; aproveite para já passar enquanto ele senta.","nv":1},{"n":"Blast double leg","t":"queda","p":"cem-quilos","l":"a","at":"Buchecha","src":"https://sportskeeda.com/mma/news-marcus-buchecha-almeida-talks-one-favorite-takedowns-time","k":"Entrada explosiva do double leg; Buchecha usa a mesma queda desde faixa azul.","d":"Sprawl e controle da cabeça.","nv":2},{"n":"Arm drag para queda ou costas","t":"avanço","p":"costas","l":"a","at":"Marcelo Garcia","src":"https://www.grapplearts.com/?p=17215","k":"Puxe o braço cruzando, entre a rasteira por dentro ou passe para trás.","d":"Tire o braço cedo e gire de frente.","nv":1}],"dicas":[]},"b":{"label":"Defendendo","fin":[{"n":"Guilhotina (contra a entrada de queda)","k":"Ele entra com a cabeça baixa: envolva o pescoço, sprawl e puxe.","d":"Cabeça alinhada e postura na entrada; se pegar, passe para o lado do braço.","nv":1}],"mov":[{"n":"Sprawl e girar por trás","t":"avanço","p":"tartaruga","l":"a","k":"Quadril pesado no ombro dele, pernas para trás, gire para as costas.","d":"Recomece a entrada ou puxe uma perna.","nv":1},{"n":"Puxar para a guarda","t":"puxada","p":"guarda-fechada","l":"b","k":"Com pegada, sente perto e feche as pernas.","d":"Postura e base.","nv":1},{"n":"Sprawl para gravata frontal","t":"avanço","p":"gravata-frontal","l":"a","k":"Defenda a queda e prenda a cabeça.","d":"","nv":1}],"dicas":[]}},{"id":"guarda-fechada","n":"Guarda fechada","g":"Guardas","desc":"Pernas cruzadas na cintura. Quem está por baixo quebra a postura; quem está por cima mantém postura e abre.","a":{"label":"Dentro da guarda (por cima)","fin":[{"n":"Chave de pé reta (depois de abrir)","k":"Pé dele na sua axila, antebraço no tendão de Aquiles, caia para o mesmo lado da perna.","d":"Pé fora da axila, avance o quadril, gire o pé para fora do lado da pegada.","nv":2}],"mov":[{"n":"Abrir a guarda em pé","t":"avanço","p":"guarda-aberta","l":"a","k":"Postura alta, mãos no quadril dele, levante com um pé de cada vez e empurre o joelho para baixo.","d":"Pegue o tornozelo para raspar, ou ataque guarda aberta assim que abrir.","nv":1},{"n":"Abrir de joelhos e passar cortando o joelho","t":"passagem","p":"cem-quilos","l":"a","k":"Joelho no cóccix, abra a perna, corte o joelho por cima da coxa dele com o ombro baixo.","d":"Frame no quadril e pescoço, fuga de quadril ou meia-guarda.","nv":1}],"dicas":[]},"b":{"label":"Guardeiro (por baixo)","fin":[{"n":"Armlock","k":"Quebre a postura, pé no quadril para girar, perna por cima da cabeça, quadril alto.","d":"Postura, cotovelos colados, empilhe; polegar para cima e tire o braço girando.","nv":1,"passos":["Quebre a postura puxando gola e manga para você.","Prenda um braço no seu peito (controle do cotovelo).","Pé no quadril dele do lado oposto e gire o corpo uns 90°.","Passe a perna por cima da cabeça e feche os joelhos.","Polegar dele para cima, levante o quadril devagar."],"erros":["Deixar espaço entre o cotovelo e o seu quadril.","Girar pouco: sem ângulo, ele empilha você.","Soltar o controle da cabeça antes de passar a perna."]},{"n":"Triângulo","k":"Um braço dentro e um fora, ajuste o ângulo (canela atrás do pescoço), puxe a cabeça.","d":"Postura; nunca deixe um braço dentro e o outro fora. Os dois dentro ou os dois fora, e empilhe.","nv":1,"passos":["Quebre a postura e empurre um braço dele para dentro (um dentro, um fora).","Suba a perna do lado do braço que ficou fora por cima do pescoço.","Ajuste o ângulo: gire o quadril para o lado do braço de fora.","Prenda o pé atrás do seu joelho e feche.","Puxe a cabeça para baixo e aperte os joelhos."],"erros":["Ficar reto: sem ângulo, o triângulo não aperta.","Esquecer de puxar a cabeça.","Deixar ele postular e empilhar antes de fechar."]},{"n":"Kimura","k":"Quando ele posta a mão no chão: sente, controle o pulso, figura 4 e gire o braço para as costas dele.","d":"Segure a própria faixa/coxa ou junte as mãos; mantenha a postura.","nv":1,"passos":["Espere ele postar a mão no chão.","Pegue o pulso dele com a mão do mesmo lado.","Sente e passe o outro braço por cima do ombro dele.","Trave a figura 4 (sua mão no seu próprio pulso).","Volte para o chão, quadril para o lado, e gire o braço para as costas dele."],"erros":["Pegar a figura 4 sem sentar: falta alavanca.","Deixar o cotovelo dele descolar do seu peito.","Puxar com os braços em vez de girar o corpo."]},{"n":"Omoplata","k":"Quadril para fora, perna por cima do ombro, sente e controle a cintura antes de finalizar.","d":"Role para frente cedo; ou volte a postura e tire o braço.","nv":1,"passos":["Controle o pulso, pé no quadril e gire o corpo para fora.","Passe a perna por cima do ombro dele, perto do pescoço.","Gire de barriga para baixo e sente.","Abrace a cintura para ele não rolar.","Ande o quadril para frente e incline o tronco para finalizar."],"erros":["Finalizar sem controlar a cintura: ele rola e escapa.","Deixar a perna longe do pescoço.","Pressa: a omoplata também é ótima para raspar."]},{"n":"Estrangulamento cruzado (gi)","k":"Primeira mão funda na gola, segunda por baixo, puxe os cotovelos para fora.","d":"Postura, controle as mangas, não baixe a cabeça.","nv":1,"gi":true,"passos":["Abra a gola com uma mão e passe para a outra.","Primeira mão bem funda na gola, quatro dedos dentro.","Quebre a postura puxando com os joelhos.","Segunda mão entra por baixo ou por cima da primeira.","Abra os cotovelos e puxe para baixo."],"erros":["Primeira mão rasa: não estrangula.","Atacar com ele de postura alta.","Puxar só com os braços, sem usar as pernas."]},{"n":"Guilhotina","k":"Quando ele baixa a cabeça: braço sob o queixo, feche a guarda e estique o corpo.","d":"Cabeça para o lado, postura, mão no pulso.","nv":1},{"n":"Triângulo da rubber guard (meathook)","at":"Eddie Bravo","src":"https://sensobjj.com/blogs/graciemag-1/eddie-bravo-s-rubber-guard-the-meathook","k":"Quebre a postura, puxe a perna para cima com o braço, prenda a cabeça com perna e braço, controle o punho e passe o pé para fechar o triângulo.","d":"Postura antes de ele travar a perna alta.","nv":3}],"mov":[{"n":"Raspagem de tesoura","t":"raspagem","p":"montada","l":"a","k":"Canela na barriga dele, puxe gola e manga para você, tesoure as pernas.","d":"Base larga, postura, controle a canela que entra.","nv":1,"passos":["Abra a guarda e pegue gola e manga do mesmo lado.","Fuga de quadril para o lado e canela atravessada na barriga dele.","Perna de baixo encostada no joelho dele.","Puxe ele por cima da canela e corte com a perna de baixo.","Siga o giro e caia montado."],"erros":["Ficar de frente: precisa estar de lado.","Não puxar o peso dele antes de cortar.","Soltar a manga: ele posta a mão e não cai."]},{"n":"Raspagem de pêndulo (flower sweep)","t":"raspagem","p":"montada","l":"a","k":"Controle braço e perna do mesmo lado, perna no ombro como pêndulo, role por cima.","d":"Base larga e tire o braço preso.","nv":1},{"n":"Hip bump (raspagem de quadril)","t":"raspagem","p":"montada","l":"a","k":"Quando ele posta: sente, mão no chão, empurre com o quadril por cima do ombro dele.","d":"Puxe o braço para trás; cuidado: vira Kimura ou guilhotina.","nv":1,"passos":["Quando ele senta para trás, sente junto.","Mão de base no chão atrás de você.","Passe o outro braço por cima do ombro dele.","Levante o quadril e empurre ele para trás e para o lado.","Caia montado."],"erros":["Não sentar alto o bastante.","Esquecer que, se ele defender, vira Kimura ou guilhotina."]},{"n":"Arm drag para as costas","t":"avanço","p":"costas","l":"a","k":"Puxe o braço cruzando, sente para o lado e suba nas costas.","d":"Tire o braço e recue o quadril.","at":"Marcelo Garcia","src":"https://www.grapplearts.com/?p=17215","nv":1},{"n":"Abrir para guarda aberta","t":"transição","p":"guarda-aberta","l":"b","k":"Quando ele levanta: pegadas antes de abrir.","d":"","nv":1},{"n":"2 contra 1 para as costas","t":"avanço","p":"costas","l":"a","at":"Andre Galvão","src":"https://live.atosbjjondemand.com/back-takes/videos/2-on-1-from-closed-guard-back-take-part-2","k":"Duas mãos em um braço, puxe cruzando e saia por trás.","d":"Mantenha o cotovelo colado e a postura.","nv":1,"passos":["Pegue um braço dele com as duas mãos.","Puxe o braço cruzando o seu corpo.","Fuga de quadril para o lado de fora.","Passe para as costas e prenda o primeiro gancho.","Seatbelt e segundo gancho."],"erros":["Puxar sem mexer o quadril.","Soltar o braço antes de chegar nas costas."]},{"n":"Ameaça de armlock para raspar à montada","t":"raspagem","p":"montada","l":"a","at":"Mackenzie Dern","src":"https://africa.espn.com/mma/story/_/id/43377646/mackenzie-dern-submits-amanda-ribas-ufc-strawweight-bout","k":"A ameaça do armlock de baixo faz ele recuar o peso: use para raspar e montar.","d":"Postura e base.","nv":2}],"dicas":[]}},{"id":"guarda-aberta","n":"Guarda aberta","g":"Guardas","desc":"Aranha, De La Riva, laço, gola-manga. Distância e pegadas definem tudo.","a":{"label":"Passando (em pé)","fin":[{"n":"Chave de pé reta","k":"Pé na axila, antebraço no Aquiles, caia para o lado da perna.","d":"Pé para fora, avance o quadril e gire o pé.","nv":2}],"mov":[{"n":"Toreando","t":"passagem","p":"cem-quilos","l":"a","k":"Controle calça/joelhos, empurre as pernas para um lado e corra para o outro.","d":"Fuga de quadril, joelho na frente, ou inverta.","at":"Leandro Lo","src":"https://www.graciemag.com/?p=199432","nv":1},{"n":"Knee slice (joelho cortando)","t":"passagem","p":"cem-quilos","l":"a","k":"Joelho por cima da coxa, underhook ou crossface, ombro pesado.","d":"Frame no ombro, underhook, entre em meia-guarda.","at":"Leandro Lo","src":"https://www.graciemag.com/?p=199432","nv":2},{"n":"Over-under","t":"passagem","p":"cem-quilos","l":"a","k":"Um braço por cima e um por baixo das pernas, ombro na coxa, pressão.","d":"Estenda o tronco para criar espaço e empurre a cabeça dele para fora (Romulo Barral).","at":"Bernardo Faria","src":"https://www.grapplearts.com/bernardo-farias-guard-pass-the-over-under/","nv":2},{"n":"Fechar a distância (meia-guarda)","t":"passagem","p":"meia-guarda","l":"a","k":"Entre no espaço e esmague uma perna.","d":"","nv":1},{"n":"Entrar na perna","t":"avanço","p":"ashi","l":"a","k":"Durante a passagem, caia na perna exposta.","d":"","nv":3},{"n":"Body lock (stuff, shelve ou split)","t":"passagem","p":"cem-quilos","l":"a","at":"Gordon Ryan","src":"https://sensobjj.com/blogs/graciemag-1/video-gordon-ryan-talks-the-finer-points-of-his-body-lock-guard-pass","k":"Trave as mãos em volta do tronco e do braço. Termine socando, apoiando ou separando as pernas, conforme a reação.","d":"Frames antes do travamento; virar de costas dá as costas.","nv":2},{"n":"Knee cut da De La Riva","t":"passagem","p":"cem-quilos","l":"a","at":"Leandro Lo","src":"https://www.bjjee.com/?p=74387","k":"Quebre a DLR, passe por cima da perna e corte o joelho com pressão; a guarda fica com poucas opções.","d":"Frame no ombro e underhook.","nv":2},{"n":"Passagem dobrando (folding pass)","t":"passagem","p":"cem-quilos","l":"a","at":"Buchecha","src":"https://bjjfanatics.com/blogs/fighters/marcus-buchecha-almeida","k":"Dobre as pernas dele sobre ele mesmo e passe com o peso em cima.","d":"Mantenha os joelhos fora do peito.","nv":2},{"n":"Double under","t":"passagem","p":"cem-quilos","l":"a","at":"Bernardo Faria","src":"https://www.graciemag.com/?p=144256","k":"Os dois braços por baixo das pernas, empilhe e caia para um lado.","d":"Triângulo ou omoplata quando ele empilha.","nv":2},{"n":"Leg pin (prender as pernas)","t":"passagem","p":"cem-quilos","l":"a","at":"Ruotolo (Kade e Tye)","src":"https://evolve-mma.com/blog/double-trouble-the-coming-of-age-of-the-ruotolo-brothers/","k":"Prenda as pernas dele no chão com o seu peso e passe pelo lado.","d":"","nv":3},{"n":"Leg drag","t":"passagem","p":"cem-quilos","l":"a","at":"Mendes brothers","src":"https://evolve-mma.com/blog/the-bjj-blueprint-how-to-grapple-like-the-mendes-brothers/","k":"Arraste a perna dele cruzando o corpo e cole o quadril.","d":"Recupere a perna para dentro.","nv":2}],"dicas":[{"n":"Dilema: imobilizar ou pegar as costas","at":"Gordon Ryan","src":"https://sensobjj.com/blogs/graciemag-1/video-gordon-ryan-talks-the-finer-points-of-his-body-lock-guard-pass","k":"No body lock: se ele fica de frente, você imobiliza; se vira de costas, você pega as costas."}]},"b":{"label":"Guarda aberta (por baixo)","fin":[{"n":"Triângulo","k":"Controle uma manga/punho, puxe e encaixe pelo lado do braço solto.","d":"Postura, mãos livres, não deixe um braço dentro e o outro fora.","nv":1},{"n":"Omoplata (da aranha/laço)","k":"Use a manga controlada, gire por baixo do braço.","d":"Quebre a pegada e tire o braço cedo.","nv":1,"gi":true}],"mov":[{"n":"Raspagem de De La Riva","t":"raspagem","p":"cem-quilos","l":"a","k":"Gancho por fora da perna, controle tornozelo e manga, desequilibre para trás.","d":"Tire o gancho, pé longe, base.","nv":2,"passos":["Gancho de DLR por fora da perna dele.","Pegue o tornozelo do mesmo lado e uma manga.","Outro pé no quadril ou no joelho de trás.","Empurre e puxe para desequilibrar para trás.","Suba por cima e estabilize."],"erros":["Gancho raso: não desequilibra.","Soltar o tornozelo: ele recupera a base."]},{"n":"Berimbolo","t":"avanço","p":"costas","l":"a","k":"Da DLR, invertida por baixo do quadril dele até as costas.","d":"Sente junto e pressione; não deixe virar.","at":"Mendes brothers","src":"https://evolve-mma.com/blog/the-bjj-blueprint-how-to-grapple-like-the-mendes-brothers/","nv":3},{"n":"Raspagem de tripé","t":"raspagem","p":"guarda-aberta","l":"a","k":"Controle os dois tornozelos, empurre o quadril, levante e passe.","d":"Pé fora do alcance, base.","nv":2,"passos":["Pegue os dois tornozelos.","Um pé atrás do joelho, o outro no quadril.","Empurre o quadril e puxe o tornozelo.","Ele cai sentado: levante e passe."],"erros":["Empurrar sem puxar o tornozelo.","Demorar para levantar depois que ele cai."]},{"n":"Entrar em ashi garami","t":"avanço","p":"ashi","l":"a","k":"Pegue a perna da frente, entre debaixo do quadril.","d":"","nv":3},{"n":"Fechar a guarda","t":"transição","p":"guarda-fechada","l":"b","k":"","d":"","nv":1},{"n":"Sentar na borboleta","t":"transição","p":"borboleta","l":"b","k":"","d":"","nv":1},{"n":"Kiss of the dragon (RDLR)","t":"avanço","p":"costas","l":"a","at":"Mikey Musumeci","src":"https://danjonaher.substack.com/p/mikey-musumeci-and-the-art-of-leg-locks","k":"Da De La Riva invertida, role por baixo das pernas dele até as costas.","d":"Afaste o quadril e não deixe o gancho entrar.","nv":3},{"n":"Entrar na aranha/laço","t":"transição","p":"aranha-laco","l":"b","k":"Pegue as mangas e coloque os pés nos bíceps.","d":"","nv":1,"gi":true},{"n":"Entrar na X-guard","t":"transição","p":"x-guard","l":"b","k":"Entre por baixo da perna de apoio.","d":"","nv":2},{"n":"Entrar na worm guard (gi)","t":"transição","p":"lapela","l":"b","at":"Keenan Cornelius","src":"https://www.lowkickmma.com/worm-guard/","k":"Com a lapela dele na mão, da DLR passe a lapela por trás da perna.","d":"","nv":3,"gi":true},{"n":"Entrar na K-guard","t":"transição","p":"k-guard","l":"b","k":"Fique de lado embaixo dele e monte os ganchos.","d":"","nv":1}],"dicas":[]}},{"id":"borboleta","n":"Guarda borboleta","g":"Guardas","desc":"Sentado com ganchos por dentro das coxas. Forte para raspar e subir.","a":{"label":"Passando a borboleta","fin":[],"mov":[{"n":"Body lock (esmagar)","t":"passagem","p":"meia-guarda","l":"a","k":"Trave as mãos nas costas, cabeça no peito, deite ele e esmague um gancho.","d":"Underhook e frame antes de deitar.","nv":1},{"n":"Toreando","t":"passagem","p":"cem-quilos","l":"a","k":"Levante, empurre as pernas para baixo e corra.","d":"Siga com os ganchos e recupere.","nv":1}],"dicas":[]},"b":{"label":"Borboleta (sentado)","fin":[{"n":"Guilhotina","k":"Cabeça dele baixa: braço sob o queixo, caia para trás no gancho.","d":"Passe para o lado do braço, ombro na cara dele, mão protegendo o pescoço.","nv":1},{"n":"Kimura","k":"Quando ele posta a mão: figura 4 e gire.","d":"Junte as mãos, braço colado.","nv":1},{"n":"Heel hook da borboleta","at":"Craig Jones","src":"https://bjjfanatics.com/blogs/news/butterfly-guard-to-heel-hook-with-craig-jones","k":"Testa o equilíbrio, raspa e já cai segurando o tornozelo. A raspagem termina em meia-guarda invertida; se o heel hook não for permitido, passe.","d":"Base e esconda o calcanhar.","nv":3,"cls":["heel"]},{"n":"Marcelotine","at":"Marcelo Garcia","src":"https://en.wikipedia.org/wiki/Marcelo_Garcia_(grappler)","k":"Guilhotina de cotovelo alto com a pegada no queixo.","d":"Cabeça para o lado do braço e passe.","nv":2}],"mov":[{"n":"Raspagem de borboleta","t":"raspagem","p":"cem-quilos","l":"a","k":"Underhook + prenda o braço, caia para o lado do braço preso, levante com o gancho.","d":"Base, abra a perna do lado da queda, quebre o underhook.","at":"Marcelo Garcia","src":"https://www.bjjheroes.com/pt-br/lutador/marcelo-garcia","nv":2},{"n":"Arm drag para as costas","t":"avanço","p":"costas","l":"a","k":"Puxe o braço e saia por trás.","d":"Tire o braço e gire de frente.","at":"Marcelo Garcia","src":"https://www.grapplearts.com/?p=17215","nv":1},{"n":"Entrar na perna (X / ashi)","t":"avanço","p":"ashi","l":"a","k":"Deslize por baixo com o gancho e pegue a perna.","d":"","nv":3},{"n":"Levantar (wrestle up)","t":"avanço","p":"em-pe","l":"a","k":"Underhook, base na mão, suba para single leg.","d":"Whizzer e cabeça para baixo.","nv":1},{"n":"Entrar na X-guard","t":"transição","p":"x-guard","l":"b","at":"Marcelo Garcia","src":"https://www.grapplearts.com/?p=17215","k":"Ele postura para fugir da guilhotina: o espaço abre a entrada da X.","d":"","nv":2}],"dicas":[{"n":"Encadeie, não isole","at":"Marcelo Garcia","src":"https://www.grapplearts.com/?p=17215","k":"Raspagem, arm drag, X-guard e guilhotina saem do mesmo lugar: quando um falha, o outro abre."}]}},{"id":"meia-guarda","n":"Meia-guarda","g":"Guardas","desc":"Uma perna presa. Por baixo, o underhook é tudo; por cima, o crossface.","a":{"label":"Por cima na meia-guarda","fin":[{"n":"Katagatame (triângulo de braço)","k":"Cabeça e braço juntos, cabeça colada, passe para o lado oposto e aperte.","d":"Frame no pescoço, vire para dentro antes de encaixar, não deixe o braço cruzar.","nv":2},{"n":"Kimura de cima","k":"Braço longe do corpo dele: figura 4, gire para as costas.","d":"Braço colado, junte as mãos.","nv":1},{"n":"Kneebar do over-under","at":"Bernardo Faria","src":"https://bjjfanatics.com/blogs/news/make-your-over-under-pass-deadly-with-bernardo-faria","k":"Do over-under, gire para a perna e finalize no kneebar. Ele acertou em 7 de 15 lutas; funciona melhor no gi.","d":"Gire o joelho para dentro.","nv":3,"cls":["kneebar"]}],"mov":[{"n":"Knee slice","t":"passagem","p":"cem-quilos","l":"a","k":"Crossface + underhook, corte o joelho para fora da perna presa.","d":"Frame e underhook, siga com o quadril.","nv":2},{"n":"Tirar o pé para a montada","t":"passagem","p":"montada","l":"a","k":"Pressão no peito, use o outro pé para soltar a perna e passe para montada.","d":"Prenda o pé de novo, gire para o lado.","nv":1},{"n":"Esmagar e passar (crossface)","t":"passagem","p":"cem-quilos","l":"a","k":"Crossface, ombro na cara, quadril para baixo, solte a perna.","d":"Ganhe o underhook antes.","nv":1},{"n":"Over-under","t":"passagem","p":"cem-quilos","l":"a","at":"Bernardo Faria","src":"https://www.grapplearts.com/bernardo-farias-guard-pass-the-over-under/","k":"Um braço por baixo da perna, um por cima; ele entra nessa posição a partir de qualquer guarda.","d":"Estenda o tronco e empurre a cabeça dele para fora (Romulo Barral).","nv":2},{"n":"Pressão pelo meio","t":"passagem","p":"cem-quilos","l":"a","at":"Rodolfo Vieira","src":"https://www.graciemag.com/?p=57432","k":"Afaste a perna dele para o joelho conseguir avançar; pressão pelo centro.","d":"","nv":2},{"n":"Knee cut com tomada de costas","t":"avanço","p":"costas","l":"a","at":"Andre Galvão","src":"https://live.atosbjjondemand.com/back-takes/videos/knee-cut-guard-pass-with-back-take-into-ezekiel","k":"No knee cut, quando ele vira para fugir, pegue as costas.","d":"","nv":2}],"dicas":[{"n":"Chegue na meia-guarda antes de passar","at":"Leandro Lo","src":"https://live.atosbjjondemand.com/leandro-lo-seminar","k":"No seminário da Atos, Lo destacou a importância de alcançar a meia-guarda antes de passar."}]},"b":{"label":"Meia-guarda (por baixo)","fin":[{"n":"Kimura","k":"Quando ele posta a mão na base: figura 4.","d":"Mão longe do chão, braço colado.","nv":1},{"n":"Choi bar da Z-guard","at":"Craig Jones","src":"https://bjjmore.com/make-z-guard-great-again-review-craig-jones/","k":"Da knee shield, armlock com a perna por cima. Finalizou Joao Costa assim no ADCC 2022.","d":"Braço colado, não deixe o pescoço e o braço ficarem do mesmo lado.","nv":3},{"n":"Combo da knee shield","at":"Buchecha","src":"https://www.bjjee.com/?p=66371","k":"Armlock invertido → omoplata → armlock invisível → volta para a omoplata.","d":"Braço longe da linha do quadril dele.","nv":3}],"mov":[{"n":"Underhook para as costas","t":"avanço","p":"costas","l":"a","k":"De lado, underhook fundo, cabeça no peito, saia por baixo e suba nas costas.","d":"Crossface e ganhe o underhook primeiro.","nv":1,"passos":["Fique de lado, nunca de costas no chão.","Ganhe o underhook bem fundo.","Cabeça colada no peito dele.","Saia por baixo com o quadril.","Suba nas costas e coloque os ganchos."],"erros":["Ficar deitado reto: ele faz crossface.","Underhook raso: ele faz whizzer."]},{"n":"Raspagem old school","t":"raspagem","p":"cem-quilos","l":"a","k":"Underhook, pegue o tornozelo da perna livre, empurre com a cabeça.","d":"Whizzer, tire o tornozelo, base.","nv":1,"passos":["Underhook e de lado.","Pegue o tornozelo da perna livre dele.","Saia o quadril para fora.","Empurre com a cabeça e o ombro na direção do tornozelo preso.","Suba por cima e passe."],"erros":["Soltar o tornozelo.","Empurrar para o lado errado."]},{"n":"Recuperar a guarda","t":"fuga","p":"guarda-aberta","l":"b","k":"Frame, fuga de quadril, joelho entre vocês.","d":"Pressão e crossface.","nv":1,"passos":["Frame no pescoço e no quadril.","Fuga de quadril para criar espaço.","Coloque o joelho entre vocês (knee shield).","Recomponha a guarda."],"erros":["Empurrar com os braços esticados.","Fazer a fuga sem frames."]},{"n":"Entrar na deep half","t":"transição","p":"meia-funda","l":"b","at":"Bernardo Faria","src":"https://bjjfanatics.com/blogs/news/pull-deep-half-guard-and-transition-to-the-faria-sweep-with-bernardo-faria","k":"Entre por baixo e abrace a perna.","d":"","nv":2},{"n":"Lockdown","t":"transição","p":"meia-guarda","l":"b","at":"Eddie Bravo","src":"https://www.bjjheroes.com/?p=4317","k":"Trava das pernas na perna dele na meia-guarda (10th Planet).","d":"","nv":3}],"dicas":[]}},{"id":"cem-quilos","n":"Cem quilos","g":"Controle por cima","desc":"Controle lateral. Peito com peito, o quadril dele preso.","a":{"label":"Por cima (cem quilos)","fin":[{"n":"Americana","k":"Pulso preso no chão, cotovelo dele perto da cabeça, \"pinte o chão\".","d":"Braço colado ao corpo, cotovelo sempre junto.","nv":1},{"n":"Kimura","k":"Figura 4 no braço de baixo, gire em direção às costas dele.","d":"Segure a própria faixa ou junte as mãos.","nv":1},{"n":"Katagatame","k":"Cabeça e braço, passe para o outro lado, cabeça colada.","d":"Frame no pescoço, não deixe o braço cruzar.","nv":2},{"n":"Armlock (quando ele empurra)","k":"Ele estica o braço para empurrar: gire por cima da cabeça.","d":"Não estique o braço; use frames curtos.","nv":1}],"mov":[{"n":"Montada","t":"avanço","p":"montada","l":"a","k":"Joelho por cima da barriga, controle o braço próximo.","d":"Bloqueie o joelho com a mão/joelho.","nv":1},{"n":"Joelho na barriga","t":"avanço","p":"joelho-barriga","l":"a","k":"Joelho na barriga, pé de trás aberto, pegada na gola/faixa.","d":"Empurre o joelho e fuga de quadril.","nv":1},{"n":"Norte-sul","t":"transição","p":"norte-sul","l":"a","k":"Gire pela cabeça mantendo o peito colado.","d":"Gire junto e recupere a guarda.","nv":2},{"n":"Pegar as costas quando ele vira","t":"avanço","p":"costas","l":"a","k":"Ele vira de quatro: siga o movimento e coloque os ganchos.","d":"","nv":1}],"dicas":[]},"b":{"label":"Por baixo (cem quilos)","fin":[],"mov":[{"n":"Fuga de quadril e recuperar a guarda","t":"fuga","p":"guarda-aberta","l":"b","k":"Frames no pescoço e no quadril, crie espaço, coloque o joelho.","d":"Quadril colado, crossface, não deixe o joelho entrar.","at":"Saulo Ribeiro","src":"https://youjiujitsu.com/bjj-escapes-why-surviving-and-escaping-is-the-foundation-of-good-bjj","nv":1,"passos":["Frames: um no pescoço, outro no quadril.","Ponte curta para criar espaço.","Fuga de quadril para longe.","Coloque o joelho no espaço.","Recupere a guarda."],"erros":["Braços esticados: ele monta.","Ficar de costas reto no chão."]},{"n":"Fuga para meia-guarda","t":"fuga","p":"meia-guarda","l":"b","k":"Frame, ponte curta, prenda uma perna.","d":"","nv":1},{"n":"Virar de quatro","t":"fuga","p":"tartaruga","l":"b","k":"Frame, entre por baixo, joelhos debaixo de você.","d":"Pegue as costas na hora.","nv":1}],"dicas":[{"n":"Sobreviver antes de escapar","at":"Saulo Ribeiro","src":"https://youjiujitsu.com/bjj-escapes-why-surviving-and-escaping-is-the-foundation-of-good-bjj","k":"Postura de sobrevivência (cotovelos e frames) antes de gastar energia na fuga."}]}},{"id":"joelho-barriga","n":"Joelho na barriga","g":"Controle por cima","desc":"Pressão e mobilidade. Força ele a reagir e abrir os braços.","a":{"label":"Por cima","fin":[{"n":"Armlock (braço que empurra)","k":"Ele empurra o joelho: pegue o braço e gire por cima da cabeça.","d":"Não estique o braço; empurre o joelho com a mão perto do corpo.","nv":1},{"n":"Estrangulamento cruzado (gi)","k":"Mão funda na gola, segunda mão e baixe o peito.","d":"Mãos protegendo a gola, vire para o lado.","nv":1,"gi":true}],"mov":[{"n":"Montada","t":"avanço","p":"montada","l":"a","k":"Deslize o joelho por cima da barriga.","d":"Joelho no meio, bloqueie.","nv":1},{"n":"Voltar ao cem quilos","t":"transição","p":"cem-quilos","l":"a","k":"","d":"","nv":1}],"dicas":[]},"b":{"label":"Por baixo","fin":[],"mov":[{"n":"Empurrar o joelho e fuga de quadril","t":"fuga","p":"guarda-aberta","l":"b","k":"Empurre o joelho para baixo/fora, quadril para longe, recupere a guarda.","d":"Mude de lado, mantenha peso.","nv":1},{"n":"Virar de quatro","t":"fuga","p":"tartaruga","l":"b","k":"Vire para dentro dele, joelhos debaixo.","d":"Pegue as costas.","nv":1}],"dicas":[]}},{"id":"montada","n":"Montada","g":"Controle por cima","desc":"Posição de maior controle por cima. Quanto mais alta, mais finalizações.","a":{"label":"Montado","fin":[{"n":"Americana","k":"Pulso no chão, cotovelo perto da cabeça, pinte o chão.","d":"Braço colado, não deixe o pulso no chão.","nv":1},{"n":"Armlock da montada","k":"Suba alto, controle um braço, S-mount, gire 90°.","d":"Cotovelos colados, não empurre o peito, faça o upa no giro.","nv":1},{"n":"Katagatame","k":"Leve o quadril em direção a ele e o joelho até o quadril dele antes de apertar.","d":"Frame no pescoço, não deixe o braço passar.","at":"Roger Gracie","src":"https://www.bjjee.com/?p=85958","nv":2},{"n":"Estrangulamento cruzado (gi)","k":"Estabilize a montada primeiro, depois ataque. Se ele defende bem a gola, passe por trás da cabeça e coloque só o polegar dentro da gola antes do estrangulamento. Combine com o armlock.","d":"Mãos protegendo a gola, ponte e cotovelos dentro.","at":"Roger Gracie","src":"https://graciebarra.com/gb-news/mount-attack","nv":1,"gi":true},{"n":"Ezequiel","k":"Mão dentro da própria manga, a outra corta o pescoço.","d":"Mão protegendo o pescoço, ponte no ataque.","at":"Roger Gracie","src":"https://bjjfanatics.com/products/the-roger-gracie-mount-system-by-roger-gracie","nv":2},{"n":"Armlock de pressão alta","at":"Buchecha","src":"https://www.flograppling.com/video/986807-bucheca-shows-the-highpressure-armbar-from-mount-he-uses-to-crush-opponents","k":"Armlock da montada com muito peso; ele venceu várias lutas no Mundial 2016 assim.","d":"Cotovelos colados.","nv":2}],"mov":[{"n":"Costas quando ele vira","t":"avanço","p":"costas","l":"a","k":"Ele vira para fugir: fique alto, coloque os ganchos.","d":"","nv":1}],"dicas":[{"n":"Estabilize antes de atacar","at":"Roger Gracie","src":"https://graciebarra.com/gb-news/mount-attack","k":"Ao chegar na montada, o primeiro objetivo é ficar nela. Só depois começa o ataque."}]},"b":{"label":"Montado por baixo","fin":[],"mov":[{"n":"Upa (ponte e rola)","t":"fuga","p":"guarda-fechada","l":"a","k":"Prenda braço e pé do mesmo lado, ponte por cima do ombro, termine dentro da guarda dele.","d":"Base com a mão livre, montada alta, pernas abertas.","nv":1,"passos":["Prenda um braço dele (abrace pelo cotovelo).","Prenda o pé do mesmo lado com o seu pé.","Ponte alta, por cima do seu ombro.","Role para o lado preso.","Termine dentro da guarda dele, com postura."],"erros":["Fazer ponte para cima e não por cima do ombro.","Esquecer de prender o pé."]},{"n":"Fuga cotovelo-joelho","t":"fuga","p":"meia-guarda","l":"b","k":"De lado, cotovelo no joelho dele, quadril para fora, prenda a perna.","d":"Montada alta, pressão no peito.","at":"Saulo Ribeiro","src":"https://youjiujitsu.com/bjj-escapes-why-surviving-and-escaping-is-the-foundation-of-good-bjj","nv":1,"passos":["Fique de lado.","Cotovelo encostado no joelho dele.","Fuga de quadril e empurre o joelho para baixo.","Prenda a perna dele entre as suas.","Repita do outro lado ou recupere a guarda."],"erros":["Abrir os cotovelos.","Empurrar o peito dele (convida o armlock)."]}],"dicas":[{"n":"Sobreviver antes de escapar","at":"Saulo Ribeiro","src":"https://youjiujitsu.com/bjj-escapes-why-surviving-and-escaping-is-the-foundation-of-good-bjj","k":"Primeiro fique numa postura em que você não precisa de força para se proteger. Depois escape."}]}},{"id":"costas","n":"Costas","g":"Costas e tartaruga","desc":"A posição mais perigosa para quem está com as costas pegas. Seatbelt + ganchos.","a":{"label":"Nas costas (ganchos)","fin":[{"n":"Mata-leão","k":"Braço sob o queixo, mão no bíceps, outra na nuca, aperte com os cotovelos.","d":"Controle o pulso do braço que estrangula, queixo baixo.","at":"Marcelo Garcia","src":"https://www.bjjheroes.com/pt-br/lutador/marcelo-garcia","nv":1},{"n":"Arco e flecha (gi)","k":"Gola funda, pegue a calça, estique o corpo para o lado.","d":"Mãos protegendo a gola, vire para o lado do ataque.","nv":2,"gi":true},{"n":"Armlock das costas","k":"Ele defende o pescoço com as mãos: isole um braço e gire.","d":"Mãos juntas, não estique.","nv":1},{"n":"Ruotolo-tine","at":"Ruotolo (Kade e Tye)","src":"https://evolve-mma.com/blog/introduction-to-the-ruotolotine-choke/","k":"Estrangulamento das costas na família do triângulo de braço; as pernas envolvem o tronco para apertar. Os dois venceram com ele na mesma noite.","d":"Proteja o pescoço e não deixe o braço cruzar.","nv":3}],"mov":[{"n":"Montada quando ele vira","t":"transição","p":"montada","l":"a","k":"Ele vira de frente: siga e sente na montada.","d":"","nv":1}],"dicas":[]},"b":{"label":"Com as costas pegas","fin":[],"mov":[{"n":"Fuga das costas","t":"fuga","p":"guarda-fechada","l":"a","k":"Controle as mãos, desça os ombros para o chão do lado do braço que passa pelo ombro, tire o gancho e vire de frente.","d":"Mantenha os ganchos e o seatbelt; troque o lado.","nv":1,"passos":["Proteja o pescoço: mãos no braço que estrangula.","Desça os ombros para o chão do lado do braço que passa pelo ombro.","Tire o gancho de baixo.","Vire de frente para ele.","Termine dentro da guarda dele."],"erros":["Soltar o pescoço para tirar o gancho.","Fugir para o lado errado."]}],"dicas":[{"n":"Sobreviver antes de escapar","at":"Saulo Ribeiro","src":"https://youjiujitsu.com/bjj-escapes-why-surviving-and-escaping-is-the-foundation-of-good-bjj","k":"Proteja o pescoço primeiro; escapar vem depois."}]}},{"id":"tartaruga","n":"Tartaruga (4 apoios)","g":"Costas e tartaruga","desc":"Joelhos e cotovelos juntos. Bom para sair, perigoso para ficar.","a":{"label":"Por cima da tartaruga","fin":[{"n":"Estrangulamento relógio (gi)","k":"Gola funda, peso no ombro dele, ande em volta como ponteiro.","d":"Mãos protegendo a gola, role para o lado.","nv":2,"gi":true}],"mov":[{"n":"Colocar os ganchos","t":"avanço","p":"costas","l":"a","k":"Seatbelt, quadril colado, um gancho e role.","d":"Cotovelos colados no joelho, não deixe o gancho entrar.","nv":1},{"n":"Girar para o cem quilos","t":"avanço","p":"cem-quilos","l":"a","k":"Puxe o braço e role para o lado.","d":"","nv":1},{"n":"Gravata frontal","t":"avanço","p":"gravata-frontal","l":"a","k":"Ele está de quatro virado para você: prenda a cabeça.","d":"","nv":1},{"n":"Entrar no truck","t":"avanço","p":"truck","l":"a","at":"Eddie Bravo","src":"https://bjjfanatics.com/blogs/news/rubber-guard-bjj","k":"Prenda a perna de trás dele com as suas.","d":"","nv":3}],"dicas":[]},"b":{"label":"Na tartaruga","fin":[],"mov":[{"n":"Sentar/rolar e recuperar a guarda","t":"fuga","p":"guarda-aberta","l":"b","k":"Sente para o lado e coloque os pés entre vocês.","d":"Pressão de quadril, siga.","nv":1},{"n":"Granby roll","t":"fuga","p":"guarda-aberta","l":"b","k":"Role por cima do ombro e volte com a guarda.","d":"Acompanhe o giro.","nv":1},{"n":"Single leg e levantar","t":"fuga","p":"em-pe","l":"a","k":"Pegue a perna e suba.","d":"Whizzer e base.","nv":1}],"dicas":[]}},{"id":"norte-sul","n":"Norte-sul","g":"Controle por cima","desc":"Cabeça com cabeça invertida. Transição de controle.","a":{"label":"Por cima","fin":[{"n":"Kimura","k":"Braço longe do corpo, figura 4.","d":"Braço colado, junte as mãos.","nv":1},{"n":"Estrangulamento norte-sul","k":"Braço em volta do pescoço, cabeça para o lado, quadril para baixo.","d":"Mãos protegendo, vire para dentro.","at":"Marcelo Garcia","src":"https://www.bjjee.com/?p=28516","nv":2}],"mov":[{"n":"Voltar ao cem quilos","t":"transição","p":"cem-quilos","l":"a","k":"","d":"","nv":1}],"dicas":[]},"b":{"label":"Por baixo","fin":[],"mov":[{"n":"Girar e recuperar a guarda","t":"fuga","p":"guarda-aberta","l":"b","k":"Frame, gire o quadril e coloque os pés.","d":"","nv":1},{"n":"Virar de quatro","t":"fuga","p":"tartaruga","l":"b","k":"","d":"","nv":1}],"dicas":[]}},{"id":"ashi","n":"Ashi garami (pernas)","g":"Leg lock","desc":"Pernas entrelaçadas. Verifique o regulamento: chave de calcanhar é proibida em muitas faixas e no gi IBJJF.","a":{"label":"Atacando a perna","fin":[{"n":"Chave de pé reta","k":"Antebraço no Aquiles, pé na axila, estique o quadril.","d":"Pé para fora, avance o quadril, gire para fora.","nv":2},{"n":"Heel hook (chave de calcanhar)","k":"Joelho controlado, calcanhar na axila, gire com o corpo inteiro.","d":"Calcanhar virado para o quadril dele, dedos para fora; limpe o joelho primeiro e nunca gire contra a chave.","at":"John Danaher","src":"https://bjjfanatics.com/blogs/news/sean-ashley-enters-the-system-a-bjj-fanatics-testimonial","nv":3,"cls":["heel"]},{"n":"Kneebar","k":"Joelho dele no seu quadril, aperte as coxas e estique o quadril.","d":"Gire para dentro, não deixe a perna esticar.","nv":3,"cls":["kneebar"]},{"n":"Toe hold","k":"Pegada figura 4 no pé, torça para dentro.","d":"Pé para cima, gire na direção da chave.","nv":3,"cls":["toe"]},{"n":"Chave de pé reta (perna esticada)","at":"Mikey Musumeci","src":"https://onefc.com/features/mikey-musumeci-vs-cleber-sousa-4-keys-to-world-title-victory-at-one-on-prime-video-2","k":"Tem o recorde de finalização mais rápida numa final do Mundial: 12 segundos, com chave de pé reta.","d":"Pé para fora e avance o quadril.","nv":2}],"mov":[{"n":"Raspar e subir","t":"raspagem","p":"guarda-aberta","l":"a","k":"Use a pegada na perna para levantar e passar.","d":"","nv":3},{"n":"Entrar no saddle","t":"avanço","p":"saddle","l":"a","k":"Passe a perna e triangule por dentro.","d":"","nv":3,"cls":["reap"]},{"n":"Ir para a 50/50","t":"transição","p":"5050","l":"a","k":"","d":"","nv":3}],"dicas":[]},"b":{"label":"Com a perna presa","fin":[{"n":"Contra-ataque na perna dele","k":"Pegue o pé dele ao alcance.","d":"","nv":3}],"mov":[{"n":"Limpar o joelho e sair","t":"fuga","p":"guarda-aberta","l":"a","k":"Proteja o calcanhar, tire o joelho do controle, saia e passe.","d":"Controle o joelho dele.","nv":3}],"dicas":[]}},{"id":"x-guard","n":"X-guard / Single leg X","g":"Guardas","desc":"Por baixo de uma perna dele, com ganchos em X (ou na single leg X). Popularizada por Marcelo Garcia, muito forte para raspar e entrar nas pernas.","a":{"label":"Em pé na X-guard","fin":[],"mov":[{"n":"Quebrar o gancho e passar","t":"passagem","p":"cem-quilos","l":"a","k":"Afaste o joelho de fora, tire o gancho de baixo e caia para o lado.","d":"Troque para single leg X ou recupere a borboleta.","nv":2}],"dicas":[]},"b":{"label":"X-guard (por baixo)","fin":[{"n":"Chave de pé reta (da single leg X)","k":"Abrace o pé, antebraço no tendão, estique o quadril.","d":"Pé para fora, joelho para dentro, levante e passe.","nv":2}],"mov":[{"n":"Raspagem de X-guard (abrir as pernas)","t":"raspagem","p":"cem-quilos","l":"a","at":"Marcelo Garcia","src":"https://www.grapplearts.com/?p=17215","k":"Controle a perna de apoio, estenda os ganchos e derrube para trás ou para o lado.","d":"Base baixa, peso na perna do gancho, tire o gancho de baixo.","nv":2},{"n":"Levantar na X (technical stand-up)","t":"raspagem","p":"guarda-aberta","l":"a","k":"Mão de base atrás, levante segurando a perna dele e suba por cima.","d":"Pressão para baixo, não deixe você levantar.","nv":2},{"n":"Entrar no saddle / cross ashi","t":"avanço","p":"saddle","l":"a","k":"Da single leg X, passe a perna por dentro e triangule.","d":"","nv":3,"cls":["reap"]}],"dicas":[]}},{"id":"aranha-laco","n":"Aranha e laço","g":"Guardas","desc":"Pés nos bíceps (aranha) ou perna enrolada no braço (laço), com pegada nas mangas. Romulo Barral é citado como o maior aranheiro da história.","a":{"label":"Passando aranha/laço","fin":[],"mov":[{"n":"Leg drag","t":"passagem","p":"cem-quilos","l":"a","at":"Mendes brothers","src":"https://evolve-mma.com/blog/the-bjj-blueprint-how-to-grapple-like-the-mendes-brothers/","k":"Quebre a pegada, arraste a perna dele cruzando o corpo e cole o quadril.","d":"Recupere a perna para dentro antes do quadril colar.","nv":2,"gi":true},{"n":"Quebrar pegadas e toreando","t":"passagem","p":"cem-quilos","l":"a","k":"Primeiro solte as mangas (sem pegada não há aranha), depois corra.","d":"","nv":2,"gi":true}],"dicas":[]},"b":{"label":"Aranha / laço (por baixo)","fin":[{"n":"Triângulo da raspagem de tesoura falhada","at":"Romulo Barral","src":"https://bjjfanatics.com/blogs/news/essential-spider-guard-techniques","k":"Ele defende a tesoura e sobe: o braço fica dentro e o triângulo encaixa.","d":"Postura e não deixe um braço dentro e outro fora.","nv":1,"gi":true,"passos":["Comece a raspagem de tesoura da aranha.","Ele defende levantando o quadril.","O braço do pé no bíceps fica dentro.","Passe a perna por cima do pescoço e feche o triângulo."],"erros":["Insistir na raspagem quando ele já defendeu.","Fechar sem ajustar o ângulo."]},{"n":"Omoplata do laço","src":"https://digitsu.com/people/romulo-barral","at":"Romulo Barral","k":"O laço já prende o braço: gire o quadril por baixo para a omoplata.","d":"Role para frente ou tire o braço do laço cedo.","nv":2,"gi":true,"passos":["Laço fundo: sua perna enrolada no braço dele.","Mantenha a pegada na manga.","Gire o quadril por baixo do braço do laço.","Sente, abrace a cintura e finalize como a omoplata."],"erros":["Laço raso: ele tira o braço.","Esquecer de controlar a cintura."]},{"n":"Ataque triplo da meia-aranha","at":"Michelle Nicolini","src":"https://www.graciemag.com/?p=146631","k":"Com gancho na perna, ameaça a omoplata para entrar uma chave de punho; se não sair, ajusta os joelhos e finaliza no armlock.","d":"Proteja o punho e tire o braço da linha do quadril.","nv":3,"cls":["wrist"],"gi":true}],"mov":[{"n":"Raspagem de tesoura (oponente de joelhos)","t":"raspagem","p":"montada","l":"a","at":"Romulo Barral","src":"https://bjjfanatics.com/blogs/news/essential-spider-guard-techniques","k":"Um pé no bíceps, o outro passa no quadril; gire pelo bíceps e tesoure as pernas.","d":"Base larga e quebre a pegada da manga.","nv":1,"gi":true,"passos":["Pegue as duas mangas.","Um pé no bíceps dele.","O outro pé passa para fora do quadril, canela no chão.","Puxe a manga do lado do bíceps e gire o quadril.","Corte a perna dele e suba montado."],"erros":["Soltar a pegada da manga.","Ficar de frente para ele, sem ângulo."]},{"n":"Raspagem de balão","t":"raspagem","p":"montada","l":"a","at":"Romulo Barral","src":"https://digitsu.com/people/romulo-barral","k":"Pés no quadril, puxe as mangas e jogue ele por cima de você.","d":"Quadril baixo, não leve o peso para frente.","nv":1,"gi":true,"passos":["Duas mangas presas, pés no quadril dele.","Puxe ele para cima de você.","Estenda as pernas e jogue ele por cima da sua cabeça.","Role para trás junto e caia montado."],"erros":["Pés no lugar errado (barriga em vez de quadril).","Não puxar as mangas antes de estender."]},{"n":"Aranha + canela na canela (híbrida)","t":"transição","p":"aranha-laco","l":"b","at":"Michelle Nicolini","src":"https://bjjfanatics.com/blogs/news/shin-on-shin-guard-with-michelle-nicolini-and-lachlan-giles","k":"Ele levanta: uma perna mantém a aranha, a outra faz canela na canela para potência de raspagem.","d":"","nv":3,"gi":true},{"n":"Transição para X-guard","t":"transição","p":"x-guard","l":"b","at":"Romulo Barral","src":"https://digitsu.com/people/romulo-barral","k":"Da gola-manga, entre por baixo da perna e monte o X.","d":"","nv":2,"gi":true}],"dicas":[{"n":"Postura primeiro, raspagem depois","at":"Romulo Barral","src":"https://digitsu.com/people/romulo-barral","k":"Controle a postura e o equilíbrio dele antes de tentar raspar."}]},"gi":true},{"id":"k-guard","n":"K-guard","g":"Guardas","desc":"Deitado de lado embaixo dele, pernas em formato de K. Lachlan Giles levou ao ADCC 2019 e finalizou três pesados com heel hook.","a":{"label":"Em pé contra K-guard","fin":[],"mov":[{"n":"Afastar o joelho e passar","t":"passagem","p":"cem-quilos","l":"a","k":"Tire o pé de dentro, desça o quadril e caia para o lado.","d":"","nv":3}],"dicas":[]},"b":{"label":"K-guard (por baixo)","fin":[{"n":"Heel hook da backside 50/50","at":"Lachlan Giles","src":"https://bjjmore.com/best-k-guard-instructional/","k":"Da K-guard, gire para a backside 50/50, prenda o joelho e exponha o calcanhar.","d":"Esconda o calcanhar e limpe o joelho do controle.","nv":3,"cls":["heel"]},{"n":"Mikey lock","at":"Mikey Musumeci","src":"https://www.sportskeeda.com/mma/news-mikey-musumeci-breaks-nasty-leglock-technique-gantumur-bayanduuren","k":"Da K-guard o pé dele já está no seu pescoço: use o pescoço como apoio no ataque. Variação de heel hook.","d":"Mesmo da chave de calcanhar: esconda o calcanhar e saia cedo.","nv":3,"cls":["heel"]}],"mov":[{"n":"Matrix (pegar as costas)","t":"avanço","p":"costas","l":"a","at":"Mikey Musumeci","src":"https://bjjmore.com/best-k-guard-instructional/","k":"Da K-guard, gire por baixo e suba nas costas.","d":"","nv":3},{"n":"Entrar no saddle","t":"avanço","p":"saddle","l":"a","k":"Passe a perna e triangule por dentro.","d":"","nv":3,"cls":["reap"]}],"dicas":[]}},{"id":"meia-funda","n":"Meia-guarda funda (deep half)","g":"Guardas","desc":"Você entra por baixo e abraça a perna dele. Bernardo Faria é considerado referência na posição.","a":{"label":"Por cima da deep half","fin":[],"mov":[{"n":"Passar a perna por cima da cabeça","t":"passagem","p":"cem-quilos","l":"a","k":"Leve a perna livre por cima da cabeça dele e caia no cem quilos.","d":"Siga o movimento e pegue as costas (Buchecha).","nv":2}],"dicas":[]},"b":{"label":"Deep half (por baixo)","fin":[],"mov":[{"n":"Faria sweep","t":"raspagem","p":"guarda-aberta","l":"a","at":"Bernardo Faria","src":"https://bjjfanatics.com/blogs/news/pull-deep-half-guard-and-transition-to-the-faria-sweep-with-bernardo-faria","k":"Puxa meia-guarda já indo para a funda, abre a lapela, raspa e termina com duplo underhook pronto para passar.","d":"Base e afaste a perna presa.","nv":2},{"n":"Waiter sweep","t":"raspagem","p":"guarda-aberta","l":"a","at":"Andre Galvão","src":"https://live.atosbjjondemand.com/20-min/videos/twister-back-attack-deep-half-to-waiter-sweeps-variations-details","k":"Levante a perna livre dele por baixo (como um garçom com a bandeja) e role.","d":"","nv":3},{"n":"Deep half para as costas","t":"avanço","p":"costas","l":"a","at":"Buchecha","src":"https://bjjfanatics.com/blogs/news/go-deep-and-transition-to-the-back-with-marcus-buchecha-almeida","k":"Quando ele passa a perna por cima da sua cabeça, deixe passar e siga o giro dele: entre o primeiro gancho.","d":"Controle o quadril antes de girar.","nv":3}],"dicas":[]}},{"id":"lapela","n":"Guarda de lapela (worm)","g":"Guardas","desc":"Usa a lapela dele para prender perna e quadril. Worm guard criada por Keenan Cornelius (estreia no Pan 2014). Só no gi.","a":{"label":"Passando a lapela","fin":[],"mov":[{"n":"Quebrar a pegada da lapela e passar","t":"passagem","p":"cem-quilos","l":"a","k":"Solte a lapela antes de qualquer coisa; esconda a perna de trás.","d":"Mude para squid guard na perna da frente.","nv":3,"gi":true}],"dicas":[]},"b":{"label":"Worm / squid (por baixo)","fin":[{"n":"Armlock quando ele posta no peito","at":"Keenan Cornelius","src":"https://bjjcoach.substack.com/p/week-7-the-highest-percentage-lapel","k":"Da reverse de la worm, se ele empurra seu peito ou pescoço, gire no armlock sem soltar a lapela.","d":"Não poste o braço.","nv":3,"gi":true}],"mov":[{"n":"Reverse de la worm para as costas","t":"avanço","p":"costas","l":"a","at":"Keenan Cornelius","src":"https://bjjcoach.substack.com/p/week-7-the-highest-percentage-lapel","k":"Lapela presa na perna, gire por dentro e suba nas costas.","d":"","nv":3,"gi":true},{"n":"Squid guard (contra perna escondida)","t":"transição","p":"lapela","l":"b","at":"Keenan Cornelius","src":"https://digitsu.com/t/squid-guard","k":"Ele esconde a perna de trás para defender a worm: pegue a perna da frente e passe a lapela por trás do joelho.","d":"","nv":3,"gi":true},{"n":"Raspagem de borboleta da worm","t":"raspagem","p":"cem-quilos","l":"a","at":"Keenan Cornelius","src":"https://www.lowkickmma.com/worm-guard/","k":"Passe a lapela para a mão de dentro e use o gancho de borboleta.","d":"","nv":3,"gi":true}],"dicas":[]},"gi":true},{"id":"saddle","n":"Saddle (cross ashi / honey hole)","g":"Leg lock","desc":"Pernas trianguladas por dentro da perna dele. É a posição de mais controle no sistema de Danaher. Heel hook só é permitido em faixas altas e no no-gi: confira o regulamento.","a":{"label":"No saddle (atacando)","fin":[{"n":"Inside heel hook","at":"John Danaher","src":"https://bjjfanatics.com/blogs/news/sean-ashley-enters-the-system-a-bjj-fanatics-testimonial","k":"Controle o joelho (linha do joelho presa), exponha o calcanhar e gire com o corpo.","d":"Calcanhar para dentro do quadril dele, dedos para fora, e limpe o joelho.","nv":3,"cls":["heel"]},{"n":"Chave de Aquiles na perna secundária","at":"John Danaher","src":"https://danjonaher.substack.com/p/mikey-musumeci-and-the-art-of-leg-locks","k":"A maior resistência vem da segunda perna: ataque ela também (double trouble).","d":"Proteja as duas pernas, não só a presa.","nv":3,"cls":["reap"]}],"mov":[{"n":"Voltar para ashi garami","t":"transição","p":"ashi","l":"a","k":"","d":"","nv":3}],"dicas":[{"n":"Controle antes da quebra","at":"John Danaher","src":"https://www.bjjee.com/?p=107797","k":"Leg lock vira alta porcentagem quando é baseado em controle, não em velocidade."}]},"b":{"label":"Preso no saddle","fin":[],"mov":[{"n":"Limpar o joelho e sair","t":"fuga","p":"guarda-aberta","l":"a","at":"Craig Jones","src":"https://www.bjjee.com/?p=86178","k":"Repita o mesmo movimento até o joelho passar da linha do quadril dele, depois puxe a perna.","d":"Mantenha a linha do joelho presa.","nv":3}],"dicas":[]}},{"id":"5050","n":"50/50","g":"Leg lock","desc":"Pernas espelhadas: os dois têm o mesmo ataque. Os irmãos Mendes estão entre os que desenvolveram a posição no gi.","a":{"label":"Atacando na 50/50","fin":[{"n":"Heel hook da 50/50","at":"Craig Jones","src":"https://bjjfanatics.com/blogs/news/finishing-tips-with-craig-jones","k":"Prenda o joelho dele com a patela virada para o teto antes de girar.","d":"Gire o joelho para baixo e esconda o calcanhar.","nv":3,"cls":["heel"]},{"n":"Chave de pé reta","k":"Antebraço no Aquiles, quadril para frente.","d":"Pé para fora, avance o quadril.","nv":2}],"mov":[{"n":"Raspar e subir","t":"raspagem","p":"guarda-aberta","l":"a","at":"Mendes brothers","src":"https://evolve-mma.com/blog/the-legacy-and-influence-of-the-mendes-brothers/","k":"Use o mesmo emaranhado para levantar por cima e passar.","d":"","nv":3}],"dicas":[]},"b":{"label":"Defendendo na 50/50","fin":[{"n":"Contra-ataque espelhado","k":"Você tem a mesma pegada: ataque o pé dele.","d":"","nv":3}],"mov":[{"n":"Limpar o joelho e sair","t":"fuga","p":"guarda-aberta","l":"a","at":"Craig Jones","src":"https://www.bjjee.com/?p=86178","k":"Libere a linha do joelho e só depois puxe a perna.","d":"","nv":3}],"dicas":[]}},{"id":"gravata-frontal","n":"Gravata frontal (front headlock)","g":"Costas e tartaruga","desc":"Você controla a cabeça dele de frente, normalmente depois de um sprawl ou quando ele vira de quatro.","a":{"label":"Com a gravata","fin":[{"n":"D'Arce","at":"Ruotolo (Kade e Tye)","src":"https://en.wikipedia.org/wiki/Tye_Ruotolo","k":"Braço por baixo da axila e em volta do pescoço, trave no bíceps e gire o corpo. Tye finalizou Garry Tonon assim em 97 segundos.","d":"Mantenha o braço colado e a cabeça para cima; não deixe o braço passar por baixo da axila.","nv":2},{"n":"Anaconda","at":"Rafael Mendes","src":"https://digitsu.com/people/rafael-mendes","k":"Braço passa por baixo do pescoço e do braço, trave e role por baixo dele.","d":"Cabeça para fora e pressione para frente.","nv":3},{"n":"Marcelotine (guilhotina de cotovelo alto)","at":"Marcelo Garcia","src":"https://en.wikipedia.org/wiki/Marcelo_Garcia_(grappler)","k":"Pegada no queixo, o cotovelo do braço que estrangula fica alto.","d":"Mão no pulso, cabeça para o lado e passe para o lado do braço.","nv":2}],"mov":[{"n":"Girar para as costas","t":"avanço","p":"costas","l":"a","k":"Gire pelo lado do braço solto e coloque os ganchos.","d":"Siga o giro e sente.","nv":2}],"dicas":[]},"b":{"label":"Com a cabeça presa","fin":[],"mov":[{"n":"Tirar a cabeça e levantar","t":"fuga","p":"em-pe","l":"a","k":"Mão no pulso, cabeça para fora, levante o quadril e recue.","d":"","nv":2}],"dicas":[]}},{"id":"truck","n":"Truck","g":"Costas e tartaruga","desc":"Posição de Eddie Bravo (10th Planet): você prende uma perna dele por trás. Dá acesso ao twister, à chave de calcanhar e ao calf slicer.","a":{"label":"No truck","fin":[{"n":"Twister","at":"Eddie Bravo","src":"https://bjjfanatics.com/blogs/news/rubber-guard-bjj","k":"Variação da guilhotina do wrestling: torção da coluna pelo pescoço. É proibida no IBJJF.","d":"Não deixe ele travar a sua perna; vire para o lado da cabeça.","nv":3,"cls":["spine"]},{"n":"Calf slicer","at":"Eddie Bravo","src":"https://bjjfanatics.com/blogs/news/rubber-guard-bjj","k":"Perna atrás do joelho dele como alavanca, dobre a perna.","d":"Estique a perna e gire.","nv":3,"cls":["slicer"]}],"mov":[{"n":"Pegar as costas","t":"avanço","p":"costas","l":"a","k":"Do truck, role por baixo e entre os ganchos.","d":"","nv":3}],"dicas":[]},"b":{"label":"Preso no truck","fin":[],"mov":[{"n":"Tirar a perna e virar de quatro","t":"fuga","p":"tartaruga","l":"b","k":"Solte a perna presa e volte para os quatro apoios.","d":"","nv":3}],"dicas":[]}}],"perfil":{"faixa":"Azul","grau":1,"estilo":"Guardeiro","modal":"Gi","nivelMax":2,"esconderProib":true,"master":false,"jogo":["guarda-fechada|b","aranha-laco|b","meia-guarda|b","guarda-aberta|b"],"fugas":["montada|b","cem-quilos|b","costas|b"]},"plano":null,"diario":[],"savedAt":1794086306709}</script><script id="app">(function(){
+var DATA = JSON.parse(document.getElementById('data').textContent);
+var ST_LABEL = ['Não vi', 'Estudando', 'Treinando', 'Dominado'];
+var NV_LABEL = {1:'Fundamento', 2:'Intermediário', 3:'Avançado'};
+var SIDE_WORD = {a:'por cima', b:'por baixo'};
+var TIPO_LABEL = {perdido:'Fiquei perdido', finalizado:'Fui finalizado', posicao:'Perdi a posição'};
+var LS = 'bjj-mapa-v1';
+var FAIXAS = ['Branca','Azul','Roxa','Marrom','Preta'], ESTILOS = ['Guardeiro','Passador','Equilibrado'], MODAIS = ['Gi','No-gi','Os dois'];
+var CLS_NOTE = {heel:'heel hook / torção de joelho', reap:'reaping (cruzar a perna por fora do joelho, ex.: saddle)', kneebar:'kneebar', toe:'toe hold', slicer:'calf/bicep slicer', spine:'torção de coluna sem estrangulamento (ex.: twister)', wrist:'chave de punho'};
+var RULE_SRC = [['Livro de regras IBJJF (tabela de golpes proibidos)','https://www.grapplearts.com/wp-content/uploads/2019/09/IBJJF-Rules-Version-4.pdf'],['Guia por faixa – JiuJitsu News','https://jiujitsu-news.com/a-complete-guide-to-ibjjf-legal-and-illegal-submissions/'],['Mudança 2021: heel hook no no-gi marrom/preta – BJJEE','https://www.bjjee.com/?p=75529'],['Proibidos por faixa – VF Comunica','https://vfcomunica.com/en/illegal-moves-jiu-jitsu-by-belt-ibjjf/']];
+function illegalSet(){
+  var pf=DATA.perfil, f=pf.faixa||'Azul', nogi = pf.modal==='No-gi';
+  if (f==='Branca') return ['spine','wrist','slicer','kneebar','toe','heel','reap'];
+  if (f==='Azul'||f==='Roxa') return ['spine','slicer','kneebar','toe','heel','reap'];
+  if (nogi && !pf.master) return ['spine'];
+  return ['spine','heel','reap'];
+}
+function illegal(it){ if (!it.cls) return ''; var s=illegalSet(), hit=it.cls.filter(function(c){return s.indexOf(c)>-1;}); return hit.length ? hit.map(function(c){return CLS_NOTE[c];}).join(', ') : ''; }
+function jogoHas(id){ return (DATA.perfil.jogo||[]).some(function(e){ return e.split('|')[0]===id; }); }
+function jogoSide(id){ var e=(DATA.perfil.jogo||[]).filter(function(x){return x.split('|')[0]===id;})[0]; return e? (e.split('|')[1]||'b') : null; }
+var SUGESTAO = {
+  'Guardeiro|Gi': ['guarda-fechada|b','aranha-laco|b','meia-guarda|b','guarda-aberta|b'],
+  'Guardeiro|No-gi': ['guarda-fechada|b','borboleta|b','meia-guarda|b','x-guard|b'],
+  'Passador|Gi': ['guarda-aberta|a','meia-guarda|a','cem-quilos|a','montada|a'],
+  'Passador|No-gi': ['guarda-aberta|a','borboleta|a','meia-guarda|a','costas|a'],
+  'Equilibrado|Gi': ['guarda-fechada|b','meia-guarda|b','guarda-aberta|a','cem-quilos|a'],
+  'Equilibrado|No-gi': ['borboleta|b','meia-guarda|b','guarda-aberta|a','costas|a']
+};
+var NV_FAIXA = {Branca:1, Azul:2, Roxa:2, Marrom:3, Preta:3};
+var art = null, canPublish = false, dirty = false, editing = null, q = '', atl = '', showAll = false, editJogo = false, lastReg = null;
+var trail = [];
+
+try { var ls = localStorage.getItem(LS); if (ls) { var o = JSON.parse(ls); if (o && o.posicoes && o.savedAt > (DATA.savedAt||0)) DATA = o; } } catch(e){}
+try { trail = JSON.parse(sessionStorage.getItem(LS+'-trail')||'[]'); } catch(e){}
+// Dentro do Gestor Caldas: os dados vêm do banco e cada alteração é salva por lá (window.parent.jjPonte)
+var EMB = null; try { if (window.parent !== window && window.parent.jjPonte) EMB = window.parent.jjPonte; } catch(e){}
+if (EMB) {
+  var rem = EMB.dados;
+  if (rem && rem.posicoes && (rem.savedAt||0) >= (DATA.savedAt||0)) DATA = JSON.parse(JSON.stringify(rem));
+  else if (!rem || (DATA.savedAt||0) > (rem.savedAt||0)) setTimeout(function(){ EMB.salvar(DATA); }, 0);
+}
+
+DATA.status = DATA.status || {}; DATA.notas = DATA.notas || {}; DATA.diario = DATA.diario || [];
+DATA.perfil = DATA.perfil || {nivelMax:3, esconderProib:false, jogo:[], fugas:[]};
+['jogo','fugas'].forEach(function(k){ DATA.perfil[k] = (DATA.perfil[k]||[]).map(function(e){ return e.indexOf('|')>-1 ? e : e+'|b'; }); });
+function slug(s){ return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+DATA.posicoes.forEach(function(p){ ['a','b'].forEach(function(l){ p[l].dicas = p[l].dicas||[]; ['fin','mov'].forEach(function(k){ p[l][k].forEach(function(it){ if(!it.id) it.id = p.id+'-'+l+'-'+k+'-'+slug(it.n); }); }); }); });
+
+function P(id){ for (var i=0;i<DATA.posicoes.length;i++) if (DATA.posicoes[i].id===id) return DATA.posicoes[i]; return null; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function other(l){ return l==='a'?'b':'a'; }
+function today(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function fmtDate(s){ var x=String(s||'').split('-'); return x.length===3? x[2]+'/'+x[1] : s; }
+function visible(it){ if (showAll) return true; var pf=DATA.perfil; if ((it.nv||1) > (pf.nivelMax||3)) return false; if (pf.esconderProib && illegal(it)) return false; if (pf.modal==='No-gi' && it.gi) return false; return true; }
+function findItem(id){ var r=null; DATA.posicoes.forEach(function(p){ ['a','b'].forEach(function(l){ ['fin','mov'].forEach(function(k){ p[l][k].forEach(function(it){ if(it.id===id) r={p:p,l:l,k:k,it:it}; }); }); }); }); return r; }
+
+// ---------- rotas ----------
+function readHash(){
+  var h = location.hash.replace('#','');
+  if (h==='inicio'||h==='treino'||h==='registro') return {v:h};
+  var m = h.match(/^(.+)-(a|b)$/);
+  if (m && P(m[1])) return {v:'pos', p:m[1], l:m[2]};
+  return {v:'inicio'};
+}
+var cur = readHash();
+function setHash(h){ if (location.hash !== '#'+h) history.replaceState(null,'','#'+h); }
+function go(p,l,fromTrail){
+  cur = {v:'pos', p:p, l:l}; editing = null; showAll = false; q=''; atl='';
+  if (!fromTrail) { trail.push({p:p,l:l}); if (trail.length>14) trail = trail.slice(-14); }
+  try { sessionStorage.setItem(LS+'-trail', JSON.stringify(trail)); } catch(e){}
+  setHash(p+'-'+l); render(); window.scrollTo(0,0);
+}
+function view(v){ cur={v:v}; q=''; atl=''; editing=null; setHash(v); render(); window.scrollTo(0,0); }
+window.addEventListener('hashchange', function(){ var h=readHash(); if (h.v==='pos') { if (cur.p!==h.p||cur.l!==h.l) go(h.p,h.l); } else if (h.v!==cur.v) view(h.v); });
+
+function markDirty(){ dirty = true; DATA.savedAt = Date.now(); try { localStorage.setItem(LS, JSON.stringify(DATA)); } catch(e){} if (EMB){ EMB.salvar(DATA); dirty = false; } renderSave(); }
+function toast(msg){ var t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(function(){t.remove();},2600); }
+
+// ---------- salvar na própria página ----------
+function buildDoc(){
+  var json = JSON.stringify(DATA).replace(/</g,'\\u003c');
+  var css = document.getElementById('css').textContent;
+  var app = document.getElementById('app').textContent;
+  return '<!DOCTYPE html>\n<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
+    '<title>Mapa de Jiu-Jitsu</title><link rel="preconnect" href="https://fonts.googleapis.com">'+
+    '<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">'+
+    '<style id="css">'+css+'</style></head><body><div id="root"></div>'+
+    '<script type="application/json" id="data">'+json+'<\/script><script id="app">'+app+'<\/script></body></html>';
+}
+function save(){
+  if (!canPublish){ toast('Salvo neste navegador.'); dirty=false; renderSave(); return; }
+  var btn = document.getElementById('savebtn'); if (btn){ btn.disabled=true; btn.textContent='Salvando…'; }
+  art.publish(buildDoc()).then(function(){ dirty=false; }).catch(function(e){
+    var c = (e && (e.code||e.message)) || '';
+    if (/not_granted|not_writer/.test(c)) { canPublish=false; toast('Sem permissão de edição. Salvo só neste navegador.'); dirty=false; }
+    else if (/conflict/.test(c)) toast('A página mudou em outra aba. Recarregando.');
+    else toast('Não foi possível salvar. Tente de novo.');
+    renderSave();
+  });
+}
+function renderSave(){
+  var el = document.getElementById('savebar'); if (!el) return;
+  el.innerHTML = dirty ? '<span>Alterações não salvas</span><button id="savebtn">Salvar</button>' : '<span style="opacity:.6">Tudo salvo</span>';
+  var b = document.getElementById('savebtn'); if (b) b.onclick = save;
+}
+window.addEventListener('beforeunload', function(e){ if (dirty && canPublish){ e.preventDefault(); e.returnValue=''; } });
+
+// ---------- auxiliares ----------
+function progress(p, side){
+  var tot=0, ok=0;
+  ['a','b'].forEach(function(l){ if (side && l!==side) return; ['fin','mov'].forEach(function(k){ p[l][k].forEach(function(it){ if(!visible(it)) return; tot++; if ((DATA.status[it.id]||0)===3) ok++; }); }); });
+  return {tot:tot, ok:ok};
+}
+function athletes(){ var o={}; DATA.posicoes.forEach(function(p){ ['a','b'].forEach(function(l){ ['fin','mov'].forEach(function(k){ p[l][k].forEach(function(it){ if(it.at) o[it.at]=(o[it.at]||0)+1; }); }); (p[l].dicas||[]).forEach(function(d){ if(d.at) o[d.at]=(o[d.at]||0)+1; }); }); }); return o; }
+function fracos(){
+  var c={};
+  DATA.diario.forEach(function(r){ if (r.resolvido) return; var k=r.p+'|'+r.l; c[k]=(c[k]||0)+1; });
+  return Object.keys(c).map(function(k){ var s=k.split('|'); return {p:s[0], l:s[1], n:c[k]}; }).filter(function(x){return P(x.p);}).sort(function(a,b){return b.n-a.n;});
+}
+function sideLabel(pid,l){ var p=P(pid); return p ? p.n+' · '+p[l].label : pid; }
+function posOptions(sel){
+  var groups={}; DATA.posicoes.forEach(function(p){ (groups[p.g]=groups[p.g]||[]).push(p); });
+  return Object.keys(groups).map(function(g){ return '<optgroup label="'+esc(g)+'">'+groups[g].map(function(p){ return ['b','a'].map(function(l){ var v=p.id+'|'+l; return '<option value="'+v+'"'+(v===sel?' selected':'')+'>'+esc(p.n)+' — '+esc(p[l].label)+'</option>'; }).join(''); }).join('')+'</optgroup>'; }).join('');
+}
+
+// ---------- itens ----------
+function badges(it){
+  var h = '<span class="nv nv'+(it.nv||1)+'" title="Nível">'+NV_LABEL[it.nv||1]+'</span>';
+  var il = illegal(it); if (il) h += '<span class="proib" title="'+esc(il)+'">Proibido na '+esc((DATA.perfil.faixa||'').toLowerCase())+'</span>';
+  if (it.gi) h += '<span class="gionly">só gi</span>';
+  return h;
+}
+function passosHTML(it){
+  if (!it.passos) return '';
+  return '<details class="passos"><summary>Passo a passo</summary><ol>'+it.passos.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ol>'+
+    (it.erros&&it.erros.length?'<p class="er-t">Erros comuns</p><ul class="erros">'+it.erros.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>':'')+'</details>';
+}
+function itemHTML(it, kind, p, l, mode){
+  var s = DATA.status[it.id]||0;
+  var tag = mode==='thr' ? (kind==='fin'?'Finalização dele':(it.t||'movimento')+' dele') : (kind==='fin'?'Finalização':(it.t||'movimento'));
+  var cls = mode==='thr' ? 'thr' : kind;
+  var h = '<div class="item '+cls+'"><div class="row"><span class="tag t-'+(mode==='thr'?'thr':kind)+'">'+esc(tag)+'</span><b>'+esc(it.n)+'</b>'+
+    '<button class="st s'+s+'" data-st="'+it.id+'" title="Clique para mudar">'+ST_LABEL[s]+'</button></div>'+
+    '<div class="bdg">'+badges(it)+'</div>';
+  if (mode==='thr'){
+    h += '<p class="d"><em>Como defender:</em> '+(it.d?esc(it.d):'sem anotação ainda.')+'</p>';
+  } else {
+    if (it.k) h += '<p class="k">'+esc(it.k)+'</p>';
+    if (it.d) h += '<p class="d"><em>Reação dele:</em> '+esc(it.d)+'</p>';
+    h += passosHTML(it);
+  }
+  var il2 = illegal(it); if (il2) h += '<p class="d pr">IBJJF, faixa '+esc((DATA.perfil.faixa||'').toLowerCase())+' '+(DATA.perfil.modal==='No-gi'?'no-gi':'gi')+(DATA.perfil.master?' master':'')+': '+esc(il2)+' é proibido.</p>';
+  if (it.at) h += '<div class="ath"><button class="atl" data-atl="'+esc(it.at)+'">'+esc(it.at)+'</button>'+(it.src?' <a href="'+esc(it.src)+'" target="_blank" rel="noopener">fonte</a>':'')+'</div>';
+  if (it.video) h += '<div class="ath"><a href="'+esc(it.video)+'" target="_blank" rel="noopener">▶ vídeo</a></div>';
+  h += '<div class="acts">';
+  if (kind==='mov' && P(it.p)){
+    var tl = mode==='thr' ? other(it.l) : it.l;
+    if (!(mode!=='thr' && it.p===p.id && tl===l)){
+      h += '<button class="go'+(mode==='thr'?' alt':'')+'" data-go="'+it.p+'|'+tl+'">'+(mode==='thr'?'Se ele conseguir: ':'Avançar → ')+esc(sideLabel(it.p,tl))+'</button>';
+    }
+  }
+  if (mode!=='thr') h += '<button class="lnk" data-edit="'+p.id+'|'+l+'|'+kind+'|'+it.id+'">editar</button>';
+  h += '</div></div>';
+  return h;
+}
+function dicaHTML(d, where){
+  return '<div class="item dica"><div class="row"><span class="tag t-dica">Conceito</span><b>'+esc(d.n)+'</b></div>'+(where?'<p class="d">'+esc(where)+'</p>':'')+'<p class="k">'+esc(d.k)+'</p>'+
+    (d.at?'<div class="ath"><button class="atl" data-atl="'+esc(d.at)+'">'+esc(d.at)+'</button>'+(d.src?' <a href="'+esc(d.src)+'" target="_blank" rel="noopener">fonte</a>':'')+'</div>':'')+'</div>';
+}
+function formHTML(p, l, kind, it){
+  it = it || {};
+  var opts = DATA.posicoes.map(function(x){ return '<option value="'+x.id+'"'+(x.id===it.p?' selected':'')+'>'+esc(x.n)+'</option>'; }).join('');
+  var types = ['raspagem','passagem','fuga','avanço','queda','puxada','transição'];
+  var h = '<form class="ed" data-form="'+p.id+'|'+l+'|'+kind+'|'+(it.id||'')+'">'+
+    '<label>Nome<input name="n" required value="'+esc(it.n)+'"></label>'+
+    '<div class="two"><label>Nível<select name="nv">'+[1,2,3].map(function(n){return '<option value="'+n+'"'+((it.nv||1)===n?' selected':'')+'>'+NV_LABEL[n]+'</option>';}).join('')+'</select></label>'+
+    '<label>Link de vídeo (opcional)<input name="video" value="'+esc(it.video)+'" placeholder="https://"></label></div>'+
+    '<div class="two"><label>Atleta (opcional)<input name="at" value="'+esc(it.at)+'"></label><label>Link da fonte (opcional)<input name="src" value="'+esc(it.src)+'"></label></div>'+
+    '<label>Detalhe-chave<textarea name="k" rows="2">'+esc(it.k)+'</textarea></label>'+
+    '<label>Passo a passo (um passo por linha)<textarea name="passos" rows="4">'+esc((it.passos||[]).join('\n'))+'</textarea></label>'+
+    '<label>Erros comuns (um por linha)<textarea name="erros" rows="2">'+esc((it.erros||[]).join('\n'))+'</textarea></label>'+
+    '<label>'+(kind==='fin'?'Defesa (o que o oponente faz)':'Reação/contra do oponente')+'<textarea name="d" rows="2">'+esc(it.d)+'</textarea></label>';
+  if (kind==='mov'){
+    h += '<div class="two"><label>Tipo<select name="t">'+types.map(function(t){return '<option'+(t===it.t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></label>'+
+      '<label>Leva para<select name="p">'+opts+'</select></label></div>'+
+      '<label>Você termina<select name="l"><option value="a"'+(it.l!=='b'?' selected':'')+'>por cima / dominante</option><option value="b"'+(it.l==='b'?' selected':'')+'>por baixo</option></select></label>';
+  }
+  h += '<div class="btns"><button type="submit">Salvar técnica</button><button type="button" data-cancel>Cancelar</button>'+
+    (it.id?'<button type="button" data-del="'+it.id+'" style="margin-left:auto;color:#b3261e">Excluir</button>':'')+'</div></form>';
+  return h;
+}
+function colHTML(p, l, kind, title){
+  var all = p[l][kind], list = all.filter(visible);
+  var h = '<div class="col"><h3>'+title+' <span class="n">'+list.length+'</span></h3>';
+  if (!list.length) h += '<div class="empty">Nada no seu nível.</div>';
+  list.forEach(function(it){ h += (editing && editing.id===it.id) ? formHTML(p,l,kind,it) : itemHTML(it, kind, p, l, 'own'); });
+  if (editing && editing.id==='' && editing.kind===kind && editing.p===p.id && editing.l===l) h += formHTML(p,l,kind,null);
+  else h += '<button class="addbtn" data-add="'+p.id+'|'+l+'|'+kind+'">+ adicionar '+(kind==='fin'?'finalização':'movimento')+'</button>';
+  return h+'</div>';
+}
+
+// ---------- navegação lateral ----------
+function renderNav(){
+  var pf = DATA.perfil, h = '';
+  h += '<button class="'+(cur.v==='inicio'?'on':'')+'" data-view="inicio"><span>🏠 Início</span></button>';
+  h += '<button class="'+(cur.v==='registro'?'on':'')+'" data-view="registro"><span>📝 Pós-treino</span><span class="cnt">'+DATA.diario.filter(function(r){return !r.resolvido;}).length+'</span></button>';
+  h += '<button class="'+(cur.v==='treino'?'on':'')+'" data-view="treino"><span>🎯 Treino da semana</span></button>';
+  if (pf.jogo && pf.jogo.length){
+    h += '<h3>Meu jogo</h3>';
+    pf.jogo.forEach(function(e){ var x=e.split('|'), p=P(x[0]); if(p) h += '<button class="'+(cur.p===x[0]&&cur.l===x[1]&&cur.v==='pos'?'on':'')+'" data-nav="'+x[0]+'" data-navl="'+x[1]+'"><span>★ '+esc(p.n)+' <small>('+SIDE_WORD[x[1]]+')</small></span></button>'; });
+  }
+  var groups = {};
+  DATA.posicoes.forEach(function(p){ (groups[p.g]=groups[p.g]||[]).push(p); });
+  Object.keys(groups).forEach(function(g){
+    h += '<h3>'+esc(g)+'</h3>';
+    groups[g].forEach(function(p){ var pr=progress(p); h += '<button class="'+(p.id===cur.p&&cur.v==='pos'?'on':'')+'" data-nav="'+p.id+'"><span>'+esc(p.n)+(p.gi?' <small>(gi)</small>':'')+'</span><span class="cnt">'+pr.ok+'/'+pr.tot+'</span></button>'; });
+  });
+  h += '<h3>&nbsp;</h3><button data-newpos>+ nova posição</button>';
+  var ats = athletes(); h += '<h3>Atletas</h3>';
+  Object.keys(ats).sort().forEach(function(a){ h += '<button class="'+(a===atl?'on':'')+'" data-atl="'+esc(a)+'"><span>'+esc(a)+'</span><span class="cnt">'+ats[a]+'</span></button>'; });
+  return h;
+}
+
+// ---------- telas ----------
+function renderSearch(){
+  var t = slug(q), out = [], dic = [];
+  DATA.posicoes.forEach(function(p){ ['a','b'].forEach(function(l){ ['fin','mov'].forEach(function(k){ p[l][k].forEach(function(it){
+    if (atl ? it.at===atl : slug(it.n+' '+(it.k||'')+' '+(it.at||'')).indexOf(t)>-1) out.push({p:p,l:l,k:k,it:it});
+  }); }); if (atl) (p[l].dicas||[]).forEach(function(d){ if(d.at===atl) dic.push({p:p,l:l,d:d}); }); }); });
+  var h = '<div class="res"><h2 class="big">'+(atl?esc(atl):'Busca: “'+esc(q)+'”')+'</h2><p class="desc">'+out.length+' técnica(s)'+(dic.length?' · '+dic.length+' conceito(s)':'')+' · a busca mostra todos os níveis</p>';
+  dic.forEach(function(x){ h += dicaHTML(x.d, x.p.n+' · '+x.p[x.l].label); });
+  var by = {};
+  out.forEach(function(r){ var key=r.p.id+'|'+r.l; (by[key]=by[key]||[]).push(r); });
+  Object.keys(by).forEach(function(key){
+    var r0 = by[key][0];
+    h += '<h3>'+esc(r0.p.n)+' · '+esc(r0.p[r0.l].label)+' <button class="go alt" data-go="'+key+'">abrir</button></h3>';
+    by[key].forEach(function(r){ h += itemHTML(r.it, r.k, r.p, r.l, 'own'); });
+  });
+  return h+'</div>';
+}
+
+function cardPos(id, l, extra){
+  var p=P(id); if(!p) return ''; var pr=progress(p,l);
+  return '<button class="pcard" data-go="'+id+'|'+l+'"><b>'+esc(p.n)+'</b><span>'+esc(p[l].label)+'</span>'+
+    '<span class="bar"><i style="width:'+(pr.tot?pr.ok/pr.tot*100:0)+'%"></i></span><small>'+pr.ok+'/'+pr.tot+' dominadas'+(extra?' · '+extra:'')+'</small></button>';
+}
+
+function renderInicio(){
+  var pf = DATA.perfil, fr = fracos();
+  var h = '<h2 class="big">Seu estudo</h2>';
+  h += '<div class="perfil"><b>Seu perfil</b>'+
+    '<label>Faixa<select id="pf-faixa">'+FAIXAS.map(function(f){return '<option'+(f===pf.faixa?' selected':'')+'>'+f+'</option>';}).join('')+'</select></label>'+
+    '<label>Grau<select id="pf-grau">'+[0,1,2,3,4].map(function(g){return '<option value="'+g+'"'+(g===(pf.grau||0)?' selected':'')+'>'+(g?g+'º':'sem grau')+'</option>';}).join('')+'</select></label>'+
+    '<label>Estilo<select id="pf-estilo">'+ESTILOS.map(function(f){return '<option'+(f===pf.estilo?' selected':'')+'>'+f+'</option>';}).join('')+'</select></label>'+
+    '<label>Modalidade<select id="pf-modal">'+MODAIS.map(function(f){return '<option'+(f===pf.modal?' selected':'')+'>'+f+'</option>';}).join('')+'</select></label>'+
+    '<label><input type="checkbox" id="pf-master"'+(pf.master?' checked':'')+'> Master (30+)</label></div>';
+  var ils = illegalSet();
+  h += '<details class="regras"><summary>Regras IBJJF para '+esc(pf.faixa)+' · '+(pf.modal==='No-gi'?'no-gi':'gi')+(pf.master?' · master':'')+'</summary>'+
+    '<p><b>Proibido:</b> '+ils.map(function(c){return esc(CLS_NOTE[c]);}).join('; ')+'; e, para todas as faixas: slam, tesoura voadora (kani basami), finger bending e queda com a cabeça do oponente no chão.</p>'+
+    (pf.faixa==='Branca'?'<p>Na branca também é proibido: pular na guarda fechada com o oponente em pé e comprimir rins/costelas com as pernas na guarda fechada. Chave de pé reta é permitida (sem girar para o lado do outro pé).</p>':'')+
+    ((pf.faixa==='Azul'||pf.faixa==='Roxa')?'<p>Liberado a partir da azul: chave de punho. Chave de pé reta é permitida, sem girar para o lado do pé que não está sendo atacado.</p>':'')+
+    ((pf.faixa==='Marrom'||pf.faixa==='Preta')?'<p>Liberado na marrom/preta: kneebar, toe hold (sem pressão para fora), calf e bicep slicer. '+(pf.modal==='No-gi'?(pf.master?'No no-gi master, heel hook e reaping continuam proibidos.':'No no-gi adulto, heel hook e reaping são liberados desde 2021.'):'No gi, heel hook e reaping continuam proibidos.')+'</p>':'')+
+    (pf.modal==='Os dois'?'<p>Com "Os dois", o mapa usa a regra do gi, que é a mais restritiva.</p>':'')+
+    '<p class="src">Fontes: '+RULE_SRC.map(function(s){return '<a href="'+s[1]+'" target="_blank" rel="noopener">'+esc(s[0])+'</a>';}).join(' · ')+'. Regras mudam e outras federações (CBJJ, UAEJJF, ADCC) têm regras próprias: confira o regulamento do campeonato.</p></details>';
+  h += '<div class="actions-big"><button data-view="registro">📝 Registrar pós-treino<small>Onde você ficou perdido hoje?</small></button>'+
+       '<button data-view="treino">🎯 Treino da semana<small>'+(DATA.plano&&P(DATA.plano.p)?esc(sideLabel(DATA.plano.p,DATA.plano.l)):'Escolha uma posição para focar')+'</small></button></div>';
+  h += '<div class="filtros"><b>Filtro de estudo</b><label>Mostrar até <select id="f-nv">'+[1,2,3].map(function(n){return '<option value="'+n+'"'+((pf.nivelMax||3)===n?' selected':'')+'>'+NV_LABEL[n]+'</option>';}).join('')+'</select></label>'+
+       '<label><input type="checkbox" id="f-pr"'+(pf.esconderProib?' checked':'')+'> Esconder o que é proibido na minha faixa</label>'+(pf.modal==='No-gi'?'<span class="hint">Técnicas só de gi estão ocultas.</span>':'')+'</div>';
+  if (fr.length){
+    h += '<h3 class="sec">Seus pontos fracos <small>(registros não resolvidos)</small></h3><div class="cards">';
+    fr.slice(0,4).forEach(function(x){ h += cardPos(x.p, x.l, x.n+' registro(s)'); });
+    h += '</div>';
+  }
+  var sk = pf.estilo+'|'+(pf.modal==='No-gi'?'No-gi':'Gi');
+  h += '<h3 class="sec">Meu jogo <button class="lnk" data-editjogo>'+(editJogo?'concluir':'editar')+'</button><button class="lnk" data-sugerir>sugerir pelo estilo ('+esc(pf.estilo)+', '+esc(pf.modal==='No-gi'?'no-gi':'gi')+')</button></h3>';
+  if (editJogo){
+    h += '<div class="jogo-ed">'+DATA.posicoes.map(function(p){ return ['b','a'].map(function(l){ var v=p.id+'|'+l; return '<label><input type="checkbox" data-jogo="'+v+'"'+(pf.jogo.indexOf(v)>-1?' checked':'')+'> '+esc(p.n)+' — '+esc(p[l].label)+'</label>'; }).join(''); }).join('')+'</div>';
+  } else {
+    h += pf.jogo.length ? '<div class="cards">'+pf.jogo.map(function(e){ var x=e.split('|'); return cardPos(x[0],x[1]); }).join('')+'</div>' : '<div class="empty">Nenhuma posição. Use "sugerir pelo estilo" ou "editar".</div>';
+  }
+  if (pf.fugas && pf.fugas.length){
+    h += '<h3 class="sec">Fugas essenciais <small>(sair das piores posições é base para qualquer estilo)</small></h3><div class="cards">'+pf.fugas.map(function(e){ var x=e.split('|'); return cardPos(x[0],x[1]); }).join('')+'</div>';
+  }
+  h += '<div class="como"><h3>Como usar</h3><ol><li><b>Depois do treino:</b> registre onde ficou perdido ou com o que foi finalizado. O mapa mostra as saídas na hora.</li>'+
+       '<li><b>Toda semana:</b> escolha uma posição (de preferência um ponto fraco) e leve o plano para o treino.</li>'+
+       '<li><b>No treino:</b> drill primeiro, sparring posicional depois.</li><li><b>Marque o status</b> de cada técnica conforme evolui: estudando, treinando, dominado.</li></ol></div>';
+  return h;
+}
+
+function exitsFor(pid, l){
+  var p=P(pid), mv=p[l].mov.filter(visible);
+  var ord={fuga:0, raspagem:1, 'avanço':2, 'transição':3};
+  return mv.slice().sort(function(a,b){ return (ord[a.t]==null?5:ord[a.t])-(ord[b.t]==null?5:ord[b.t]) || (a.nv||1)-(b.nv||1); });
+}
+
+function respostaHTML(r){
+  var p=P(r.p); if(!p) return '';
+  var l=r.l, opp=p[other(l)];
+  var h = '<div class="resposta"><h3>O que estudar: '+esc(sideLabel(r.p,l))+'</h3>';
+  if (r.tipo==='finalizado'){
+    var f = r.fin ? findItem(r.fin) : null;
+    if (f){
+      h += '<h4>Como defender: '+esc(f.it.n)+'</h4>'+itemHTML(f.it,'fin',f.p,f.l,'thr');
+      h += '<p class="desc">A defesa começa antes da finalização: veja como sair da posição abaixo.</p>';
+    } else if (r.finTxt){
+      h += '<p class="desc">Finalização "'+esc(r.finTxt)+'" não está no mapa. Abra a posição e cadastre a finalização no lado do oponente, com a defesa que o professor te passar.</p>';
+    }
+  }
+  var ex = exitsFor(r.p, l);
+  h += '<h4>Suas saídas daqui</h4>';
+  if (!ex.length) h += '<div class="empty">Nada cadastrado no seu nível. Abra a posição e adicione.</div>';
+  ex.forEach(function(it){ h += itemHTML(it,'mov',p,l,'own'); });
+  var fin = p[l].fin.filter(visible);
+  if (fin.length){ h += '<h4>Finalizações que você tem daqui</h4>'; fin.forEach(function(it){ h += itemHTML(it,'fin',p,l,'own'); }); }
+  var thr = opp.fin.filter(visible).concat([]);
+  if (r.tipo!=='finalizado' && thr.length){ h += '<h4>O que ele pode fazer contra você aqui</h4>'; thr.forEach(function(it){ h += itemHTML(it,'fin',p,other(l),'thr'); }); }
+  (p[l].dicas||[]).forEach(function(d){ h += dicaHTML(d); });
+  h += '<div class="acts"><button class="go" data-go="'+r.p+'|'+l+'">Abrir a posição completa</button><button class="go alt" data-plano="'+r.p+'|'+l+'">Treinar isso nesta semana</button></div></div>';
+  return h;
+}
+
+function renderRegistro(){
+  var sel = lastReg ? lastReg.p+'|'+lastReg.l : '';
+  var h = '<h2 class="big">Pós-treino</h2><p class="desc">Anote onde travou. O mapa mostra as saídas e as defesas na hora.</p>';
+  h += '<form class="ed reg" id="regform">'+
+    '<div class="two"><label>Data<input type="date" name="data" value="'+today()+'"></label>'+
+    '<label>Onde você estava?<select name="pos" id="reg-pos" required><option value="">Escolha a posição…</option>'+posOptions(sel)+'</select></label></div>'+
+    '<label>O que aconteceu?</label><div class="radios">'+Object.keys(TIPO_LABEL).map(function(k,i){ return '<label><input type="radio" name="tipo" value="'+k+'"'+(i===0?' checked':'')+'> '+TIPO_LABEL[k]+'</label>'; }).join('')+'</div>'+
+    '<div id="reg-fin"></div>'+
+    '<label>Nota (opcional)<textarea name="nota" rows="2" placeholder="Ex.: ele fez crossface e eu não consegui virar de lado"></textarea></label>'+
+    '<div class="btns"><button type="submit">Registrar e ver saídas</button></div></form>';
+  if (lastReg) h += respostaHTML(lastReg);
+  var fr = fracos();
+  if (fr.length){
+    h += '<h3 class="sec">Pontos fracos</h3><div class="cards">'; fr.slice(0,6).forEach(function(x){ h += cardPos(x.p,x.l,x.n+' registro(s)'); }); h += '</div>';
+  }
+  var list = DATA.diario.slice().reverse();
+  h += '<h3 class="sec">Histórico <small>'+list.length+' registro(s)</small></h3>';
+  if (!list.length) h += '<div class="empty">Nenhum registro ainda.</div>';
+  list.forEach(function(r){
+    var f = r.fin ? findItem(r.fin) : null;
+    h += '<div class="reglog'+(r.resolvido?' ok':'')+'"><div><b>'+fmtDate(r.data)+' · '+esc(sideLabel(r.p,r.l))+'</b><br><span>'+esc(TIPO_LABEL[r.tipo]||r.tipo)+(f?': '+esc(f.it.n):(r.finTxt?': '+esc(r.finTxt):''))+'</span>'+(r.nota?'<br><i>'+esc(r.nota)+'</i>':'')+'</div>'+
+      '<div class="rl-acts"><button class="go alt" data-consulta="'+r.id+'">Consultar</button><button class="lnk" data-resolve="'+r.id+'">'+(r.resolvido?'reabrir':'resolvido ✓')+'</button><button class="lnk" data-delreg="'+r.id+'">excluir</button></div></div>';
+  });
+  return h;
+}
+function updateRegFin(){
+  var s = document.getElementById('reg-pos'), box = document.getElementById('reg-fin'); if (!s||!box) return;
+  var tipo = (document.querySelector('input[name=tipo]:checked')||{}).value;
+  if (tipo!=='finalizado' || !s.value){ box.innerHTML=''; return; }
+  var x=s.value.split('|'), p=P(x[0]), opp=p[other(x[1])];
+  box.innerHTML = '<label>Com qual finalização?<select name="fin"><option value="">Não sei / outra</option>'+opp.fin.map(function(it){ return '<option value="'+it.id+'">'+esc(it.n)+'</option>'; }).join('')+'</select></label>'+
+    '<label>Se não está na lista, escreva<input name="finTxt" placeholder="Ex.: estrangulamento com a lapela"></label>';
+}
+
+function autoFoco(pid,l){
+  var p=P(pid); var items=p[l].fin.concat(p[l].mov).filter(visible).filter(function(it){ return (DATA.status[it.id]||0)<3 && !(it.p===pid && it.l===l); });
+  items.sort(function(a,b){ return (a.nv||1)-(b.nv||1) || (b.passos?1:0)-(a.passos?1:0); });
+  return items.slice(0,3).map(function(it){return it.id;});
+}
+function weekRange(){ var d=new Date(), wd=(d.getDay()+6)%7, s=new Date(d); s.setDate(d.getDate()-wd); var e=new Date(s); e.setDate(s.getDate()+6); function f(x){return ('0'+x.getDate()).slice(-2)+'/'+('0'+(x.getMonth()+1)).slice(-2);} return f(s)+' a '+f(e); }
+function planoText(pl){
+  var p=P(pl.p), l=pl.l, opp=p[other(l)], lines=[];
+  lines.push('TREINO DA SEMANA ('+weekRange()+')'); lines.push('Posição: '+p.n+' — '+p[l].label); lines.push('');
+  lines.push('1) DRILL TÉCNICO');
+  pl.foco.forEach(function(id){ var f=findItem(id); if(!f) return; lines.push('• '+f.it.n+': 3 séries de 10 de cada lado (sem resistência → 30% → 50%)'); (f.it.passos||[]).forEach(function(s,i){ lines.push('   '+(i+1)+'. '+s); }); });
+  var th = opp.fin.filter(visible).slice(0,2);
+  if (th.length){ lines.push(''); lines.push('2) DRILL DE DEFESA'); th.forEach(function(it){ lines.push('• Contra '+it.n+': '+(it.d||'—')); }); }
+  lines.push(''); lines.push('3) SPARRING POSICIONAL — 3 rounds de 3 min');
+  lines.push('Começa em: '+p.n+' ('+p[l].label+')');
+  var win = pl.foco.map(function(id){ var f=findItem(id); return f ? (f.k==='fin' ? 'finalizar com '+f.it.n : (P(f.it.p)? 'chegar em '+sideLabel(f.it.p,f.it.l) : f.it.n)) : null; }).filter(Boolean);
+  lines.push('Você ganha se: '+(win.length?win.join('; '):'melhorar a posição ou finalizar'));
+  var lose = opp.mov.filter(visible).slice(0,3).map(function(it){ return P(it.p)? it.n+' (vai para '+sideLabel(it.p,other(it.l))+')' : it.n; });
+  lines.push('Parceiro ganha se: '+(lose.length?lose.join('; '):'passar ou finalizar')+' ou finalizar.');
+  lines.push('Quem ganhar, reinicia na mesma posição.');
+  lines.push(''); lines.push('4) DEPOIS: registre no pós-treino onde travou.');
+  return lines.join('\n');
+}
+function renderTreino(){
+  var pl = DATA.plano;
+  if (!pl || !P(pl.p)){ var j=(DATA.perfil.jogo[0]||'guarda-fechada|b').split('|'); pl = {p:j[0], l:j[1]||'b', foco:autoFoco(j[0],j[1]||'b')}; }
+  var p=P(pl.p), l=pl.l;
+  var h = '<h2 class="big">Treino da semana</h2><p class="desc">'+weekRange()+' · uma posição por semana, drill antes do sparring.</p>';
+  h += '<form class="ed" id="planform"><label>Posição da semana<select id="pl-pos">'+posOptions(pl.p+'|'+pl.l)+'</select></label>';
+  var fr=fracos(); if (fr.length) h += '<p class="desc">Sugestão: seu ponto fraco mais registrado é <b>'+esc(sideLabel(fr[0].p,fr[0].l))+'</b> <button type="button" class="lnk" data-plano="'+fr[0].p+'|'+fr[0].l+'">usar</button></p>';
+  var items = p[l].fin.concat(p[l].mov).filter(visible);
+  h += '<label>Técnicas em foco (até 3)</label><div class="foco">'+items.map(function(it){ return '<label><input type="checkbox" data-foco="'+it.id+'"'+(pl.foco.indexOf(it.id)>-1?' checked':'')+'> '+esc(it.n)+' <span class="nv nv'+(it.nv||1)+'">'+NV_LABEL[it.nv||1]+'</span></label>'; }).join('')+'</div></form>';
+  h += '<div class="plano"><div class="pl-head"><b>Plano para levar ao treino</b><button class="go" id="copyplan">Copiar plano</button></div><pre>'+esc(planoText(pl))+'</pre></div>';
+  h += '<div class="acts"><button class="go alt" data-go="'+pl.p+'|'+pl.l+'">Abrir a posição</button><button class="go alt" data-view="registro">Registrar pós-treino</button></div>';
+  cur.plano = pl;
+  return h;
+}
+
+function renderPos(){
+  var p = P(cur.p) || DATA.posicoes[0], l = cur.l, opp = p[other(l)];
+  var pr = progress(p), hidden = 0;
+  ['fin','mov'].forEach(function(k){ p[l][k].forEach(function(it){ if(!visible(it)) hidden++; }); });
+  var tr = '<div class="trail"><span>Caminho:</span>'+trail.map(function(t,i){ var x=P(t.p); return x?'<button data-trail="'+i+'">'+esc(x.n)+' ('+SIDE_WORD[t.l]+')</button>':''; }).join('<span>›</span>')+
+    (trail.length>1?' <button class="lnk" data-cleartrail>limpar</button>':'')+'</div>';
+  var thr = '';
+  opp.fin.filter(visible).forEach(function(it){ thr += itemHTML(it,'fin',p,other(l),'thr'); });
+  opp.mov.filter(visible).forEach(function(it){ thr += itemHTML(it,'mov',p,other(l),'thr'); });
+  var nkey = p.id+'-'+l, inJogo = DATA.perfil.jogo.indexOf(p.id+'|'+l)>-1;
+  var regs = DATA.diario.filter(function(r){ return r.p===p.id && r.l===l && !r.resolvido; }).length;
+  return tr +
+    '<div class="ptitle"><h2>'+esc(p.n)+'</h2><button class="lnk" data-star="'+p.id+'">'+(inJogo?'★ no meu jogo':'☆ adicionar ao meu jogo')+'</button><span class="prog">Dominado: '+pr.ok+'/'+pr.tot+'<span class="bar"><i style="width:'+(pr.tot?pr.ok/pr.tot*100:0)+'%"></i></span></span></div>'+
+    '<p class="desc">'+esc(p.desc)+'</p>'+
+    (regs?'<p class="warn">Você registrou '+regs+' dificuldade(s) aqui. <button class="lnk" data-plano="'+p.id+'|'+l+'">treinar nesta semana</button></p>':'')+
+    '<div class="sides"><button class="'+(l==='a'?'on':'')+'" data-side="a">'+esc(p.a.label)+'</button><button class="'+(l==='b'?'on':'')+'" data-side="b">'+esc(p.b.label)+'</button></div>'+
+    (hidden?'<p class="hid">'+hidden+' técnica(s) ocultas pelo filtro de nível/regras. <button class="lnk" data-showall>mostrar tudo</button></p>':(showAll?'<p class="hid">Mostrando tudo. <button class="lnk" data-showall>voltar ao filtro</button></p>':''))+
+    ((p[l].dicas||[]).length?'<div class="dicas"><h3 class="sub">Conceitos dos atletas</h3>'+p[l].dicas.map(function(d){return dicaHTML(d);}).join('')+'</div>':'')+
+    '<div class="grid">'+colHTML(p,l,'fin','Suas finalizações')+colHTML(p,l,'mov','Seus movimentos')+'</div>'+
+    '<div class="threats"><h3>Ameaças do oponente</h3><p>O que ele pode fazer contra você daqui ('+esc(opp.label.toLowerCase())+') e como defender.</p>'+
+    (thr||'<div class="empty">Nenhuma ameaça no seu nível.</div>')+'</div>'+
+    '<div class="notes"><h3 class="sub">Anotações · '+esc(p[l].label)+'</h3><textarea id="nota" placeholder="Detalhes do professor, erros que você comete, sequências que funcionam…">'+esc(DATA.notas[nkey]||'')+'</textarea></div>';
+}
+
+function render(){
+  var root = document.getElementById('root');
+  var navsel = '<select id="navsel"><option value="v|inicio"'+(cur.v==='inicio'?' selected':'')+'>🏠 Início</option><option value="v|registro"'+(cur.v==='registro'?' selected':'')+'>📝 Pós-treino</option><option value="v|treino"'+(cur.v==='treino'?' selected':'')+'>🎯 Treino da semana</option>'+
+    DATA.posicoes.map(function(x){return '<option value="'+x.id+'"'+(cur.v==='pos'&&x.id===cur.p?' selected':'')+'>'+esc(x.g)+' — '+esc(x.n)+'</option>';}).join('')+'</select>';
+  var main;
+  if (q || atl) main = renderSearch();
+  else if (cur.v==='inicio') main = renderInicio();
+  else if (cur.v==='registro') main = renderRegistro();
+  else if (cur.v==='treino') main = renderTreino();
+  else main = renderPos();
+  root.innerHTML = '<header><h1>Mapa de <span>Jiu-Jitsu</span></h1><input id="q" placeholder="Buscar técnica ou atleta…" value="'+esc(q)+'"><div id="savebar"></div></header>'+
+    '<div class="wrap"><nav>'+renderNav()+'</nav><main>'+navsel+main+'</main></div>';
+  renderSave();
+  var qi = document.getElementById('q');
+  qi.oninput = function(){ q = qi.value.trim(); atl=''; var pos = qi.selectionStart; render(); var n=document.getElementById('q'); n.focus(); n.setSelectionRange(pos,pos); };
+  var ns = document.getElementById('navsel'); if (ns) ns.onchange = function(){ var v=ns.value; if (v.indexOf('v|')===0) view(v.slice(2)); else go(v, jogoSide(v)||'a'); };
+  var nt = document.getElementById('nota'); if (nt) nt.oninput = function(){ DATA.notas[cur.p+'-'+cur.l] = nt.value; markDirty(); };
+  var fnv = document.getElementById('f-nv'); if (fnv) fnv.onchange = function(){ DATA.perfil.nivelMax = +fnv.value; markDirty(); render(); };
+  var fpr = document.getElementById('f-pr'); if (fpr) fpr.onchange = function(){ DATA.perfil.esconderProib = fpr.checked; markDirty(); render(); };
+  [['pf-faixa','faixa'],['pf-grau','grau'],['pf-estilo','estilo'],['pf-modal','modal']].forEach(function(x){ var el=document.getElementById(x[0]); if (!el) return; el.onchange=function(){ var v = x[1]==='grau' ? +el.value : el.value; DATA.perfil[x[1]] = v; if (x[1]==='faixa'){ DATA.perfil.nivelMax = NV_FAIXA[v]||2; toast('Filtro ajustado para '+NV_LABEL[DATA.perfil.nivelMax].toLowerCase()+'. Mude se quiser.'); } markDirty(); render(); }; });
+  var pm = document.getElementById('pf-master'); if (pm) pm.onchange = function(){ DATA.perfil.master = pm.checked; markDirty(); render(); };
+  var rp = document.getElementById('reg-pos'); if (rp){ rp.onchange = updateRegFin; document.querySelectorAll('input[name=tipo]').forEach(function(r){ r.onchange = updateRegFin; }); updateRegFin(); }
+  var plp = document.getElementById('pl-pos'); if (plp) plp.onchange = function(){ var x=plp.value.split('|'); setPlano(x[0],x[1]); };
+  var cp = document.getElementById('copyplan'); if (cp) cp.onclick = function(){ try { navigator.clipboard.writeText(planoText(cur.plano)).then(function(){toast('Plano copiado.');}, function(){toast('Não deu para copiar. Selecione o texto e copie.');}); } catch(e){ toast('Não deu para copiar. Selecione o texto e copie.'); } };
+}
+function setPlano(pid,l){ DATA.plano = {p:pid, l:l, foco:autoFoco(pid,l), criado:today()}; markDirty(); view('treino'); }
+
+document.addEventListener('change', function(e){
+  var t=e.target;
+  if (t.dataset && t.dataset.jogo){ var j=DATA.perfil.jogo, i=j.indexOf(t.dataset.jogo); if (t.checked && i<0) j.push(t.dataset.jogo); if (!t.checked && i>-1) j.splice(i,1); markDirty(); }
+  if (t.dataset && t.dataset.foco){
+    var pl = DATA.plano && P(DATA.plano.p) ? DATA.plano : (DATA.plano = cur.plano);
+    var f=pl.foco, k=f.indexOf(t.dataset.foco);
+    if (t.checked && k<0){ if (f.length>=3){ t.checked=false; toast('Máximo de 3 técnicas: foco é foco.'); return; } f.push(t.dataset.foco); }
+    if (!t.checked && k>-1) f.splice(k,1);
+    markDirty(); render();
+  }
+});
+
+document.addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  var d = b.dataset;
+  if (d.view){ view(d.view); }
+  else if (d.atl){ atl = (atl===d.atl?'':d.atl); q=''; render(); window.scrollTo(0,0); }
+  else if (d.nav){ go(d.nav, d.navl || jogoSide(d.nav) || 'a'); }
+  else if (d.side){ go(cur.p, d.side); }
+  else if (d.go){ var s=d.go.split('|'); go(s[0], s[1]); }
+  else if (d.trail){ var i=+d.trail; var t=trail[i]; trail=trail.slice(0,i+1); go(t.p,t.l,true); }
+  else if ('cleartrail' in d){ trail=[{p:cur.p,l:cur.l}]; render(); }
+  else if ('showall' in d){ showAll=!showAll; render(); }
+  else if ('editjogo' in d){ editJogo=!editJogo; render(); }
+  else if (d.star){ var j=DATA.perfil.jogo, key=d.star+'|'+cur.l, k=j.indexOf(key); if (k>-1) j.splice(k,1); else j.push(key); markDirty(); render(); }
+  else if ('sugerir' in d){ var pf=DATA.perfil, sg=SUGESTAO[pf.estilo+'|'+(pf.modal==='No-gi'?'No-gi':'Gi')]; if (sg){ pf.jogo=sg.slice(); markDirty(); editJogo=false; render(); toast('Meu jogo atualizado para '+pf.estilo+'.'); } }
+  else if (d.plano){ var x=d.plano.split('|'); setPlano(x[0],x[1]); }
+  else if (d.consulta){ var r=DATA.diario.filter(function(x){return x.id===d.consulta;})[0]; if (r){ lastReg=r; render(); var el=document.querySelector('.resposta'); if(el) el.scrollIntoView({behavior:'smooth'}); } }
+  else if (d.resolve){ DATA.diario.forEach(function(x){ if(x.id===d.resolve) x.resolvido=!x.resolvido; }); markDirty(); render(); }
+  else if (d.delreg){ if (b.dataset.sure){ DATA.diario = DATA.diario.filter(function(x){return x.id!==d.delreg;}); if (lastReg&&lastReg.id===d.delreg) lastReg=null; markDirty(); render(); } else { b.dataset.sure='1'; b.textContent='confirmar'; } }
+  else if (d.st){ DATA.status[d.st] = ((DATA.status[d.st]||0)+1)%4; markDirty(); render(); }
+  else if (d.add){ var a=d.add.split('|'); editing={p:a[0],l:a[1],kind:a[2],id:''}; render(); }
+  else if (d.edit){ var y=d.edit.split('|'); editing={p:y[0],l:y[1],kind:y[2],id:y[3]}; if (cur.v!=='pos') go(y[0],y[1]); editing={p:y[0],l:y[1],kind:y[2],id:y[3]}; showAll=true; render(); }
+  else if ('cancel' in d){ editing=null; if (cur.v==='pos' || q || atl) render(); else view('inicio'); }
+  else if (d.del){
+    var f = b.closest('form').dataset.form.split('|'); var list = P(f[0])[f[1]][f[2]];
+    if (b.dataset.sure){ for (var z=0;z<list.length;z++) if (list[z].id===d.del){ list.splice(z,1); break; } delete DATA.status[d.del]; editing=null; markDirty(); render(); }
+    else { b.dataset.sure='1'; b.textContent='Confirmar exclusão'; }
+  }
+  else if ('newpos' in d){ newPos(); }
+});
+
+function lines(v){ return String(v||'').split('\n').map(function(s){return s.trim();}).filter(Boolean); }
+document.addEventListener('submit', function(e){
+  var f = e.target;
+  if (f.id==='regform'){
+    e.preventDefault(); var fd=new FormData(f); var pos=String(fd.get('pos')||''); if (!pos){ toast('Escolha a posição.'); return; }
+    var x=pos.split('|');
+    var r={id:'r'+Date.now().toString(36), data:fd.get('data')||today(), p:x[0], l:x[1], tipo:fd.get('tipo')||'perdido', fin:fd.get('fin')||'', finTxt:String(fd.get('finTxt')||'').trim(), nota:String(fd.get('nota')||'').trim(), resolvido:false};
+    DATA.diario.push(r); lastReg=r; markDirty(); render();
+    var el=document.querySelector('.resposta'); if(el) el.scrollIntoView({behavior:'smooth'});
+    return;
+  }
+  if (!f.dataset.form) return; e.preventDefault();
+  var s = f.dataset.form.split('|'); var p=P(s[0]), l=s[1], kind=s[2], id=s[3];
+  var fd = new FormData(f); var it = {n:fd.get('n').trim(), k:fd.get('k').trim(), d:fd.get('d').trim(), nv:+fd.get('nv')||1};
+  var at=(fd.get('at')||'').trim(), src=(fd.get('src')||'').trim(), video=(fd.get('video')||'').trim();
+  if(at) it.at=at; if(/^https?:\/\//.test(src)) it.src=src; if(/^https?:\/\//.test(video)) it.video=video;
+  var ps=lines(fd.get('passos')), er=lines(fd.get('erros')); if(ps.length) it.passos=ps; if(er.length) it.erros=er;
+  if (!it.n) return;
+  if (kind==='mov'){ it.t=fd.get('t'); it.p=fd.get('p'); it.l=fd.get('l'); }
+  var list = p[l][kind];
+  if (id){ for (var i=0;i<list.length;i++) if (list[i].id===id){ it.id=id; if(list[i].cls) it.cls=list[i].cls; if(list[i].gi) it.gi=list[i].gi; list[i]=it; break; } }
+  else { it.id = 'c'+Date.now().toString(36); list.push(it); }
+  editing=null; markDirty(); render();
+});
+
+function newPos(){
+  var main = document.querySelector('main');
+  main.innerHTML = '<h2 class="big">Nova posição</h2><form class="ed" id="np" style="max-width:520px">'+
+    '<label>Nome<input name="n" required placeholder="ex: Guarda X"></label>'+
+    '<label>Grupo<input name="g" list="gl" required placeholder="ex: Guardas"><datalist id="gl">'+Array.from(new Set(DATA.posicoes.map(function(p){return p.g;}))).map(function(g){return '<option value="'+esc(g)+'">';}).join('')+'</datalist></label>'+
+    '<label>Descrição<textarea name="desc" rows="2"></textarea></label>'+
+    '<div class="two"><label>Lado dominante<input name="la" value="Por cima"></label><label>Lado inferior<input name="lb" value="Por baixo"></label></div>'+
+    '<div class="btns"><button type="submit">Criar</button><button type="button" data-cancel>Cancelar</button></div></form>';
+  document.getElementById('np').onsubmit = function(e){
+    e.preventDefault(); var fd = new FormData(e.target);
+    var id = slug(fd.get('n')); if (P(id)) id += '-'+Date.now().toString(36);
+    DATA.posicoes.push({id:id, n:fd.get('n').trim(), g:fd.get('g').trim(), desc:fd.get('desc').trim(), a:{label:fd.get('la').trim()||'Por cima', fin:[], mov:[], dicas:[]}, b:{label:fd.get('lb').trim()||'Por baixo', fin:[], mov:[], dicas:[]}});
+    markDirty(); go(id,'a');
+  };
+}
+
+render();
+if (window.claude && claude.use){
+  claude.use('artifact').then(function(a){ if (a && a.publish){ art=a; canPublish=true; renderSave(); } }).catch(function(){});
+}
+})();
+</script></body></html>
