@@ -105,6 +105,11 @@
 
   .nav { flex: 1; padding: 16px 0; overflow-y: auto; }
   .nav-section { padding: 8px 24px 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); font-weight: 500; }
+  .nav-section { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; padding-right: 18px; }
+  .nav-section:hover { color: var(--text2); }
+  .nav-section::after { content: '▾'; font-size: 10px; letter-spacing: 0; transition: transform .15s; }
+  .nav-section.recolhida::after { transform: rotate(-90deg); }
+  .nav-item.nav-recolhido { display: none; }
   .nav-item {
     display: flex; align-items: center; gap: 12px;
     padding: 11px 24px; cursor: pointer; transition: all 0.15s;
@@ -205,6 +210,28 @@
   .stat-red { color: var(--red); }
 
   /* TABLE */
+  /* ── Central ── */
+  .ct-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+  .ct-card { margin-bottom: 0; display: flex; flex-direction: column; }
+  .ct-lista { max-height: 340px; overflow-y: auto; }
+  .ct-linha { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); }
+  .ct-linha:last-child { border-bottom: 0; }
+  .ct-ico { width: 24px; text-align: center; flex-shrink: 0; font-size: 15px; }
+  .ct-txt { flex: 1; min-width: 0; }
+  .ct-tit { font-size: 13px; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ct-sub { font-size: 11px; color: var(--text3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ct-bts { display: flex; gap: 4px; flex-shrink: 0; }
+  .ct-bt { padding: 3px 8px; font-size: 12px; text-decoration: none; }
+  .ct-qtd { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 10px; font-weight: 700; }
+  .ct-vazio { padding: 18px 14px; text-align: center; color: var(--text3); font-size: 12px; line-height: 1.5; }
+  .ct-ocultos { padding: 8px 14px; font-size: 11px; color: var(--text3); cursor: pointer; border-top: 1px solid var(--border); user-select: none; }
+  .ct-ocultos:hover { color: var(--text2); }
+  .ct-linha-oculta { opacity: .5; }
+  .ct-aviso { padding: 8px 14px; font-size: 11px; color: var(--accent2); border-bottom: 1px solid var(--border); }
+  .ct-tabela { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ct-tabela th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); font-weight: 500; padding: 8px 14px; border-bottom: 1px solid var(--border); }
+  .ct-tabela td { padding: 7px 14px; border-bottom: 1px solid var(--border); }
+  @media (max-width: 700px) { .ct-grid { grid-template-columns: 1fr; } .ct-tabela th:nth-child(3), .ct-tabela td:nth-child(3) { display: none; } }
   .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; box-shadow: var(--shadow-sm); }
   .table-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
   .table-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; }
@@ -555,8 +582,10 @@
     </div>
     <div class="nav">
       <div class="nav-section">Principal</div>
+      <div class="nav-item" data-page="central" onclick="navigate('central');closeSidebar()"><span class="icon">🎯</span> Central<span id="central-badge" class="alunos-badge" style="display:none"></span></div>
       <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard');closeSidebar()"><span class="icon">⬡</span> Dashboard</div>
-      <div class="nav-item" data-page="treino" onclick="navigate('treino');closeSidebar()"><span class="icon">▲</span> Treino</div>
+      <!-- Treino: oculto do menu por enquanto (a página continua funcionando: navigate('treino')) -->
+      <div class="nav-item" data-page="treino" style="display:none" onclick="navigate('treino');closeSidebar()"><span class="icon">▲</span> Treino</div>
       <div class="nav-section">Finanças</div>
       <div class="nav-item" data-page="financas" onclick="navigate('financas');closeSidebar()"><span class="icon">◈</span> Finanças</div>
 
@@ -564,10 +593,9 @@
       <div class="nav-item" data-page="alunos" onclick="navigate('alunos');closeSidebar()"><span class="icon">◯</span> Alunos<span id="alunos-badge" class="alunos-badge" style="display:none"></span></div>
       <div class="nav-item" data-page="gravacao" onclick="navigate('gravacao');closeSidebar()"><span class="icon">🎥</span> Gravação de exercícios</div>
       <div class="nav-item" data-page="whatsapp" onclick="navigate('whatsapp');closeSidebar()"><span class="icon">📲</span> WhatsApp<span id="wa-nav-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--text3);margin-left:6px;vertical-align:middle;transition:background .3s"></span></div>
+      <div class="nav-item" data-page="brand" onclick="navigate('brand');closeSidebar()"><span class="icon">◉</span> Identidade Visual</div>
       <div class="nav-section">Pessoal</div>
       <div class="nav-item" data-page="jiujitsu" onclick="navigate('jiujitsu');closeSidebar()"><span class="icon">🥋</span> Jiu-Jitsu</div>
-      <div class="nav-section">Social Media</div>
-      <div class="nav-item" data-page="brand" onclick="navigate('brand');closeSidebar()"><span class="icon">◉</span> Identidade Visual</div>
       <div class="nav-section">Análise</div>
       <div class="nav-item" data-page="historico" onclick="navigate('historico');closeSidebar()"><span class="icon">◷</span> Histórico</div>
       <div class="nav-item" data-page="fluxo" onclick="navigate('fluxo');closeSidebar()"><span class="icon">📈</span> Fluxo do Mês</div>
@@ -608,6 +636,7 @@
   <!-- BOTTOM NAV -->
   <nav class="bottom-nav">
     <button class="bottom-nav-item active" id="bn-dashboard" onclick="navigate('dashboard')"><span class="bn-icon">⬡</span>Home</button>
+    <button class="bottom-nav-item" id="bn-central" onclick="navigate('central')"><span class="bn-icon">🎯</span>Central</button>
     <button class="bottom-nav-item" id="bn-financas" onclick="navigate('financas')"><span class="bn-icon">◈</span>Finanças</button>
     <button class="bottom-nav-item" id="bn-alunos" onclick="navigate('alunos')"><span class="bn-icon">◯</span>Alunos</button>
 
@@ -1598,18 +1627,42 @@ function reapplyAllSorts() {
   });
 }
 
+// ==================== MENU LATERAL: SEÇÕES RECOLHÍVEIS ====================
+// Toque no título da seção recolhe/abre. Fica salvo só neste aparelho. A página aberta continua visível.
+const NAV_RECOLHIDAS_KEY = 'gestor_nav_recolhidas';
+let _navRecolhidas = [];
+try { _navRecolhidas = JSON.parse(localStorage.getItem(NAV_RECOLHIDAS_KEY)) || []; } catch(e) {}
+function aplicarSecoesNav() {
+  let secao = null;
+  document.querySelectorAll('.sidebar .nav > .nav-section, .sidebar .nav > .nav-item').forEach(el => {
+    if (el.classList.contains('nav-section')) {
+      secao = el.textContent.trim();
+      el.classList.toggle('recolhida', _navRecolhidas.includes(secao));
+      if (!el.dataset.secaoPronta) { el.dataset.secaoPronta = '1'; el.addEventListener('click', () => alternarSecaoNav(el.textContent.trim())); }
+    } else {
+      el.classList.toggle('nav-recolhido', !!secao && _navRecolhidas.includes(secao) && !el.classList.contains('active'));
+    }
+  });
+}
+function alternarSecaoNav(secao) {
+  _navRecolhidas = _navRecolhidas.includes(secao) ? _navRecolhidas.filter(s => s !== secao) : [..._navRecolhidas, secao];
+  try { localStorage.setItem(NAV_RECOLHIDAS_KEY, JSON.stringify(_navRecolhidas)); } catch(e) {}
+  aplicarSecoesNav();
+}
+
 // ==================== NAVIGATION ====================
 async function navigate(page) {
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const activeItem = document.querySelector(`.nav-item[data-page="${page}"]`);
   if (activeItem) activeItem.classList.add('active');
+  aplicarSecoesNav();
   document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
   const bn = document.getElementById(`bn-${page}`);
   if(bn) bn.classList.add('active');
 
   const titles = {
-    dashboard:'DASHBOARD', balanco:'BALANÇO', cartao:'CARTÃO',
+    central:'CENTRAL', dashboard:'DASHBOARD', balanco:'BALANÇO', cartao:'CARTÃO',
     calistenia:'ALUNOS', personal:'ALUNOS', alunos:'ALUNOS', financas:'FINANÇAS', porquinho:'FINANÇAS', treino:'TREINO', brand:'IDENTIDADE VISUAL', historico:'HISTÓRICO', whatsapp:'WHATSAPP', fluxo:'FLUXO DO MÊS', analise:'ASSISTENTE FINANCEIRO', gravacao:'GRAVAÇÃO', jiujitsu:'JIU-JITSU'
   };
   document.getElementById('topbarMonthNav').style.display = (page === 'historico' || page === 'whatsapp' || page === 'gravacao' || page === 'jiujitsu') ? 'none' : 'flex';
@@ -1646,7 +1699,363 @@ async function navigate(page) {
     case 'analise':      await renderAnalise(); break;
     case 'gravacao':     await renderGravacao(); break;
     case 'jiujitsu':     await renderJiujitsu(); break;
+    case 'central':      renderCentral(md); break;
   }
+}
+
+// ==================== CENTRAL ====================
+// Visão única do dia: dados do Gestor (fonte oficial de alunos, pagamentos e treinos)
+// + formulários das planilhas do Google + conversas não lidas do MarcFlow (via /api/central).
+let _centralExt = null;          // resposta de /api/central
+let _centralExtEm = 0;           // quando foi buscada
+let _centralCarregando = false;
+let _centralBusca = '';
+const CENTRAL_MARCFLOW = 'https://whatsapp.teamcaldas.com.br';
+
+const _ctEsc = t => String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const _ctNome = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+// Telefone → só dígitos com DDI 55 (para casar aluno ↔ formulário ↔ conversa)
+function _ctTel(v) {
+  let d = String(v||'').replace(/\D/g,'');
+  if (!d) return null;
+  if (d.length === 10 || d.length === 11) d = '55' + d;
+  return d.length >= 12 ? d : null;
+}
+// Compara pelos 8 últimos dígitos (ignora o 9 extra dos celulares)
+const _ctTelIgual = (a, b) => !!a && !!b && a.slice(-8) === b.slice(-8);
+function _ctNomeIgual(a, b) {
+  const x = _ctNome(a).split(' '), y = _ctNome(b).split(' ');
+  if (!x[0] || !y[0] || x[0] !== y[0]) return false;
+  if (x.length === 1 || y.length === 1) return x.join(' ') === y.join(' ');
+  return x[x.length-1] === y[y.length-1] || y.includes(x[1]) || x.includes(y[1]);
+}
+function _ctLinkWhats(tel) {
+  if (!tel) return null;
+  return _centralExt?.conversas?.configurado
+    ? `${CENTRAL_MARCFLOW}/dashboard/chat/${encodeURIComponent(tel + '@s.whatsapp.net')}`
+    : `https://wa.me/${tel}`;
+}
+function _ctDias(iso) {
+  if (!iso) return null;
+  const h = new Date(); h.setHours(0,0,0,0);
+  return Math.floor((_dataLocal(iso) - h) / 86400000);
+}
+function _ctHa(iso) {
+  if (!iso) return '';
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 60) return `há ${Math.max(min,1)} min`;
+  if (min < 1440) return `há ${Math.round(min/60)} h`;
+  const d = Math.round(min/1440);
+  return d === 1 ? 'ontem' : `há ${d} dias`;
+}
+// Dia de pagamento ("Dia 10" ou "10/11") → dias até ele (negativo = atrasado)
+function _ctDiasPgto(diaAcerto) {
+  const d = String(diaAcerto||'').trim(); if (!d) return null;
+  const h = new Date(); h.setHours(0,0,0,0);
+  let m = d.match(/^[Dd]ia\s*(\d{1,2})$/);
+  if (m) return Math.floor((new Date(h.getFullYear(), h.getMonth(), +m[1]) - h) / 86400000);
+  m = d.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+  if (m) { const a = m[3] ? (m[3].length===2 ? 2000 + +m[3] : +m[3]) : h.getFullYear(); return Math.floor((new Date(a, +m[2]-1, +m[1]) - h) / 86400000); }
+  return null;
+}
+
+function _centralAlunos(md) {
+  const cali = calcValoresCali(md.calistenia || []);
+  return [
+    ...cali.map(a => ({ ...a, _tipo:'cali', _valor:a.valorFinal })),
+    ...(md.personal?.online || []).map(a => ({ ...a, _tipo:'online', _valor:a.valor||0 })),
+    ...(md.personal?.presencial || []).map(a => ({ ...a, _tipo:'pres', _valor:a.valor||0 })),
+  ].map(a => ({ ...a, _tel: _ctTel(a.telefone) }));
+}
+function _ctAcharAluno(alunos, { nome, telefone }) {
+  const tel = _ctTel(telefone);
+  return (tel && alunos.find(a => _ctTelIgual(a._tel, tel))) || (nome && alunos.find(a => _ctNomeIgual(a.nome, nome))) || null;
+}
+
+async function carregarCentralExterno(forcar) {
+  if (_centralCarregando) return;
+  if (!forcar && _centralExt && Date.now() - _centralExtEm < 60000) return;
+  _centralCarregando = true;
+  try {
+    await ensureAuth();
+    const r = await fetch('/api/central', { headers: { Authorization: `Bearer ${authSession?.access_token || ''}` }, cache: 'no-store' });
+    if (r.status === 404) _centralExt = { indisponivel: true };
+    else if (!r.ok) _centralExt = { erro: `Erro ${r.status}` };
+    else _centralExt = await r.json();
+  } catch (e) {
+    _centralExt = { erro: 'Sem conexão' };
+  } finally {
+    _centralExtEm = Date.now();
+    _centralCarregando = false;
+    if (currentPage === 'central') renderCentral(getMonthData());
+  }
+}
+
+// ── Adiar / ocultar itens ──
+// Guardado em __central__ (sincroniza entre aparelhos). A chave de cada item inclui o estado dele
+// (ex.: data do treino, última mensagem), então "até mudar" volta sozinho quando algo muda.
+let _ctAdiados = null;              // { chave: { ate: ISO | null (até mudar), ts } }
+let _ctAdiadosSave = null;
+const _ctVerOcultos = {};           // por card: mostrar os adiados?
+async function carregarCentralAdiados() {
+  try {
+    const d = await sbGet('__central__');
+    _ctAdiados = d?.adiados || {};
+  } catch (e) { _ctAdiados = _ctAdiados || {}; }
+  if (currentPage === 'central') renderCentral(getMonthData());
+}
+function _ctEstaAdiado(chave) {
+  const a = _ctAdiados?.[chave];
+  if (!a || a.desfeito) return false;
+  return a.ate === null || new Date(a.ate).getTime() > Date.now();
+}
+function _ctSalvarAdiados() {
+  clearTimeout(_ctAdiadosSave);
+  _ctAdiadosSave = setTimeout(async () => {
+    try {
+      const remoto = await sbGet('__central__');
+      Object.entries(remoto?.adiados || {}).forEach(([k, v]) => {
+        if (!_ctAdiados[k] || (v.ts || 0) > (_ctAdiados[k].ts || 0)) _ctAdiados[k] = v;
+      });
+      // limpa o que já venceu há mais de 30 dias
+      const lim = Date.now() - 30 * 86400000;
+      Object.keys(_ctAdiados).forEach(k => { const v = _ctAdiados[k]; if ((v.desfeito || (v.ate && new Date(v.ate).getTime() < lim)) && v.ts < lim) delete _ctAdiados[k]; });
+      await sbUpsert('__central__', { adiados: _ctAdiados });
+      setSyncStatus('synced', 'Sincronizado');
+    } catch (e) { console.error('salvar central:', e); setSyncStatus('error', 'Erro ao salvar'); }
+  }, 600);
+}
+function abrirAdiar(chave, nome) {
+  const op = (rot, dias) => `<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;margin-bottom:8px" onclick="adiarItem('${chave}', ${dias})">${rot}</button>`;
+  openModal(`<div class="modal-handle"></div>
+    <div class="modal-title">ADIAR</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px">${_ctEsc(nome)}</div>
+    ${op('⏰ Até amanhã', 1)}${op('⏰ Por 3 dias', 3)}${op('⏰ Por 1 semana', 7)}
+    ${op('🙈 Ocultar até mudar alguma coisa', 'null')}
+    <div style="font-size:11px;color:var(--text3);margin-top:4px">"Até mudar" volta sozinho quando a situação mudar (nova data de treino, nova mensagem, novo mês…).</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button></div>`);
+}
+function adiarItem(chave, dias) {
+  if (guardReadOnly()) return;
+  let ate = null;
+  if (dias !== null) { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + dias); ate = d.toISOString(); }
+  _ctAdiados = _ctAdiados || {};
+  _ctAdiados[chave] = { ate, ts: Date.now() };
+  _ctSalvarAdiados(); closeModal(); renderCentral(getMonthData());
+}
+function desfazerAdiar(chave) {
+  if (guardReadOnly()) return;
+  _ctAdiados[chave] = { ate: null, desfeito: true, ts: Date.now() };
+  _ctSalvarAdiados(); renderCentral(getMonthData());
+}
+function _ctAteTxt(chave) {
+  const a = _ctAdiados?.[chave];
+  if (!a) return '';
+  if (a.ate === null) return 'oculto até mudar';
+  return 'adiado até ' + new Date(a.ate).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+}
+// Monta o corpo de um card separando visíveis e adiados
+function _ctSecao(id, itens, vazio) {
+  const ro = isReadOnly();
+  const vis = itens.filter(i => !_ctEstaAdiado(i.chave));
+  const ocu = itens.filter(i => _ctEstaAdiado(i.chave));
+  const linha = (i, oculto) => _ctLinha({
+    ...i.linha,
+    sub: oculto ? `${i.linha.sub || ''}${i.linha.sub ? ' · ' : ''}${_ctAteTxt(i.chave)}` : i.linha.sub,
+    botoes: (i.linha.botoes || '') + (ro ? '' : oculto
+      ? _ctBtn('↺', `onclick="desfazerAdiar('${i.chave}')"`, 'Trazer de volta')
+      : _ctBtn('⏰', `onclick="abrirAdiar('${i.chave}', '${_ctEsc(i.nome).replace(/'/g, '&#39;')}')"`, 'Adiar ou ocultar')),
+    oculto,
+  });
+  let corpo = vis.length ? vis.map(i => linha(i, false)).join('') : _ctVazio(vazio);
+  if (ocu.length) {
+    const ver = !!_ctVerOcultos[id];
+    corpo += `<div class="ct-ocultos" onclick="_ctVerOcultos['${id}']=${!ver};renderCentral(getMonthData())">${ver ? '▾' : '▸'} ${ocu.length} adiado(s)</div>`
+      + (ver ? ocu.map(i => linha(i, true)).join('') : '');
+  }
+  return { corpo, qtd: vis.length };
+}
+
+function _ctCard(titulo, qtd, corpo, extra = '') {
+  return `<div class="table-card ct-card">
+    <div class="table-header"><div class="table-title">${titulo}${qtd ? ` <span class="ct-qtd">${qtd}</span>` : ''}</div>${extra}</div>
+    <div class="ct-lista">${corpo}</div>
+  </div>`;
+}
+const _ctVazio = msg => `<div class="ct-vazio">${msg}</div>`;
+function _ctLinha({ icone, titulo, sub, cor, botoes = '', oculto = false }) {
+  return `<div class="ct-linha${oculto ? ' ct-linha-oculta' : ''}">
+    <div class="ct-ico">${icone}</div>
+    <div class="ct-txt"><div class="ct-tit">${titulo}</div>${sub ? `<div class="ct-sub" ${cor ? `style="color:${cor}"` : ''}>${sub}</div>` : ''}</div>
+    <div class="ct-bts">${botoes}</div>
+  </div>`;
+}
+const _ctBtn = (rotulo, attrs, titulo='') => `<button class="btn btn-ghost btn-sm ct-bt" ${attrs} title="${_ctEsc(titulo)}">${rotulo}</button>`;
+const _ctBtnLink = (rotulo, href, titulo='') => href ? `<a class="btn btn-ghost btn-sm ct-bt" href="${_ctEsc(href)}" target="_blank" rel="noopener" title="${_ctEsc(titulo)}">${rotulo}</a>` : '';
+const _ctTipoBadge = t => t==='cali' ? `<span class="badge badge-gray">Cali</span>` : t==='online' ? `<span class="badge badge-green">Online</span>` : `<span class="badge badge-blue">Pres</span>`;
+
+function renderCentral(md) {
+  const ro = isReadOnly();
+  const alunos = _centralAlunos(md);
+  const ativos = alunos.filter(a => !a.pausado);
+  const ext = _centralExt;
+  if (!ext || Date.now() - _centralExtEm > 60000) carregarCentralExterno();
+
+  document.getElementById('topbarActions').innerHTML =
+    `<button class="btn btn-ghost btn-sm" onclick="carregarCentralExterno(true)" title="Buscar formulários e conversas de novo">↻ Atualizar</button>`;
+
+  const mk = monthKey();
+  if (_ctAdiados === null) { _ctAdiados = {}; carregarCentralAdiados(); }
+
+  // ── Formulários (planilhas) ──
+  let formCorpo, formQtd = 0;
+  const fontePendente = (nome, oQue) => _ctVazio(`${nome} ainda não está conectado ao Gestor.<br><span style="font-size:11px">${oQue}</span>`);
+  if (!ext || (_centralCarregando && !ext.formularios)) formCorpo = _ctVazio('Carregando…');
+  else if (ext.indisponivel) formCorpo = _ctVazio('Disponível só no site publicado.');
+  else if (ext.erro) formCorpo = _ctVazio(`Não deu para buscar (${_ctEsc(ext.erro)}).`);
+  else if (!ext.formularios?.configurado) formCorpo = fontePendente('O Google Drive', 'Falta a conta de serviço do Google com acesso às planilhas.');
+  else {
+    const sec = _ctSecao('form', (ext.formularios.itens || []).map(f => {
+      const al = _ctAcharAluno(alunos, f);
+      const tel = _ctTel(f.telefone) || al?._tel;
+      const tipo = f.tipo === 'anamnese' ? 'Anamnese (aluno novo)' : 'Atualizar treino';
+      const vinculo = al ? `${_ctTipoBadge(al._tipo)} ` : `<span class="badge badge-yellow" title="Não achei esse nome no Gestor">novo</span> `;
+      return { chave: 'form:' + f.link, nome: f.nome, linha: {
+        icone: f.tipo === 'anamnese' ? '🆕' : '📝',
+        titulo: `${vinculo}${_ctEsc(f.nome)}`,
+        sub: `${tipo} · ${_ctEsc(f.consultoria)} · ${_ctHa(f.enviadoEm)}`,
+        botoes: _ctBtnLink('📄', f.link, 'Abrir a resposta na planilha') + _ctBtnLink('💬', _ctLinkWhats(tel), 'Abrir conversa')
+          + (al && al._tipo === 'online' && !ro ? _ctBtn('📋', `onclick="attTreino('${al.id}')"`, 'Registrar atualização do treino') : ''),
+      } };
+    }), '✓ Nenhum formulário esperando');
+    formQtd = sec.qtd;
+    formCorpo = (ext.formularios.erro ? `<div class="ct-aviso">⚠ ${_ctEsc(ext.formularios.erro)}</div>` : '') + sec.corpo;
+  }
+
+  // ── Treinos vencendo (Gestor) ──
+  const treinos = ativos
+    .filter(a => a._tipo !== 'cali' && (a.proxAtt || a.formStatus === 'aguardando' || a.formStatus === 'pendente'))
+    .map(a => ({ a, dias: a.proxAtt ? _ctDias(a.proxAtt) : null }))
+    .filter(({ a, dias }) => a.formStatus === 'aguardando' || a.formStatus === 'pendente' || (dias !== null && dias <= 7))
+    .sort((x, y) => (x.dias ?? -999) - (y.dias ?? -999));
+  const secTreino = _ctSecao('treino', treinos.map(({ a, dias }) => {
+    const st = a.formStatus === 'aguardando' ? { t:'Formulário enviado, esperando resposta', c:'var(--accent3)', i:'📨' }
+      : a.formStatus === 'pendente' ? { t:'Formulário respondido — montar treino', c:'var(--accent2)', i:'🛠' }
+      : dias < 0 ? { t:`Treino venceu há ${-dias}d`, c:'var(--red)', i:'🔴' }
+      : dias === 0 ? { t:'Treino vence hoje', c:'var(--accent2)', i:'🟡' }
+      : { t:`Treino vence em ${dias}d`, c:'var(--text2)', i:'📋' };
+    return { chave: `treino:${a.id}:${a.formStatus || ''}:${a.proxAtt || ''}`, nome: a.nome, linha: {
+      icone: st.i, titulo: `${_ctTipoBadge(a._tipo)} ${_ctEsc(a.nome)}`, sub: st.t, cor: st.c,
+      botoes: _ctBtnLink('💬', _ctLinkWhats(a._tel), 'Abrir conversa')
+        + (a._tipo === 'online' && !ro ? _ctBtn('📋', `onclick="attTreino('${a.id}')"`, 'Registrar atualização do treino') : ''),
+    } };
+  }), '✓ Nenhum treino vencendo nos próximos 7 dias');
+
+  // ── Pagamentos de alunos (Gestor) ──
+  const pgtos = ativos.filter(a => !a.pago)
+    .map(a => ({ a, dias: _ctDiasPgto(a.diaAcerto) }))
+    .sort((x, y) => (x.dias ?? 99) - (y.dias ?? 99));
+  const totPend = pgtos.reduce((s, { a }) => s + (a._valor || 0), 0);
+  const secPgto = _ctSecao('pgto', pgtos.map(({ a, dias }) => {
+    const sub = dias === null ? (a.diaAcerto ? _ctEsc(a.diaAcerto) : 'Sem dia combinado')
+      : dias < 0 ? `Atrasado ${-dias}d (${_ctEsc(a.diaAcerto)})` : dias === 0 ? 'Vence hoje' : `Vence em ${dias}d (${_ctEsc(a.diaAcerto)})`;
+    const cor = dias !== null && dias < 0 ? 'var(--red)' : dias !== null && dias <= 3 ? 'var(--accent2)' : '';
+    return { chave: `pgto:${mk}:${a.id}`, nome: a.nome, dias, linha: {
+      icone: '💰', titulo: `${_ctTipoBadge(a._tipo)} ${_ctEsc(a.nome)} <span class="mono" style="color:var(--red);margin-left:4px">${fmt(a._valor)}</span>`, sub, cor,
+      botoes: _ctBtnLink('💬', _ctLinkWhats(a._tel), 'Cobrar pelo WhatsApp')
+        + (ro ? '' : _ctBtn('✓', `onclick="${a._tipo==='cali' ? 'toggleCali' : 'togglePersonal'}('${a.id}')" style="color:var(--green)"`, 'Marcar como pago')),
+    } };
+  }), '✓ Todos os alunos ativos pagaram');
+  const pgtosAtrasadosVis = pgtos.filter(({ a, dias }) => dias !== null && dias <= 0 && !_ctEstaAdiado(`pgto:${mk}:${a.id}`)).length;
+
+  // ── Conversas (MarcFlow) ──
+  let convCorpo, convQtd = 0;
+  if (!ext || (_centralCarregando && !ext.conversas)) convCorpo = _ctVazio('Carregando…');
+  else if (ext.indisponivel) convCorpo = _ctVazio('Disponível só no site publicado.');
+  else if (ext.erro) convCorpo = _ctVazio(`Não deu para buscar (${_ctEsc(ext.erro)}).`);
+  else if (!ext.conversas?.configurado) convCorpo = fontePendente('O MarcFlow', 'Falta a chave de API do MarcFlow no servidor do Gestor.');
+  else if (ext.conversas.erro) convCorpo = _ctVazio(`⚠ ${_ctEsc(ext.conversas.erro)}`);
+  else {
+    const sec = _ctSecao('conv', (ext.conversas.itens || []).map(c => {
+      const al = _ctAcharAluno(alunos, { nome: c.nome, telefone: c.telefone });
+      const nome = al?.nome || c.nome || (c.telefone ? '+' + c.telefone : 'Contato');
+      const txt = c.ultima?.texto ? _ctEsc(c.ultima.texto) : c.ultima?.tipo ? `[${_ctEsc(String(c.ultima.tipo).toLowerCase())}]` : '';
+      return { chave: `conv:${c.jid}:${c.ultima?.em || ''}`, nome, linha: {
+        icone: `<span class="ct-qtd">${c.naoLidas}</span>`,
+        titulo: `${al ? _ctTipoBadge(al._tipo) + ' ' : ''}${_ctEsc(nome)}`,
+        sub: `${txt}${c.ultima?.em ? ` · ${_ctHa(c.ultima.em)}` : ''}`,
+        botoes: _ctBtnLink('Abrir', c.link, 'Abrir no MarcFlow'),
+      } };
+    }), '✓ Nenhuma conversa sem resposta');
+    convQtd = sec.qtd; convCorpo = sec.corpo;
+  }
+
+  // ── Contas pessoais a vencer (Gestor) ──
+  const hojeDia = new Date().getDate();
+  const contas = (md.balanco?.gastos || [])
+    .filter(g => !g.pago && g.diaVencimento)
+    .map(g => ({ g, dias: +g.diaVencimento - hojeDia }))
+    .filter(({ dias }) => dias <= 5)
+    .sort((x, y) => x.dias - y.dias);
+  const secContas = _ctSecao('contas', contas.map(({ g, dias }) => ({ chave: `conta:${mk}:${g.id}`, nome: g.nome, linha: {
+    icone: '🧾', titulo: `${_ctEsc(g.nome)} <span class="mono" style="color:var(--red);margin-left:4px">${fmt(g.valor)}</span>`,
+    sub: dias < 0 ? `Venceu dia ${g.diaVencimento}` : dias === 0 ? 'Vence hoje' : `Vence dia ${g.diaVencimento}`,
+    cor: dias < 0 ? 'var(--red)' : dias <= 2 ? 'var(--accent2)' : '',
+    botoes: _ctBtn('Ver', `onclick="navigate('balanco')"`, 'Abrir Finanças'),
+  } })), '✓ Nenhuma conta para os próximos dias');
+
+  // ── Resumo ──
+  const previsto = ativos.reduce((s, a) => s + (a._valor || 0), 0);
+  const recebido = ativos.filter(a => a.pago).reduce((s, a) => s + (a._valor || 0), 0);
+  const pend = formQtd + secTreino.qtd + pgtosAtrasadosVis + (convQtd ? 1 : 0) + secContas.qtd;
+  const badge = document.getElementById('central-badge');
+  if (badge) { badge.textContent = pend; badge.style.display = pend ? 'inline-flex' : 'none'; }
+
+  // ── Alunos (busca) ──
+  const q = _ctNome(_centralBusca);
+  const listaAlunos = alunos.filter(a => !q || _ctNome(a.nome).includes(q)).sort((x, y) => x.nome.localeCompare(y.nome));
+  const alunosRows = listaAlunos.map(a => {
+    const dias = a.proxAtt ? _ctDias(a.proxAtt) : null;
+    const treino = a._tipo === 'cali' ? '—'
+      : a.formStatus === 'aguardando' ? '<span style="color:var(--accent3)">esperando formulário</span>'
+      : a.formStatus === 'pendente' ? '<span style="color:var(--accent2)">montar treino</span>'
+      : dias === null ? '<span style="color:var(--text3)">sem data</span>'
+      : `<span style="color:${dias < 0 ? 'var(--red)' : dias <= 7 ? 'var(--accent2)' : 'var(--text2)'}">${new Date(_dataLocal(a.proxAtt)).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`;
+    return `<tr${a.pausado ? ' style="opacity:.45"' : ''}>
+      <td>${_ctTipoBadge(a._tipo)} ${_ctEsc(a.nome)}${a.pausado ? ' <span class="badge badge-gray">pausado</span>' : ''}</td>
+      <td>${a.pago ? '<span class="badge badge-green">pago</span>' : `<span class="badge badge-red">${fmt(a._valor)}</span>`}</td>
+      <td>${treino}</td>
+      <td style="text-align:right;white-space:nowrap">${_ctBtnLink('💬', _ctLinkWhats(a._tel), a._tel ? 'Abrir conversa' : '')}${a._tel ? '' : '<span style="font-size:11px;color:var(--text3)" title="Cadastre o telefone na aba Alunos">sem tel.</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  const atualizado = _centralExtEm ? `Formulários e conversas: ${_ctHa(new Date(_centralExtEm).toISOString())}` : '';
+  const cnt = document.getElementById('content');
+  const buscaFoco = document.activeElement?.id === 'ct-busca';
+  cnt.innerHTML = `
+    <div class="stat-grid ct-stats">
+      <div class="stat-card ${pend ? 'accent' : 'green'}"><div class="stat-label">Pendências</div><div class="stat-value">${pend}</div></div>
+      <div class="stat-card"><div class="stat-label">Alunos ativos</div><div class="stat-value">${ativos.length}</div></div>
+      <div class="stat-card green"><div class="stat-label">Recebido de alunos</div><div class="stat-value">${fmt(recebido)}</div><div style="font-size:11px;color:var(--text3);margin-top:4px">de ${fmt(previsto)}</div></div>
+      <div class="stat-card ${totPend ? 'red' : ''}"><div class="stat-label">A receber</div><div class="stat-value">${fmt(totPend)}</div></div>
+    </div>
+    <div class="ct-grid">
+      ${_ctCard('📝 Formulários', formQtd, formCorpo)}
+      ${_ctCard('📋 Treinos', secTreino.qtd, secTreino.corpo)}
+      ${_ctCard('💬 Conversas sem resposta', convQtd, convCorpo, _ctBtnLink('MarcFlow ↗', CENTRAL_MARCFLOW, 'Abrir o MarcFlow'))}
+      ${_ctCard('💰 Pagamentos de alunos', secPgto.qtd, secPgto.corpo)}
+      ${contas.length ? _ctCard('🧾 Contas a vencer', secContas.qtd, secContas.corpo) : ''}
+    </div>
+    <div class="table-card" style="margin-top:14px">
+      <div class="table-header" style="gap:10px;flex-wrap:wrap">
+        <div class="table-title">◯ Alunos</div>
+        <input id="ct-busca" placeholder="Buscar aluno…" value="${_ctEsc(_centralBusca)}" oninput="_centralBusca=this.value;renderCentral(getMonthData())" style="max-width:220px;padding:6px 10px;font-size:12px">
+      </div>
+      <div style="overflow-x:auto"><table class="ct-tabela"><thead><tr><th>Aluno</th><th>Pagamento</th><th>Próx. treino</th><th></th></tr></thead>
+      <tbody>${alunosRows || `<tr><td colspan="4">${_ctVazio('Nenhum aluno')}</td></tr>`}</tbody></table></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:right">${atualizado}</div>`;
+  if (buscaFoco) { const b = document.getElementById('ct-busca'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
 }
 
 // ==================== ASSISTENTE FINANCEIRO ====================
@@ -4549,6 +4958,8 @@ window.limparBuscaAluno = function() {
 
 function setAlunosTab(tab) {
   alunosTab = tab;
+  // As ações de aluno (pago, treino) chamam setAlunosTab no fim; na Central, redesenha a Central
+  if (currentPage === 'central') { renderCentral(getMonthData()); return; }
   _alunosSearch = ''; // limpa busca ao trocar de aba
   if (tab==='online'||tab==='presencial') personalTab = tab;
   if (tab!=='todos') { _todosSort = null; _todosFilters.clear(); } // reset ao sair da aba Todos
@@ -11272,7 +11683,8 @@ renderDashboard = (function(_orig) {
     if (tlbl) tlbl.textContent = `${MONTHS[currentMonth.m].slice(0,3)} ${currentMonth.y}`;
     updateLockUI();
     startLivePolling();
-    navigate('dashboard');
+    // Página inicial: Central no computador, Dashboard no celular
+    navigate(window.matchMedia('(max-width: 768px)').matches ? 'dashboard' : 'central');
   }
 })();
 
