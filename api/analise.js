@@ -8,6 +8,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { fetchData, saveData } from './_tools.js';
 import { resumoDetalhado, resumoCurto, resumoPoupanca } from './_resumo.js';
+import { donoLogado } from './_auth.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -48,6 +49,7 @@ function mesAnterior(mk, n) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
+  if (!(await donoLogado(req))) return res.status(401).json({ error: 'Não autorizado' });
   const mes = req.body?.mes;
   if (!/^\d{4}-\d{2}$/.test(mes || '')) return res.status(400).json({ error: 'mes inválido (YYYY-MM)' });
 

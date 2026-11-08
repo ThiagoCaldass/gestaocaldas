@@ -1117,7 +1117,7 @@ function saveData() {
       const tGt = (md?.balanco?.gastos||[]).reduce((a,b)=>a+b.valor,0);
       fetch('/api/notify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token || ''}` },
         body: JSON.stringify({ message: `✏️ *App atualizado*\nGanhos: R$ ${tG.toFixed(2)}\nGastos: R$ ${tGt.toFixed(2)}\nSaldo: R$ ${(tG-tGt).toFixed(2)}` }),
       }).catch(() => {});
     } catch(e) {
@@ -2131,7 +2131,8 @@ async function gerarAnalise() {
   if (status) status.innerHTML = `<div class="table-card" style="padding:14px 18px;margin-bottom:16px;font-size:13px;color:var(--text2)">⏳ Lendo seus números e escrevendo a análise. Pode levar 1 a 2 minutos…</div>`;
   try {
     await flushSave?.(); // garante que o banco tem as últimas alterações
-    const res = await fetch('/api/analise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mes: mk }) });
+    await ensureAuth();
+    const res = await fetch('/api/analise', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token || ''}` }, body: JSON.stringify({ mes: mk }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
     _analiseGerando = false;

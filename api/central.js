@@ -15,11 +15,7 @@
  */
 
 import { createSign } from 'node:crypto';
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
-// Único usuário do app (mesmo da política RLS "dono" do gestor_data)
-const DONO_ID = process.env.CENTRAL_DONO_ID || '3e9e15d3-d248-4733-8855-3eee637fbcb2';
+import { donoLogado } from './_auth.js';
 
 export const PLANILHAS = [
   { id: '1_W1oxu9TXN7Kn_MI_o_1p5hq10gjBmmruGa75r8y8o4', consultoria: 'Feminina' },
@@ -30,19 +26,6 @@ const ABAS = [
   { aba: 'Anamnese',         tipo: 'anamnese' },
   { aba: 'Atualizar treino', tipo: 'atualizar' },
 ];
-
-// ── Login ────────────────────────────────────────────────────────────────────
-
-async function usuarioValido(req, fetchFn) {
-  const auth = req.headers.authorization || '';
-  if (!auth.startsWith('Bearer ') || !SUPABASE_URL || !SUPABASE_KEY) return false;
-  const r = await fetchFn(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: { apikey: SUPABASE_KEY, Authorization: auth },
-  });
-  if (!r.ok) return false;
-  const u = await r.json().catch(() => null);
-  return u?.id === DONO_ID;
-}
 
 // ── Google Sheets ────────────────────────────────────────────────────────────
 
@@ -176,7 +159,7 @@ async function seguro(fn) {
 }
 
 export async function montarCentral(req, fetchFn = fetch) {
-  if (!(await usuarioValido(req, fetchFn))) return { status: 401, corpo: { error: 'Não autorizado' } };
+  if (!(await donoLogado(req, fetchFn))) return { status: 401, corpo: { error: 'Não autorizado' } };
   const [formularios, conversas] = await Promise.all([seguro(() => buscarFormularios(fetchFn)), seguro(() => buscarConversas(fetchFn))]);
   return { status: 200, corpo: { geradoEm: new Date().toISOString(), formularios, conversas } };
 }

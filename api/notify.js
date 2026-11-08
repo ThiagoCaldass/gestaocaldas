@@ -3,11 +3,14 @@
  * Recebe uma mensagem do app e envia para o Telegram.
  */
 
+import { donoLogado } from './_auth.js';
+
 const TG_TOKEN   = process.env.TG_TOKEN;
 const TG_CHAT_ID = process.env.TG_CHAT_ID;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
+  if (!(await donoLogado(req))) return res.status(401).json({ error: 'Não autorizado' });
 
   const { message } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
