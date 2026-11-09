@@ -210,6 +210,24 @@
   .stat-red { color: var(--red); }
 
   /* TABLE */
+  /* ── Visão geral (volume) ── */
+  .vg-tab { width: 100%; border-collapse: separate; border-spacing: 2px; font-size: 12px; }
+  .vg-th { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); font-weight: 500; padding: 8px 6px; cursor: pointer; white-space: nowrap; text-align: center; user-select: none; }
+  .vg-th:first-child { text-align: left; }
+  .vg-th.on { color: var(--accent); }
+  .vg-nome { padding: 6px 10px; white-space: nowrap; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+  .vg-linha { cursor: pointer; }
+  .vg-linha:hover .vg-nome { color: var(--accent); }
+  .vg-orig { font-size: 9px; color: var(--text3); margin-top: 1px; }
+  .vg-c { text-align: center; padding: 6px 4px; border-radius: 4px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; min-width: 52px; white-space: nowrap; }
+  .vg-vazio { color: var(--text3); }
+  .vg-tot { background: var(--surface2); font-weight: 600; }
+  .vg-d { font-size: 10px; margin-left: 3px; font-weight: 600; }
+  .vg-d.up { color: var(--green); } .vg-d.down { color: #f1c135; }
+  .vg-bar { display: grid; grid-template-columns: 90px 1fr 40px; align-items: center; gap: 10px; margin: 5px 0; font-size: 12px; }
+  .vg-bar-trilho { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .vg-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .vg-bar-val { font-family: 'Barlow Condensed', sans-serif; text-align: right; }
   /* ── Central ── */
   .ct-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
   .ct-card { margin-bottom: 0; display: flex; flex-direction: column; }
@@ -5035,6 +5053,7 @@ function renderAlunos(md) {
       <button class="tab ${alunosTab==='calistenia'?'active':''}" onclick="setAlunosTab('calistenia')">Calistenia (${md.calistenia.length})</button>
       <button class="tab ${alunosTab==='online'?'active':''}" onclick="setAlunosTab('online')">Online (${md.personal.online.length})</button>
       <button class="tab ${alunosTab==='presencial'?'active':''}" onclick="setAlunosTab('presencial')">Presencial (${md.personal.presencial.length})</button>
+      <button class="tab ${alunosTab==='visao'?'active':''}" onclick="setAlunosTab('visao')">📊 Visão geral</button>
     </div>
 
     <!-- BUSCA -->
@@ -5053,6 +5072,7 @@ function renderAlunos(md) {
       ${alunosTab==='todos'      ? renderTodosContent(md) :
         alunosTab==='calistenia' ? renderCalisteniaContent(md) :
         alunosTab==='online'     ? renderPersonalContent(md,'online') :
+        alunosTab==='visao'      ? renderVisaoGeral(md) :
                                    renderPersonalContent(md,'presencial')}
     </div>
   </div>`;
@@ -5072,6 +5092,7 @@ window.buscarAluno = function(val) {
     alunosTab==='todos'      ? renderTodosContent(md) :
     alunosTab==='calistenia' ? renderCalisteniaContent(md) :
     alunosTab==='online'     ? renderPersonalContent(md,'online') :
+    alunosTab==='visao'      ? renderVisaoGeral(md) :
                                renderPersonalContent(md,'presencial');
   reapplyAllSorts();
 };
@@ -5096,11 +5117,12 @@ function setAlunosTab(tab) {
     tab==='todos'      ? renderTodosContent(md) :
     tab==='calistenia' ? renderCalisteniaContent(md) :
     tab==='online'     ? renderPersonalContent(md,'online') :
+    tab==='visao'      ? renderVisaoGeral(md) :
                          renderPersonalContent(md,'presencial');
   reapplyAllSorts();
   // Update tab buttons
   document.querySelectorAll('#alunos-tabs-bar .tab').forEach((t,i)=>{
-    const tabs=['todos','calistenia','online','presencial'];
+    const tabs=['todos','calistenia','online','presencial','visao'];
     t.classList.toggle('active', tabs[i]===tab);
   });
 }
@@ -5112,6 +5134,207 @@ function openAddAlunoUnified() {
 
 function renderCalistenia(md) { renderAlunos(md); }
 // ── Aba "Todos" ───────────────────────────────────────────────────────
+// ==================== VISÃO GERAL (volume de séries) ====================
+// O volume vem das observações do aluno ("Peito: 15 Costas: 17 Quad: 12 ..."), atualizadas junto com o treino.
+const VOL_GRUPOS = [
+  ['peito','Peito',/^peit/], ['costas','Costas',/^cost|^dorsa/], ['ombro','Ombro',/^omb|^delt/],
+  ['biceps','Bíceps',/^bic/], ['triceps','Tríceps',/^tric/], ['quad','Quadríceps',/^quad/],
+  ['post','Posterior',/^post|^isquio/], ['gluteo','Glúteo',/^glut/], ['panturrilha','Panturrilha',/^pant/],
+  ['abdomen','Abdômen',/^abd|^core/], ['adutor','Adutor',/^adut/], ['trapezio','Trapézio',/^trap/],
+];
+function _volChave(nome) {
+  const n = String(nome).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+  const g = VOL_GRUPOS.find(([, , re]) => re.test(n));
+  return g ? g[0] : null;
+}
+/** "Peito: 15 Costas: 13,5 ..." → { peito: 15, costas: 13.5 }. null se não houver ao menos 2 grupos reconhecidos. */
+function parseVolume(txt) {
+  if (!txt) return null;
+  const out = {};
+  const re = /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ.\/ ]{1,20}?)\s*:\s*(\d+(?:[.,]\d+)?)/g;
+  let m;
+  while ((m = re.exec(String(txt)))) {
+    const k = _volChave(m[1].trim().split(/\s+/).pop());
+    if (k) out[k] = (out[k] || 0) + parseFloat(m[2].replace(',', '.'));
+  }
+  return Object.keys(out).length >= 2 ? out : null;
+}
+const _volTotal = v => v ? Object.values(v).reduce((s, x) => s + x, 0) : 0;
+const _volFmt = n => String(Math.round(n * 10) / 10).replace('.', ',');
+function _guardarVolumeAnterior(a, obsNova) {
+  const antes = parseVolume(a.obs);
+  if (!antes || (a.obs || '') === (obsNova || '')) return;
+  a.volHist = [...(a.volHist || []), { ate: (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`)(new Date()), desde: a.attTreino || null, vol: antes }].slice(-6);
+}
+
+let _vgFiltro = 'todos', _vgOrdem = 'nome', _vgPrev = { key: null, md: null, carregando: false };
+function _vgMesAnterior() {
+  let y = currentMonth.y, m = currentMonth.m; // m: 0-11
+  m -= 1; if (m < 0) { m = 11; y -= 1; }
+  return `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+function _vgCarregarAnterior() {
+  const k = _vgMesAnterior();
+  if (_vgPrev.key === k || _vgPrev.carregando) return;
+  if (cachedData[k]) { _vgPrev = { key: k, md: cachedData[k], carregando: false }; return; }
+  _vgPrev = { key: null, md: null, carregando: true };
+  sbGet(k).then(d => { _vgPrev = { key: k, md: d || null, carregando: false }; })
+    .catch(() => { _vgPrev = { key: k, md: null, carregando: false }; })
+    .finally(() => { if (currentPage === 'alunos' && alunosTab === 'visao') setAlunosTab('visao'); });
+}
+// Volume anterior: o último guardado ao atualizar o treino; senão, o do mês passado (mesmo aluno)
+function _vgAnterior(a) {
+  const h = (a.volHist || []).at(-1);
+  if (h?.vol) return { vol: h.vol, origem: 'treino anterior' };
+  const pm = _vgPrev.md;
+  if (!pm) return null;
+  const lista = [...(pm.personal?.online || []), ...(pm.personal?.presencial || [])];
+  const p = lista.find(x => x.id === a.id) || lista.find(x => _ctNome(x.nome) === _ctNome(a.nome));
+  const v = parseVolume(p?.obs);
+  return v && JSON.stringify(v) !== JSON.stringify(parseVolume(a.obs)) ? { vol: v, origem: 'mês anterior' } : null;
+}
+function setVgFiltro(v) { _vgFiltro = v; setAlunosTab('visao'); }
+function setVgOrdem(v) { _vgOrdem = _vgOrdem === v ? v + ':desc' : v; setAlunosTab('visao'); }
+
+// ── Radar de distribuição muscular (por aluno) ──
+const RADAR_RESUMO = [
+  ['Costas', ['costas','trapezio']], ['Peito', ['peito']], ['Core', ['abdomen']],
+  ['Ombro', ['ombro']], ['Braços', ['biceps','triceps']], ['Pernas', ['quad','post','gluteo','panturrilha','adutor']],
+];
+let _radarModo = 'detalhado';
+function _radarEixos(vols) {
+  if (_radarModo === 'resumo') return RADAR_RESUMO.map(([rot, ks]) => ({ rot, vals: vols.map(v => v ? ks.reduce((s, k) => s + (v[k] || 0), 0) : null) }));
+  const ks = VOL_GRUPOS.filter(([k]) => vols.some(v => v && v[k] !== undefined));
+  return ks.map(([k, rot]) => ({ rot, vals: vols.map(v => v ? (v[k] || 0) : null) }));
+}
+function _radarSvg(eixos) {
+  const W = 360, H = 330, cx = W / 2, cy = H / 2 + 4, R = 112, n = eixos.length;
+  const max = Math.max(1, ...eixos.flatMap(e => e.vals.filter(v => v !== null)));
+  const topo = Math.ceil(max / 5) * 5 || 5;
+  const pt = (i, r) => { const ang = -Math.PI / 2 + (2 * Math.PI * i) / n; return [cx + r * Math.cos(ang), cy + r * Math.sin(ang)]; };
+  const poli = r => eixos.map((_, i) => pt(i, r).map(v => v.toFixed(1)).join(',')).join(' ');
+  let g = '';
+  for (let k = 1; k <= 5; k++) g += `<polygon points="${poli(R * k / 5)}" fill="none" stroke="var(--border)" stroke-width="1"/>`;
+  eixos.forEach((_, i) => { const [x, y] = pt(i, R); g += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--border)"/>`; });
+  const serie = (idx, cor, fill, larg) => {
+    if (eixos.every(e => e.vals[idx] === null)) return '';
+    const pts = eixos.map((e, i) => pt(i, R * Math.min(1, (e.vals[idx] || 0) / topo)).map(v => v.toFixed(1)).join(',')).join(' ');
+    return `<polygon points="${pts}" fill="${fill}" stroke="${cor}" stroke-width="${larg}" stroke-linejoin="round"/>`;
+  };
+  g += serie(1, 'rgba(240,240,240,0.55)', 'rgba(240,240,240,0.10)', 2);
+  g += serie(0, 'var(--accent)', 'rgba(232,32,10,0.28)', 2.5);
+  eixos.forEach((e, i) => {
+    const [x, y] = pt(i, R + 26);
+    const anc = Math.abs(x - cx) < 8 ? 'middle' : x > cx ? 'start' : 'end';
+    const v = e.vals[0] !== null ? _volFmt(e.vals[0]) : '—';
+    g += `<text x="${x.toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="${anc}" fill="var(--text2)" font-size="12">${e.rot}</text>`
+       + `<text x="${x.toFixed(1)}" y="${(y + 11).toFixed(1)}" text-anchor="${anc}" fill="var(--accent)" font-size="12" font-family="Barlow Condensed" font-weight="600">${v}</text>`;
+  });
+  g += `<text x="${cx + 4}" y="${(cy - R - 2).toFixed(1)}" fill="var(--text3)" font-size="9">${topo}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:420px;display:block;margin:0 auto" role="img" aria-label="Distribuição muscular">${g}</svg>`;
+}
+function abrirRadarAluno(id, modo) {
+  if (modo) _radarModo = modo;
+  const md = getMonthData();
+  const a = [...(md.personal?.online || []).map(x => ({ ...x, _tipo: 'online' })), ...(md.personal?.presencial || []).map(x => ({ ...x, _tipo: 'pres' }))].find(x => x.id === id);
+  if (!a) return;
+  const atual = parseVolume(a.obs), ant = _vgAnterior(a);
+  if (!atual) return;
+  const eixos = _radarEixos([atual, ant?.vol || null]);
+  const tAt = _volTotal(atual), tAn = ant ? _volTotal(ant.vol) : null;
+  const linhas = eixos.map(e => {
+    const d = e.vals[1] !== null ? e.vals[0] - e.vals[1] : null;
+    return `<tr><td>${e.rot}</td><td class="mono" style="text-align:right">${_volFmt(e.vals[0])}</td>
+      <td class="mono" style="text-align:right;color:var(--text3)">${e.vals[1] !== null ? _volFmt(e.vals[1]) : '—'}</td>
+      <td style="text-align:right">${d ? `<span class="vg-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${_volFmt(d)}</span>` : ''}</td></tr>`;
+  }).join('');
+  const bt = (m, rot) => `<button class="tab ${_radarModo === m ? 'active' : ''}" onclick="abrirRadarAluno('${id}','${m}')">${rot}</button>`;
+  openModal(`<div class="modal-handle"></div>
+    <div class="modal-title">DISTRIBUIÇÃO MUSCULAR</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${_ctTipoBadge(a._tipo)} <strong>${_ctEsc(a.nome)}</strong>
+      <span style="margin-left:auto;font-size:12px;color:var(--text3)">${_volFmt(tAt)} séries/sem${tAn !== null ? ` · antes ${_volFmt(tAn)}` : ''}</span></div>
+    <div class="tabs" style="margin:8px 0 4px">${bt('detalhado', 'Por músculo')}${bt('resumo', 'Resumo')}</div>
+    ${_radarSvg(eixos)}
+    <div style="display:flex;justify-content:center;gap:16px;font-size:11px;color:var(--text2);margin:2px 0 10px">
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:5px"></span>Treino atual</span>
+      ${ant ? `<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(240,240,240,.55);margin-right:5px"></span>${ant.origem[0].toUpperCase() + ant.origem.slice(1)}</span>` : '<span style="color:var(--text3)">Sem treino anterior para comparar</span>'}
+    </div>
+    <table class="ct-tabela"><thead><tr><th>Grupo</th><th style="text-align:right">Atual</th><th style="text-align:right">Antes</th><th></th></tr></thead><tbody>${linhas}</tbody></table>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      ${a._tipo === 'online' && !isReadOnly() ? `<button class="btn btn-primary" onclick="attTreino('${a.id}')">📋 Atualizar treino</button>` : ''}
+    </div>`);
+}
+
+function renderVisaoGeral(md) {
+  _vgCarregarAnterior();
+  const ro = isReadOnly();
+  const q = _ctNome(_alunosSearch || '');
+  const base = [
+    ...(md.personal?.online || []).map(a => ({ ...a, _tipo: 'online' })),
+    ...(md.personal?.presencial || []).map(a => ({ ...a, _tipo: 'pres' })),
+  ].filter(a => !a.pausado && (_vgFiltro === 'todos' || a._tipo === _vgFiltro) && (!q || _ctNome(a.nome).includes(q)));
+  const com = base.map(a => ({ a, vol: parseVolume(a.obs) })).filter(x => x.vol);
+  const sem = base.filter(a => !parseVolume(a.obs));
+  com.forEach(x => { x.ant = _vgAnterior(x.a); x.total = _volTotal(x.vol); });
+
+  // colunas: grupos que aparecem, na ordem padrão
+  const cols = VOL_GRUPOS.filter(([k]) => com.some(x => x.vol[k] !== undefined));
+  const maxCol = Object.fromEntries(cols.map(([k]) => [k, Math.max(1, ...com.map(x => x.vol[k] || 0))]));
+  const media = Object.fromEntries(cols.map(([k]) => [k, com.length ? com.reduce((s, x) => s + (x.vol[k] || 0), 0) / com.length : 0]));
+
+  const [ordK, ordDir] = _vgOrdem.split(':');
+  const val = x => ordK === 'nome' ? _ctNome(x.a.nome) : ordK === 'total' ? x.total : (x.vol[ordK] || 0);
+  com.sort((x, y) => { const a = val(x), b = val(y); const r = typeof a === 'string' ? a.localeCompare(b) : a - b; return (ordK === 'nome') === (ordDir !== 'desc') ? r : -r; });
+
+  const th = (k, rot) => `<th class="vg-th${ordK === k ? ' on' : ''}" onclick="setVgOrdem('${k}')" title="Ordenar">${rot}${ordK === k ? (ordDir === 'desc' ? ' ▾' : ' ▴') : ''}</th>`;
+  const delta = (agora, antes) => {
+    if (antes === undefined || antes === agora) return '';
+    const d = agora - antes;
+    return `<span class="vg-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${_volFmt(d)}</span>`;
+  };
+  const linhas = com.map(x => {
+    const ant = x.ant?.vol;
+    const cel = cols.map(([k]) => {
+      const v = x.vol[k];
+      if (v === undefined) return `<td class="vg-c vg-vazio">—</td>`;
+      const alpha = 0.08 + 0.62 * (v / maxCol[k]);
+      return `<td class="vg-c" style="background:rgba(232,32,10,${alpha.toFixed(2)})">${_volFmt(v)}${delta(v, ant?.[k])}</td>`;
+    }).join('');
+    const dTot = ant ? delta(x.total, _volTotal(ant)) : '';
+    return `<tr class="vg-linha" onclick="abrirRadarAluno('${x.a.id}')" title="Ver distribuição muscular">
+      <td class="vg-nome">${_ctTipoBadge(x.a._tipo)} ${_ctEsc(x.a.nome)}${x.ant ? `<div class="vg-orig">vs ${x.ant.origem}</div>` : ''}</td>
+      ${cel}<td class="vg-c vg-tot">${_volFmt(x.total)}${dTot}</td></tr>`;
+  }).join('');
+
+  const maiorMedia = cols.reduce((m, c) => (media[c[0]] > (media[m?.[0]] ?? -1) ? c : m), null);
+  const barras = cols.map(([k, rot]) => `<div class="vg-bar"><span class="vg-bar-rot">${rot}</span>
+      <span class="vg-bar-trilho"><span class="vg-bar-fill" style="width:${(media[k] / Math.max(...Object.values(media), 1) * 100).toFixed(0)}%"></span></span>
+      <span class="vg-bar-val">${_volFmt(media[k])}</span></div>`).join('');
+  const chip = (v, rot) => `<button class="tab ${_vgFiltro === v ? 'active' : ''}" onclick="setVgFiltro('${v}')">${rot}</button>`;
+
+  return `
+  <div class="vg">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <div class="tabs" style="margin:0">${chip('todos', 'Online + Presencial')}${chip('online', 'Online')}${chip('pres', 'Presencial')}</div>
+      <span style="font-size:11px;color:var(--text3);margin-left:auto">Séries por semana, das observações de cada aluno${_vgPrev.carregando ? ' · carregando mês anterior…' : ''}</span>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Com volume anotado</div><div class="stat-value">${com.length}<span style="font-size:13px;color:var(--text3)"> / ${base.length}</span></div></div>
+      <div class="stat-card"><div class="stat-label">Média de séries / semana</div><div class="stat-value">${_volFmt(com.length ? com.reduce((s, x) => s + x.total, 0) / com.length : 0)}</div></div>
+      <div class="stat-card"><div class="stat-label">Grupo com mais volume</div><div class="stat-value">${maiorMedia ? maiorMedia[1] : '—'}</div></div>
+    </div>
+    ${cols.length ? `<div class="table-card"><div class="table-header"><div class="table-title">📊 Média por grupo muscular</div></div><div style="padding:12px 16px">${barras}</div></div>` : ''}
+    <div class="table-card">
+      <div class="table-header"><div class="table-title">🔥 Volume por aluno</div><span style="font-size:11px;color:var(--text3)">cor mais forte = mais séries · <span class="vg-d up">+n</span>/<span class="vg-d down">−n</span> vs treino anterior</span></div>
+      ${com.length ? `<div style="overflow-x:auto"><table class="vg-tab"><thead><tr>${th('nome', 'Aluno')}${cols.map(([k, rot]) => th(k, rot)).join('')}${th('total', 'Total')}</tr></thead><tbody>${linhas}</tbody></table></div>`
+        : `<div class="ct-vazio">Nenhum aluno com volume nas observações.<br>Formato: <code>Peito: 15 Costas: 17 Quad: 12 Post: 8 Glúteo: 10 Ombro: 9</code></div>`}
+    </div>
+    ${sem.length ? `<div class="table-card"><div class="table-header"><div class="table-title">✏️ Sem volume anotado <span class="ct-qtd">${sem.length}</span></div></div>
+      <div style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:6px">${sem.map(a => `<button class="btn btn-ghost btn-sm" ${a._tipo === 'online' && !ro ? `onclick="attTreino('${a.id}')"` : 'disabled'} title="${a._tipo === 'online' ? 'Atualizar treino e anotar o volume' : ''}">${_ctEsc(a.nome)}</button>`).join('')}</div></div>` : ''}
+  </div>`;
+}
+
 function renderTodosContent(md) {
   const ro = isReadOnly();
   const caliCalc = calcValoresCali(md.calistenia);
@@ -6645,9 +6868,11 @@ function saveAtt(id){
   const a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);
   if(!a)return;
   const mD=document.getElementById('mD');
+  const obsNova=document.getElementById('mO').value;
+  _guardarVolumeAnterior(a, obsNova);   // guarda o volume do treino que está saindo (comparação na Visão geral)
   if(mD) a.attTreino=mD.value;
   a.proxAtt=document.getElementById('mProx').value;
-  a.obs=document.getElementById('mO').value;
+  a.obs=obsNova;
   a.formStatus='ok';
   saveData();closeModal();setAlunosTab(alunosTab);
 }
