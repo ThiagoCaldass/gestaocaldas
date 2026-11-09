@@ -5049,11 +5049,11 @@ function renderAlunos(md) {
 
     <!-- ABAS -->
     <div class="tabs" id="alunos-tabs-bar" style="margin-bottom:16px">
+      <button class="tab ${alunosTab==='visao'?'active':''}" onclick="setAlunosTab('visao')">📊 Visão geral</button>
       <button class="tab ${alunosTab==='todos'?'active':''}" onclick="setAlunosTab('todos')">Todos (${md.calistenia.length+md.personal.online.length+md.personal.presencial.length})</button>
       <button class="tab ${alunosTab==='calistenia'?'active':''}" onclick="setAlunosTab('calistenia')">Calistenia (${md.calistenia.length})</button>
       <button class="tab ${alunosTab==='online'?'active':''}" onclick="setAlunosTab('online')">Online (${md.personal.online.length})</button>
       <button class="tab ${alunosTab==='presencial'?'active':''}" onclick="setAlunosTab('presencial')">Presencial (${md.personal.presencial.length})</button>
-      <button class="tab ${alunosTab==='visao'?'active':''}" onclick="setAlunosTab('visao')">📊 Visão geral</button>
     </div>
 
     <!-- BUSCA -->
@@ -5122,7 +5122,7 @@ function setAlunosTab(tab) {
   reapplyAllSorts();
   // Update tab buttons
   document.querySelectorAll('#alunos-tabs-bar .tab').forEach((t,i)=>{
-    const tabs=['todos','calistenia','online','presencial','visao'];
+    const tabs=['visao','todos','calistenia','online','presencial'];
     t.classList.toggle('active', tabs[i]===tab);
   });
 }
