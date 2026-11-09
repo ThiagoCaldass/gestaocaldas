@@ -31,7 +31,7 @@ const ABAS = [
 
 const b64url = v => Buffer.from(v).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-async function tokenGoogle(sa, fetchFn) {
+export async function tokenGoogle(sa, fetchFn) {
   const agora = Math.floor(Date.now() / 1000);
   const cab = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const corpo = b64url(JSON.stringify({
@@ -54,7 +54,7 @@ async function tokenGoogle(sa, fetchFn) {
   return (await r.json()).access_token;
 }
 
-const semAcento = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+export const semAcento = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 // "04/09/2026 21:53:39" (fuso de Brasília) → ISO
 function dataPlanilha(v) {
@@ -117,6 +117,30 @@ async function lerPlanilha(p, H, fetchFn) {
       planilha: p.id, consultoria: p.consultoria, aba: a.aba, tipo: a.tipo, gid: gids[a.aba],
     }));
   }
+}
+
+/** Todas as respostas das planilhas (nome + telefone), para sugerir telefones de alunos. */
+export async function todasRespostas(fetchFn) {
+  if (!process.env.GOOGLE_SA_JSON) return [];
+  const token = await tokenGoogle(JSON.parse(process.env.GOOGLE_SA_JSON), fetchFn);
+  const H = { Authorization: `Bearer ${token}` };
+  const out = [];
+  await Promise.all(PLANILHAS.map(async p => {
+    const r = await fetchFn(`https://sheets.googleapis.com/v4/spreadsheets/${p.id}/values:batchGet?${ABAS.map(a => `ranges=${encodeURIComponent(`'${a.aba}'!A1:Z`)}`).join('&')}`, { headers: H });
+    if (!r.ok) return;
+    const j = await r.json();
+    for (const vr of j.valueRanges || []) {
+      const v = vr.values || []; if (!v.length) continue;
+      const cab = v[0].map(semAcento);
+      const iNome = cab.findIndex(c => c.startsWith('nome')), iTel = cab.findIndex(c => c.startsWith('telefone'));
+      if (iNome < 0 || iTel < 0) continue;
+      for (const l of v.slice(1)) {
+        const nome = (l[iNome] || '').trim(), tel = String(l[iTel] || '').replace(/\D/g, '');
+        if (nome && tel.length >= 10) out.push({ nome, telefone: tel, fonte: `Formulário ${p.consultoria}` });
+      }
+    }
+  }));
+  return out;
 }
 
 // ── MarcFlow ─────────────────────────────────────────────────────────────────

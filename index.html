@@ -227,6 +227,10 @@
   .ct-ocultos { padding: 8px 14px; font-size: 11px; color: var(--text3); cursor: pointer; border-top: 1px solid var(--border); user-select: none; }
   .ct-ocultos:hover { color: var(--text2); }
   .ct-linha-oculta { opacity: .5; }
+  .ct-faixa { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 14px; border-radius: var(--radius); border: 1px solid rgba(241,193,53,0.25); background: rgba(241,193,53,0.06); font-size: 12px; cursor: pointer; }
+  .tel-linha { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .tel-nome { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 6px; cursor: pointer; }
+  .tel-sel, .tel-outro { font-size: 12px !important; padding: 7px 10px !important; }
   .ct-aviso { padding: 8px 14px; font-size: 11px; color: var(--accent2); border-bottom: 1px solid var(--border); }
   .ct-tabela { width: 100%; border-collapse: collapse; font-size: 12px; }
   .ct-tabela th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); font-weight: 500; padding: 8px 14px; border-bottom: 1px solid var(--border); }
@@ -1703,6 +1707,21 @@ async function navigate(page) {
   }
 }
 
+// ==================== REGRAS COMUNS DE ALUNOS ====================
+// Uma regra só para "treino precisa de atenção" (Dashboard, Alunos e Central usam a mesma):
+// online/presencial, não pausado, e (formulário enviado/respondido OU próxima atualização em até 7 dias, incluindo vencidos)
+function treinoPrecisaAtencao(a) {
+  if (!a || a.pausado || a._tipo === 'cali') return false;
+  if (a.formStatus === 'aguardando' || a.formStatus === 'pendente') return true;
+  if (!a.proxAtt) return false;
+  const h = new Date(); h.setHours(0,0,0,0);
+  return Math.floor((_dataLocal(a.proxAtt) - h) / 86400000) <= 7;
+}
+function alunosTreinoAlerta(md) {
+  return [...(md.personal?.online || []), ...(md.personal?.presencial || [])].filter(treinoPrecisaAtencao);
+}
+const _ativosQtd = lista => (lista || []).filter(a => !a.pausado).length;
+
 // ==================== CENTRAL ====================
 // Visão única do dia: dados do Gestor (fonte oficial de alunos, pagamentos e treinos)
 // + formulários das planilhas do Google + conversas não lidas do MarcFlow (via /api/central).
@@ -1857,7 +1876,9 @@ function _ctAteTxt(chave) {
 // Monta o corpo de um card separando visíveis e adiados
 function _ctSecao(id, itens, vazio) {
   const ro = isReadOnly();
-  const vis = itens.filter(i => !_ctEstaAdiado(i.chave));
+  const naoAdiados = itens.filter(i => !_ctEstaAdiado(i.chave));
+  const vis = naoAdiados.filter(i => !i.depois);
+  const dep = naoAdiados.filter(i => i.depois);   // "próximos": ainda não pedem ação, ficam recolhidos
   const ocu = itens.filter(i => _ctEstaAdiado(i.chave));
   const linha = (i, oculto) => _ctLinha({
     ...i.linha,
@@ -1867,13 +1888,119 @@ function _ctSecao(id, itens, vazio) {
       : _ctBtn('⏰', `onclick="abrirAdiar('${i.chave}', '${_ctEsc(i.nome).replace(/'/g, '&#39;')}')"`, 'Adiar ou ocultar')),
     oculto,
   });
-  let corpo = vis.length ? vis.map(i => linha(i, false)).join('') : _ctVazio(vazio);
+  let corpo = vis.length ? vis.map(i => linha(i, false)).join('') : _ctVazio(dep.length ? '✓ Nada urgente agora' : vazio);
+  if (dep.length) {
+    const verP = !!_ctVerOcultos[id + ':prox'];
+    corpo += `<div class="ct-ocultos" onclick="_ctVerOcultos['${id}:prox']=${!verP};renderCentral(getMonthData())">${verP ? '▾' : '▸'} ${dep.length} próximo(s)</div>`
+      + (verP ? dep.map(i => linha(i, false)).join('') : '');
+  }
   if (ocu.length) {
     const ver = !!_ctVerOcultos[id];
     corpo += `<div class="ct-ocultos" onclick="_ctVerOcultos['${id}']=${!ver};renderCentral(getMonthData())">${ver ? '▾' : '▸'} ${ocu.length} adiado(s)</div>`
       + (ver ? ocu.map(i => linha(i, true)).join('') : '');
   }
   return { corpo, qtd: vis.length };
+}
+
+// ── Completar telefones dos alunos ──
+// Sugere números da agenda do WhatsApp (MarcFlow) e dos formulários, casando pelo nome. Nada é salvo sem confirmar.
+let _telFontes = null;
+function _telFormatar(d) {
+  d = _ctTel(d); if (!d) return '';
+  return `+${d.slice(0, 2)} ${d.slice(2, 4)} ${d.slice(4, -4)}-${d.slice(-4)}`;
+}
+function _telSugestoes(aluno, fontes) {
+  const vistos = new Set(), out = [];
+  const exato = x => _ctNome(x.nome) === _ctNome(aluno.nome);
+  fontes.filter(f => _ctNomeIgual(aluno.nome, f.nome))
+    .sort((a, b) => (exato(b) - exato(a)) || (String(a.fonte).startsWith('Formulário') ? -1 : 1))
+    .forEach(f => { const t = _ctTel(f.telefone); if (t && !vistos.has(t.slice(-8))) { vistos.add(t.slice(-8)); out.push({ ...f, telefone: t }); } });
+  return out.slice(0, 4);
+}
+async function abrirCompletarTelefones() {
+  if (guardReadOnly()) return;
+  openModal(`<div class="modal-handle"></div><div class="modal-title">COMPLETAR TELEFONES</div><div class="ct-vazio">Buscando contatos do WhatsApp e dos formulários…</div>`);
+  if (!_telFontes) {
+    try {
+      await ensureAuth();
+      const r = await fetch('/api/telefones', { headers: { Authorization: `Bearer ${authSession?.access_token || ''}` }, cache: 'no-store' });
+      _telFontes = r.ok ? (await r.json()).itens || [] : [];
+    } catch (e) { _telFontes = []; }
+  }
+  const alunos = _centralAlunos(getMonthData()).filter(a => !a.pausado && !a._tel).sort((x, y) => x.nome.localeCompare(y.nome));
+  const linhas = alunos.map(a => {
+    const sug = _telSugestoes(a, _telFontes);
+    const opts = sug.map((s, k) => `<option value="${s.telefone}" ${k === 0 ? 'selected' : ''}>${_telFormatar(s.telefone)} — ${_ctEsc(s.nome)} (${_ctEsc(s.fonte)})</option>`).join('');
+    return `<div class="tel-linha" data-id="${a.id}">
+      <label class="tel-nome"><input type="checkbox" class="tel-usar" ${sug.length ? 'checked' : ''}> ${_ctTipoBadge(a._tipo)} ${_ctEsc(a.nome)}</label>
+      <select class="tel-sel" onchange="this.nextElementSibling.style.display=this.value==='outro'?'block':'none';this.closest('.tel-linha').querySelector('.tel-usar').checked=this.value!==''">
+        ${opts}<option value="" ${sug.length ? '' : 'selected'}>${sug.length ? 'Nenhum destes' : 'Nada encontrado'}</option><option value="outro">Digitar outro…</option>
+      </select>
+      <input class="tel-outro" placeholder="DDD + número" style="display:none;margin-top:6px" oninput="this.closest('.tel-linha').querySelector('.tel-usar').checked=this.value.replace(/\\D/g,'').length>=10">
+    </div>`;
+  }).join('');
+  const comSug = alunos.filter(a => _telSugestoes(a, _telFontes).length).length;
+  openModal(`<div class="modal-handle"></div><div class="modal-title">COMPLETAR TELEFONES</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${alunos.length} aluno(s) ativo(s) sem telefone · achei sugestão para ${comSug}. Confira antes de salvar: a sugestão vem pelo nome.</div>
+    <div style="max-height:55vh;overflow-y:auto;margin:0 -4px;padding:0 4px">${linhas || _ctVazio('✓ Todos os alunos ativos têm telefone')}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      ${alunos.length ? `<button class="btn btn-primary" onclick="salvarTelefones()">Salvar marcados</button>` : ''}
+    </div>`);
+}
+function salvarTelefones() {
+  if (guardReadOnly()) return;
+  const md = getMonthData();
+  const todos = [...md.calistenia, ...md.personal.online, ...md.personal.presencial];
+  let n = 0;
+  document.querySelectorAll('#modalContent .tel-linha').forEach(l => {
+    if (!l.querySelector('.tel-usar').checked) return;
+    const sel = l.querySelector('.tel-sel').value;
+    const tel = _telFormatar(sel === 'outro' ? l.querySelector('.tel-outro').value : sel);
+    const a = todos.find(x => x.id === l.dataset.id);
+    if (a && tel) { a.telefone = tel; n++; }
+  });
+  if (n) saveData();
+  closeModal();
+  if (currentPage === 'central') renderCentral(md);
+  if (typeof showToast === 'function') showToast(`${n} telefone(s) salvo(s)`);
+}
+
+// ── Cobrança em 1 clique (WhatsApp pelo MarcFlow) ──
+function abrirCobranca(id) {
+  if (guardReadOnly()) return;
+  const a = _centralAlunos(getMonthData()).find(x => x.id === id);
+  if (!a?._tel) { alert('Esse aluno está sem telefone.'); return; }
+  const dia = _ctDiasPgto(a.diaAcerto);
+  const quando = dia === null ? '' : dia < 0 ? `, que venceu ${a.diaAcerto.toLowerCase()}` : dia === 0 ? ', que vence hoje' : `, que vence ${a.diaAcerto.toLowerCase()}`;
+  const texto = `Oi {primeiro_nome}, tudo bem? Passando pra lembrar do pagamento da mensalidade de ${fmt(a._valor)}${quando}. Qualquer dúvida me chama! 💪`;
+  openModal(`<div class="modal-handle"></div>
+    <div class="modal-title">COBRAR PELO WHATSAPP</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:10px">${_ctTipoBadge(a._tipo)} ${_ctEsc(a.nome)} · ${_telFormatar(a._tel)}</div>
+    <textarea id="cob-texto" rows="5" style="width:100%">${_ctEsc(texto)}</textarea>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">{primeiro_nome} vira "${_ctEsc(String(a.nome).split(/\s+/)[0])}". Sai na hora pelo seu número no MarcFlow.</div>
+    <div id="cob-res" style="font-size:12px;margin-top:8px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="cob-btn" onclick="enviarCobranca('${a.id}')">📲 Enviar</button>
+    </div>`);
+}
+async function enviarCobranca(id) {
+  const a = _centralAlunos(getMonthData()).find(x => x.id === id);
+  const txt = document.getElementById('cob-texto').value.trim();
+  const btn = document.getElementById('cob-btn'), out = document.getElementById('cob-res');
+  if (!a || !txt) return;
+  btn.disabled = true; btn.textContent = '⏳ Enviando...';
+  try {
+    const r = await mfEnviar([{ nome: a.nome, telefone: a._tel }], [txt]);
+    const st = r.resultados?.[0];
+    if (st?.status !== 'enviado') throw new Error(st?.erro || st?.status || 'não enviado');
+    closeModal();
+    showToast(`Cobrança enviada para ${_ctEsc(String(a.nome).split(/\s+/)[0])}`);
+  } catch (e) {
+    out.innerHTML = `<span style="color:var(--red)">❌ ${_ctEsc(e.message)}</span>`;
+    btn.disabled = false; btn.textContent = '📲 Tentar de novo';
+  }
 }
 
 function _ctCard(titulo, qtd, corpo, extra = '') {
@@ -1934,9 +2061,8 @@ function renderCentral(md) {
 
   // ── Treinos vencendo (Gestor) ──
   const treinos = ativos
-    .filter(a => a._tipo !== 'cali' && (a.proxAtt || a.formStatus === 'aguardando' || a.formStatus === 'pendente'))
+    .filter(treinoPrecisaAtencao)
     .map(a => ({ a, dias: a.proxAtt ? _ctDias(a.proxAtt) : null }))
-    .filter(({ a, dias }) => a.formStatus === 'aguardando' || a.formStatus === 'pendente' || (dias !== null && dias <= 7))
     .sort((x, y) => (x.dias ?? -999) - (y.dias ?? -999));
   const secTreino = _ctSecao('treino', treinos.map(({ a, dias }) => {
     const st = a.formStatus === 'aguardando' ? { t:'Formulário enviado, esperando resposta', c:'var(--accent3)', i:'📨' }
@@ -1960,9 +2086,10 @@ function renderCentral(md) {
     const sub = dias === null ? (a.diaAcerto ? _ctEsc(a.diaAcerto) : 'Sem dia combinado')
       : dias < 0 ? `Atrasado ${-dias}d (${_ctEsc(a.diaAcerto)})` : dias === 0 ? 'Vence hoje' : `Vence em ${dias}d (${_ctEsc(a.diaAcerto)})`;
     const cor = dias !== null && dias < 0 ? 'var(--red)' : dias !== null && dias <= 3 ? 'var(--accent2)' : '';
-    return { chave: `pgto:${mk}:${a.id}`, nome: a.nome, dias, linha: {
+    // só pede ação se está atrasado, vence em até 3 dias ou não tem dia combinado
+    return { chave: `pgto:${mk}:${a.id}`, nome: a.nome, dias, depois: dias !== null && dias > 3, linha: {
       icone: '💰', titulo: `${_ctTipoBadge(a._tipo)} ${_ctEsc(a.nome)} <span class="mono" style="color:var(--red);margin-left:4px">${fmt(a._valor)}</span>`, sub, cor,
-      botoes: _ctBtnLink('💬', _ctLinkWhats(a._tel), 'Cobrar pelo WhatsApp')
+      botoes: (a._tel && !ro ? _ctBtn('📩', `onclick="abrirCobranca('${a.id}')"`, 'Cobrar pelo WhatsApp (mensagem pronta)') : _ctBtnLink('💬', _ctLinkWhats(a._tel), 'Abrir conversa'))
         + (ro ? '' : _ctBtn('✓', `onclick="${a._tipo==='cali' ? 'toggleCali' : 'togglePersonal'}('${a.id}')" style="color:var(--green)"`, 'Marcar como pago')),
     } };
   }), '✓ Todos os alunos ativos pagaram');
@@ -2029,6 +2156,7 @@ function renderCentral(md) {
     </tr>`;
   }).join('');
 
+  const semTel = ativos.filter(a => !a._tel).length;
   const atualizado = _centralExtEm ? `Formulários e conversas: ${_ctHa(new Date(_centralExtEm).toISOString())}` : '';
   const cnt = document.getElementById('content');
   const buscaFoco = document.activeElement?.id === 'ct-busca';
@@ -2039,6 +2167,7 @@ function renderCentral(md) {
       <div class="stat-card green"><div class="stat-label">Recebido de alunos</div><div class="stat-value">${fmt(recebido)}</div><div style="font-size:11px;color:var(--text3);margin-top:4px">de ${fmt(previsto)}</div></div>
       <div class="stat-card ${totPend ? 'red' : ''}"><div class="stat-label">A receber</div><div class="stat-value">${fmt(totPend)}</div></div>
     </div>
+    ${semTel && !ro ? `<div class="ct-faixa" onclick="abrirCompletarTelefones()">📞 <strong>${semTel}</strong> aluno(s) ativo(s) sem telefone ficam sem botão de WhatsApp <span class="btn btn-ghost btn-sm ct-bt" style="margin-left:auto">Completar</span></div>` : ''}
     <div class="ct-grid">
       ${_ctCard('📝 Formulários', formQtd, formCorpo)}
       ${_ctCard('📋 Treinos', secTreino.qtd, secTreino.corpo)}
@@ -2794,9 +2923,9 @@ function renderDashboard(md) {
   syncGanhosFromTables(md);
   const hoje = new Date();
   const caliCalc = calcValoresCali(md.calistenia);
-  const alunosCali = md.calistenia.length;
-  const alunosOnline = md.personal.online.length;
-  const alunosPres = md.personal.presencial.length;
+  const alunosCali = _ativosQtd(md.calistenia);
+  const alunosOnline = _ativosQtd(md.personal.online);
+  const alunosPres = _ativosQtd(md.personal.presencial);
 
   // ── EXPECTATIVA ──
   const CATS_COM_TABELA = ['calistenia','personal'];
@@ -2871,12 +3000,9 @@ function renderDashboard(md) {
   const prevRealSaldo  = prevRealGanhos - prevRealGastos;
 
   // ── Pendências ──
-  const pendentesG  = md.balanco.ganhos.filter(g=>!g.recebido);
+  const pendentesG  = md.balanco.ganhos.filter(g=>!g.recebido && (g.valor||0) > 0);
   const pendentesGt = md.balanco.gastos.filter(g=>!g.pago);
-  const vencidos    = [...md.personal.online,...md.personal.presencial].filter(a=>{
-    if(!a.attTreino) return false;
-    return (hoje - _dataLocal(a.attTreino)) / (1000*60*60*24) > 30;
-  });
+  const vencidos    = alunosTreinoAlerta(md);
   const alunosPend  = [...caliCalc.filter(a=>!a.pago&&!a.pausado).map(a=>({...a,tipo:'Cali'})),
                        ...md.personal.online.filter(a=>!a.pago&&!a.pausado).map(a=>({...a,tipo:'Online'})),
                        ...md.personal.presencial.filter(a=>!a.pago&&!a.pausado).map(a=>({...a,tipo:'Pres'}))];
@@ -3202,7 +3328,7 @@ function renderDashboard(md) {
             <span>💳</span><span><strong style="color:var(--red)">${pendentesGt.length} gasto(s)</strong> não pagos — ${fmt(pendentesGt.reduce((s,g)=>s+g.valor,0))}</span>
           </div>`:''}
           ${vencidos.length>0?`<div onclick="navigate('personal')" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px;border-radius:8px;background:rgba(53,200,241,0.08);border:1px solid rgba(53,200,241,0.2);margin-bottom:8px;font-size:12px">
-            <span>📋</span><span><strong style="color:var(--accent3)">${vencidos.length}</strong> treino(s) vencido(s)</span>
+            <span>📋</span><span><strong style="color:var(--accent3)">${vencidos.length}</strong> treino(s) vencidos ou vencendo</span>
           </div>`:''}
           ${pendentesG.length===0&&pendentesGt.length===0&&vencidos.length===0?`<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">✓ Tudo em dia!</div>`:''}
         </div>
@@ -5008,7 +5134,7 @@ function renderTodosContent(md) {
   const _h0f = new Date(); _h0f.setHours(0,0,0,0);
   const FILTROS_DEF = {
     'nao-pago':    { label:'🔴 Não pagos',        fn: a => !a.pago && !a.pausado },
-    'treino-venc': { label:'📋 Treino vencendo',   fn: a => a._tipo!=='cali' && a.proxAtt && Math.floor((_dataLocal(a.proxAtt)-_h0f)/86400000)<=7 },
+    'treino-venc': { label:'📋 Treino vencendo',   fn: a => treinoPrecisaAtencao(a) },
     'pausado':     { label:'⏸ Pausados',          fn: a => !!a.pausado },
     'cali':        { label:'Cali',                 fn: a => a._tipo==='cali' },
     'online':      { label:'Online',               fn: a => a._tipo==='online' },
@@ -5080,9 +5206,8 @@ function renderTodosContent(md) {
 
   // Treinos a vencer nos próximos 7 dias (ou já vencidos), apenas personal
   const treinoAlerta = allStudents
-    .filter(a => a._tipo !== 'cali' && !a.pausado && a.proxAtt)
-    .filter(a => Math.floor((_dataLocal(a.proxAtt) - h0a) / 86400000) <= 7)
-    .sort((a,b) => a.proxAtt.localeCompare(b.proxAtt));
+    .filter(treinoPrecisaAtencao)
+    .sort((a,b) => (a.proxAtt||'').localeCompare(b.proxAtt||''));
 
   const _tipoBadgeSm = a =>
     a._tipo==='cali'   ? `<span class="badge badge-gray"  style="font-size:10px">Cali</span>` :
@@ -5105,12 +5230,13 @@ function renderTodosContent(md) {
   }).join('');
 
   const treinoRows = treinoAlerta.map(a => {
-    const diff = Math.floor((_dataLocal(a.proxAtt) - h0a) / 86400000);
-    const isVenc = diff < 0;
-    const isMuito = diff >= 0 && diff <= 3;
+    const diff = a.proxAtt ? Math.floor((_dataLocal(a.proxAtt) - h0a) / 86400000) : null;
+    const isVenc = diff !== null && diff < 0;
+    const isMuito = diff !== null && diff >= 0 && diff <= 3;
     const cor = isVenc ? 'var(--red)' : isMuito ? '#f1c135' : 'var(--text2)';
-    const label = isVenc ? `Venceu ${Math.abs(diff)}d atrás` : diff===0 ? 'Vence hoje' : `Vence em ${diff}d`;
-    const icon = isVenc ? '⚠ ' : isMuito ? '! ' : '⏰ ';
+    const label = a.formStatus === 'aguardando' ? 'Esperando formulário' : a.formStatus === 'pendente' ? 'Montar treino'
+      : isVenc ? `Venceu ${Math.abs(diff)}d atrás` : diff===0 ? 'Vence hoje' : `Vence em ${diff}d`;
+    const icon = a.formStatus === 'aguardando' ? '📨 ' : a.formStatus === 'pendente' ? '🛠 ' : isVenc ? '⚠ ' : isMuito ? '! ' : '⏰ ';
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;border-bottom:1px solid var(--border);font-size:12px;gap:8px">
       <div style="display:flex;align-items:center;gap:6px;min-width:0">${_tipoBadgeSm(a)}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nome}</span></div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
@@ -5743,7 +5869,7 @@ function renderPersonalContent(md, tab) {
   const tPr=pres.filter(a=>!a.pausado).reduce((a,b)=>a+b.valor,0);
   const hoje0=new Date();hoje0.setHours(0,0,0,0);
   const vencidos=list.filter(a=>{
-    if(!a.proxAtt)return false;
+    if(a.pausado||!a.proxAtt)return false;
     return _dataLocal(a.proxAtt)<hoje0;
   });
 
@@ -9289,6 +9415,34 @@ function waColetarTodosAlunos() {
 }
 
 const WA_SERVER_KEY = 'wa_server_url';
+// ── WhatsApp pelo MarcFlow (via /api/enviar; o wa-caldas foi desligado) ──
+const MF_URL = 'https://whatsapp.teamcaldas.com.br';
+async function _mfApi(method, body) {
+  await ensureAuth();
+  const r = await fetch('/api/enviar', {
+    method, cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token || ''}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Erro ${r.status}`);
+  return j;
+}
+const mfStatus = () => _mfApi('GET').catch(e => ({ conectado: false, status: e.message }));
+const mfEnviar = (contatos, mensagens) => _mfApi('POST', { contatos, mensagens, intervaloMin: 1 });
+function _mfLogHtml(res) {
+  const rs = res.resultados || [];
+  const linhas = rs.map((r, i) => {
+    const ok = r.status === 'enviado' || r.status === 'agendado';
+    const quando = r.em ? ' às ' + new Date(r.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+    const txt = r.status === 'enviado' ? 'enviado' : r.status === 'agendado' ? 'agendado' + quando : r.status === 'telefone_invalido' ? 'telefone inválido' : 'erro: ' + (r.erro || '');
+    return `<span style="color:${ok ? 'var(--green)' : 'var(--red)'}">${ok ? '✅' : '❌'} [${i + 1}/${rs.length}] ${_ctEsc(r.nome || '')} — ${txt}</span>`;
+  }).join('\n');
+  const ag = rs.filter(r => r.status === 'agendado').length;
+  const rod = ag ? `<div style="margin-top:6px;font-size:11px;color:var(--text3)">O MarcFlow envia 1 por minuto, mesmo com o app fechado. <a href="${MF_URL}/dashboard/scheduler" target="_blank" rel="noopener" style="color:var(--accent3)">Ver agendadas ↗</a></div>` : '';
+  return linhas + rod;
+}
+
 function getWaServer() {
   return localStorage.getItem(WA_SERVER_KEY) || 'https://wa-caldas.onrender.com';
 }
@@ -9340,7 +9494,7 @@ window.abrirModalWhatsApp = function(preSelIds) {
         <span style="font-size:22px">📲</span>
         <div style="flex:1">
           <div style="font-size:16px;font-weight:700">Envio WhatsApp</div>
-          <div style="font-size:11px;color:var(--text3)">Servidor local em http://localhost:3001</div>
+          <div style="font-size:11px;color:var(--text3)">Pelo MarcFlow · {nome} vira o nome do aluno</div>
         </div>
         <!-- Status do servidor -->
         <div id="wa-srv-badge" style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border)">
@@ -9402,14 +9556,10 @@ window.abrirModalWhatsApp = function(preSelIds) {
 
       <!-- FOOTER -->
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-        <div style="font-size:10px;color:var(--text3);background:var(--surface2);border-radius:6px;padding:7px 10px;display:flex;align-items:center;gap:8px">
-          <span style="flex-shrink:0">💻 Terminal:</span>
-          <code style="font-size:11px;color:var(--text2);word-break:break-all">cd "/Users/thiagocaldas/Documents/Claude/Projetos Code/gestao_caldas/whatsapp" && npm start</code>
-        </div>
         <div style="display:flex;align-items:center;gap:10px">
         <button class="btn btn-ghost" onclick="waFecharModal()" style="flex-shrink:0">Fechar</button>
         <div id="wa-footer-info" style="flex:1;font-size:11px;color:var(--text3)">
-          Inicie o servidor: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">npm start</code>
+          Verificando o MarcFlow…
         </div>
         <button id="wa-send-btn" onclick="waEnviar()" disabled
           style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-weight:700;cursor:pointer;font-size:13px;font-family:'Barlow Condensed';letter-spacing:0.5px;flex-shrink:0;opacity:0.4">
@@ -9553,153 +9703,44 @@ window.waVerificarServidor = async function() {
   const dot   = document.getElementById('wa-srv-dot');
   const label = document.getElementById('wa-srv-label');
   const qrArea = document.getElementById('wa-qr-area');
-  const qrImg  = document.getElementById('wa-qr-img');
   const btn    = document.getElementById('wa-send-btn');
   const info   = document.getElementById('wa-footer-info');
   if (!dot) return; // modal fechado
-
-  try {
-    const r = await fetch(getWaServer() + '/status', { signal: AbortSignal.timeout(7000) });
-    if (!r.ok) throw new Error('erro');
-    const data2 = await r.json();
-    const { status, qr } = data2;
-    _waStatusFails = 0; // reset debounce
-
-    // Atualiza botão pausar/retomar no modal
-    const mPauseBtnV = document.getElementById('wa-modal-pause-btn');
-    if (mPauseBtnV) _atualizarBtnPauseModal(mPauseBtnV, status === 'pausado');
-
-    if (status === 'conectado') {
-      dot.style.background   = '#22c55e';
-      label.textContent      = '🟢 WhatsApp conectado';
-      qrArea.style.display   = 'none';
-      btn.disabled           = false;
-      btn.style.opacity      = '1';
-      info.textContent       = 'Pronto para enviar!';
-    } else if (status === 'qr') {
-      dot.style.background   = '#f59e0b';
-      label.textContent      = '📱 Aguardando scan';
-      qrArea.style.display   = 'block';
-      if (qr) qrImg.src = qr;
-      btn.disabled           = true;
-      btn.style.opacity      = '0.4';
-      info.textContent       = 'Escaneie o QR code com seu WhatsApp para conectar.';
-    } else {
-      dot.style.background   = '#f59e0b';
-      label.textContent      = '⏳ ' + (status === 'iniciando' ? 'Iniciando...' : 'Reconectando...');
-      qrArea.style.display   = 'none';
-      btn.disabled           = true;
-      btn.style.opacity      = '0.4';
-      info.textContent       = 'Aguarde o servidor inicializar...';
-    }
-  } catch {
-    _waStatusFails++;
-    if (_waStatusFails < 3) return; // ignora falhas isoladas (Render lento)
-    dot.style.background   = '#ef4444';
-    label.textContent      = '🔴 Servidor offline';
-    qrArea.style.display   = 'none';
-    btn.disabled           = true;
-    btn.style.opacity      = '0.4';
-    info.innerHTML         = 'Inicie com: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">cd gestao_caldas/whatsapp && npm start</code>';
-  }
+  const st = await mfStatus();
+  if (qrArea) qrArea.style.display = 'none';
+  const pb = document.getElementById('wa-modal-pause-btn'); if (pb) pb.style.display = 'none';
+  dot.style.background = st.conectado ? '#22c55e' : '#ef4444';
+  label.textContent    = st.conectado ? '🟢 WhatsApp conectado (MarcFlow)' : '🔴 MarcFlow desconectado';
+  if (btn) { btn.disabled = !st.conectado; btn.style.opacity = st.conectado ? '1' : '0.4'; }
+  if (info) info.innerHTML = st.conectado ? 'Pronto. Vários alunos são agendados 1 por minuto no MarcFlow.'
+    : `Reconecte o número no <a href="${MF_URL}" target="_blank" rel="noopener" style="color:var(--accent3)">MarcFlow ↗</a>`;
 };
 
-// Envia mensagens via servidor local e mostra log em tempo real
+// Envia pelo MarcFlow e mostra o resultado
 window.waEnviar = async function() {
-  // Salva templates
   const templates = [...document.querySelectorAll('#wa-templates textarea')].map(t => t.value.trim()).filter(Boolean);
   if (!templates.length) { alert('Adicione pelo menos uma versão de mensagem.'); return; }
   waSaveTemplates(templates);
-
-  // Coleta selecionados
   const todos = waColetarTodosAlunos();
   const mapaAlunos = Object.fromEntries(todos.map(a=>[String(a.id), a]));
-  const selecionados = waGetSelecionados()
-    .map(id => mapaAlunos[id])
-    .filter(a => a && (a.telefone||'').replace(/\D/g,'').length >= 10);
+  const selecionados = waGetSelecionados().map(id => mapaAlunos[id]).filter(a => a && (a.telefone||'').replace(/\D/g,'').length >= 10);
   if (!selecionados.length) { alert('Selecione pelo menos um aluno com telefone cadastrado.'); return; }
+  if (selecionados.length > 1 && !confirm(`Agendar ${selecionados.length} mensagens no MarcFlow (1 por minuto)?`)) return;
 
-  // Esconde corpo, mostra log
-  const body    = document.getElementById('wa-body');
-  const logArea = document.getElementById('wa-log-area');
-  const log     = document.getElementById('wa-log');
-  const logFooter = document.getElementById('wa-log-footer');
-  const btn     = document.getElementById('wa-send-btn');
+  const body = document.getElementById('wa-body'), logArea = document.getElementById('wa-log-area');
+  const log = document.getElementById('wa-log'), logFooter = document.getElementById('wa-log-footer'), btn = document.getElementById('wa-send-btn');
   if (body) body.style.display = 'none';
-  if (logArea) { logArea.style.display = 'flex'; }
+  if (logArea) logArea.style.display = 'flex';
   if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; btn.textContent = '⏳ Enviando...'; }
-  if (log) log.innerHTML = `<span style="color:var(--text3)">Iniciando envio para ${selecionados.length} aluno(s)...</span>\n`;
-
-  const contatos = selecionados.map(a => ({ nome: a.nome, telefone: (a.telefone||'').replace(/\D/g,'') }));
-
+  if (log) log.innerHTML = `<span style="color:var(--text3)">Enviando para ${selecionados.length} aluno(s)...</span>`;
   try {
-    const r = await fetch(getWaServer() + '/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contatos, mensagens: templates, intervaloMin: 5, intervaloMax: 15 }),
-      signal: AbortSignal.timeout(30000)
-    });
-    if (!r.ok) { const e = await r.json(); throw new Error(e.erro || 'Erro ao iniciar envio'); }
-    const { total } = await r.json();
-    if (log) log.innerHTML += `<span style="color:var(--text3)">📋 ${total} mensagens na fila...</span>\n`;
-
-    // Poll /send-status
-    let pollTicks = 0;
-    const MAX_POLL_TICKS = 300; // 300 × 1.5s = 7.5 min timeout
-    const poll = setInterval(async () => {
-      pollTicks++;
-      try {
-        const sr = await fetch(getWaServer() + '/send-status', { signal: AbortSignal.timeout(8000) });
-        const { results, done, total: tot, running } = await sr.json();
-        if (!log) { clearInterval(poll); return; }
-
-        // Reconstrói log
-        if (results.length > 0) {
-          log.innerHTML = results.map((r,i) => {
-            const ico = r.status==='enviado' ? '✅' : r.status==='sem_whatsapp' ? '⚠️' : '❌';
-            const cor = r.status==='enviado' ? 'var(--green)' : r.status==='sem_whatsapp' ? '#f59e0b' : 'var(--red)';
-            return `<span style="color:${cor}">${ico} [${i+1}/${tot}] ${r.nome} — ${r.status}${r.erro ? ': '+r.erro : ''}</span>`;
-          }).join('\n');
-        } else {
-          const dots = '.'.repeat((pollTicks % 3) + 1);
-          log.innerHTML = `<span style="color:var(--text3)">⏳ Processando${dots} (0 de ${tot})</span>`;
-        }
-        log.scrollTop = log.scrollHeight;
-
-        if (logFooter) logFooter.textContent = `${results.length} de ${tot} processados`;
-
-        if (done) {
-          clearInterval(poll);
-          const enviados = results.filter(r=>r.status==='enviado').length;
-          const semWa    = results.filter(r=>r.status==='sem_whatsapp').length;
-          const erros    = results.filter(r=>r.status==='erro').length;
-          if (logFooter) logFooter.innerHTML = `<strong>✔️ Concluído:</strong> ${enviados} enviados · ${semWa} sem WhatsApp · ${erros} erros`;
-          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '✔️ Concluído'; }
-        } else if (!running && results.length === 0 && tot === 0) {
-          // Servidor reiniciou (Render.com) — job perdido
-          clearInterval(poll);
-          if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ Servidor reiniciou durante o envio. Tente novamente.</span>`;
-          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Tentar novamente'; }
-          if (body) body.style.display = 'grid';
-          if (logArea) logArea.style.display = 'none';
-        } else if (pollTicks >= MAX_POLL_TICKS) {
-          clearInterval(poll);
-          if (log) log.innerHTML += `\n<span style="color:var(--red)">⏱️ Timeout — servidor demorou demais. Verifique o terminal.</span>`;
-          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Tentar novamente'; }
-        }
-      } catch(e) {
-        if (pollTicks >= 3) { // ignora falhas isoladas
-          clearInterval(poll);
-          if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ Erro ao consultar status: ${e.message}</span>`;
-          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Tentar novamente'; }
-        }
-      }
-    }, 1500);
-
-  } catch(e) {
-    const isNet = e.name === 'TypeError' || e.name === 'AbortError';
-    const msg = isNet ? 'Servidor não respondeu — verifique se está online e tente novamente.' : e.message;
-    if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ ${msg}</span>`;
+    const res = await mfEnviar(selecionados.map(a => ({ nome: a.nome, telefone: a.telefone })), templates);
+    if (log) log.innerHTML = _mfLogHtml(res);
+    const ok = (res.resultados || []).filter(r => r.status === 'enviado' || r.status === 'agendado').length;
+    if (logFooter) logFooter.innerHTML = `<strong>✔️ ${ok} de ${selecionados.length} ok</strong>`;
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '✔️ Concluído'; }
+  } catch (e) {
+    if (log) log.innerHTML += `\n<span style="color:var(--red)">❌ ${_ctEsc(e.message)}</span>`;
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Tentar novamente'; }
     if (body) body.style.display = 'grid';
     if (logArea) logArea.style.display = 'none';
@@ -9761,34 +9802,16 @@ function renderWhatsApp() {
       .wap-log { background:var(--surface2);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;max-height:180px;overflow-y:auto;margin-top:10px }
     </style>
 
-    <!-- COMMAND BAR -->
-    <div style="background:var(--surface2);border-bottom:1px solid var(--border)">
-      <div class="wap-cmd" style="border-bottom:1px solid var(--border)">
-        <span style="color:var(--text3);flex-shrink:0">💻</span>
-        <code>cd "/Users/thiagocaldas/Documents/Claude/Projetos Code/gestao_caldas/whatsapp" && npm start</code>
+    <!-- MARCFLOW -->
+    <div style="background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:9px 16px;flex-wrap:wrap">
+      <div class="wap-srv-badge" id="wap-srv-badge">
+        <span id="wap-srv-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>
+        <span id="wap-srv-label">Verificando...</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;padding:7px 16px">
-        <span style="font-size:10px;color:var(--text3);flex-shrink:0;white-space:nowrap">🌐 URL do servidor</span>
-        <input id="wap-url-input" value="${localStorage.getItem(WA_SERVER_KEY)||'https://wa-caldas.onrender.com'}"
-          style="flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text2);font-size:11px;font-family:monospace"
-          placeholder="https://wa-caldas.onrender.com"
-          onchange="wapSetServerUrl(this.value)">
-        <div class="wap-srv-badge" id="wap-srv-badge">
-          <span id="wap-srv-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>
-          <span id="wap-srv-label">Verificando...</span>
-        </div>
-        <button id="wap-pause-btn" onclick="wapTogglePause()" title="Pausar desconecta o servidor — celular volta a receber notificações"
-          style="font-size:11px;padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface3);color:var(--text2);cursor:pointer;white-space:nowrap">
-          ⏸ Pausar
-        </button>
-        <button id="wap-captacao-btn" onclick="wapToggleCaptacao()" title="Pausa o fluxo de captação automática sem desconectar o WhatsApp"
-          style="font-size:11px;padding:3px 10px;border-radius:6px;border:1px solid rgba(53,200,241,0.4);background:rgba(53,200,241,0.1);color:var(--accent3);cursor:pointer;white-space:nowrap">
-          🤖 Captação: ON
-        </button>
-      </div>
-      <div style="padding:0 16px 8px;font-size:10px;color:var(--text3)">
-        Para acessar do celular: <code style="background:var(--surface3);padding:1px 5px;border-radius:3px;user-select:all">cloudflared tunnel --url https://localhost:3001</code> → cole a URL gerada acima
-      </div>
+      <span style="font-size:11px;color:var(--text3);flex:1">Envio pelo MarcFlow · vários contatos saem 1 por minuto</span>
+      <a class="btn btn-ghost btn-sm" href="${MF_URL}/dashboard/inbox" target="_blank" rel="noopener">💬 Conversas ↗</a>
+      <a class="btn btn-ghost btn-sm" href="${MF_URL}/dashboard/scheduler" target="_blank" rel="noopener">🕒 Agendadas ↗</a>
+      <a class="btn btn-ghost btn-sm" href="${MF_URL}/dashboard/flows" target="_blank" rel="noopener">🤖 Automações ↗</a>
     </div>
 
     <!-- MAIN GRID -->
@@ -9829,102 +9852,18 @@ function renderWhatsApp() {
       </div>
     </div>
 
-    <!-- AUTO-RESPOSTAS -->
-    <div style="border-top:2px solid var(--border);padding:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div>
-          <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--text3)">Auto-respostas</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">Quando alguém responder com uma palavra-chave, o robô manda a mensagem automaticamente</div>
-        </div>
-        <button onclick="wapAddAutoReply()" style="font-size:11px;padding:4px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;flex-shrink:0">+ Nova regra</button>
-      </div>
-      <div id="wap-ar-list">${_renderWapAutoReplies(d)}</div>
-    </div>
-
-    <!-- CAPTAÇÃO AUTOMÁTICA -->
-    <div style="border-top:2px solid var(--border)">
-      <div style="padding:12px 16px;display:flex;align-items:center;gap:10px">
-        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--text3);flex:1">🤖 Captação automática</div>
-        <div style="display:flex;gap:4px">
-          <button onclick="wapCapTab('monitor')" id="wap-cap-tab-monitor" style="font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--accent3);background:rgba(53,200,241,0.15);color:var(--accent3);cursor:pointer;font-weight:600">Monitor</button>
-          <button onclick="wapCapTab('fluxo')" id="wap-cap-tab-fluxo" style="font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer">Configurar fluxo</button>
-        </div>
-      </div>
-
-      <!-- MONITOR -->
-      <div id="wap-cap-monitor" style="padding:0 16px 16px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <span style="font-size:11px;color:var(--text3)">Conversas em andamento agora</span>
-          <button onclick="wapCarregarConversas()" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text3);cursor:pointer">↻ Atualizar</button>
-        </div>
-        <div id="wap-conversas-list" style="display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:11px;color:var(--text3);padding:12px 0">Carregando...</div>
-        </div>
-      </div>
-
-      <!-- CONFIGURAR FLUXO -->
-      <div id="wap-cap-fluxo" style="display:none;padding:0 16px 16px">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:14px">
-          Variáveis disponíveis: <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{nome}</code>
-          <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{texto}</code>
-          <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{tel}</code>
-          <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{objetivo}</code>
-          <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">{horario}</code>
-        </div>
-
-        <div style="margin-bottom:12px">
-          <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">Palavras-chave que disparam o fluxo (não-contatos)</label>
-          <input id="wap-cap-palavras" type="text" placeholder="oi, olá, quero+treino, info+personal" style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;box-sizing:border-box">
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">Separe alternativas por vírgula. Use <code style="background:var(--surface3);padding:1px 4px;border-radius:3px">+</code> para exigir múltiplas palavras na mesma mensagem (ex: <code style="background:var(--surface3);padding:1px 4px;border-radius:3px">quero+treino</code>). Vazio = dispara em qualquer mensagem.</div>
-        </div>
-        <div style="margin-bottom:12px">
-          <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">Número do admin (recebe notificações)</label>
-          <input id="wap-cap-admintel" type="tel" placeholder="5514997115664" style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit;box-sizing:border-box">
-        </div>
-        <div style="margin-bottom:12px">
-          <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">URL do PDF (Google Drive, Dropbox, etc.)</label>
-          <input id="wap-cap-pdf-url" type="url" placeholder="https://drive.google.com/uc?export=download&id=..." style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;box-sizing:border-box">
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">Link direto para download. No Google Drive: Compartilhar → qualquer pessoa com o link → copiar link de download direto.</div>
-        </div>
-        <div style="margin-bottom:12px">
-          <label style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600">Boas-vindas (1ª mensagem para não-contatos)</label>
-          <textarea id="wap-cap-boas-vindas" rows="2" style="width:100%;margin-top:5px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:16px">
-          <div style="flex:1">
-            <label style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);font-weight:600">Lembrete 24h (com nome)</label>
-            <textarea id="wap-cap-lembrete" rows="2" style="width:100%;margin-top:5px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
-          </div>
-          <div style="flex:1">
-            <label style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);font-weight:600">Lembrete 24h (sem nome)</label>
-            <textarea id="wap-cap-lembrete-sem-nome" rows="2" style="width:100%;margin-top:5px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
-          </div>
-        </div>
-
-        <!-- Lista de etapas dinâmica -->
-        <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:12px">
-          <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:600;margin-bottom:10px">🔁 Etapas do fluxo de captação</div>
-          <div id="wap-etapas-list" style="display:flex;flex-direction:column;gap:8px"></div>
-          <button onclick="wapAddEtapa()" style="margin-top:10px;width:100%;padding:8px;background:transparent;border:1px dashed var(--border);border-radius:8px;color:var(--text3);cursor:pointer;font-size:12px;font-family:inherit">+ Adicionar etapa</button>
-        </div>
-
-        <div style="display:flex;gap:8px;align-items:center">
-          <button onclick="wapSalvarCaptacaoConfig()" style="padding:8px 20px;background:var(--accent3);color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;font-family:'Barlow Condensed'">Salvar configuração</button>
-          <span id="wap-cap-save-status" style="font-size:11px;color:var(--text3)"></span>
-        </div>
-      </div>
+    <!-- AUTOMAÇÕES: agora no MarcFlow -->
+    <div style="border-top:2px solid var(--border);padding:16px;font-size:12px;color:var(--text3);line-height:1.6">
+      🤖 <strong style="color:var(--text2)">Auto-respostas e captação</strong> agora ficam no MarcFlow (fluxos com palavra-chave, menus, perguntas e atrasos).
+      <a href="${MF_URL}/dashboard/flows" target="_blank" rel="noopener" style="color:var(--accent3)">Abrir fluxos ↗</a>
     </div>
   `;
 
-  // Polling status
+  // Situação do número no MarcFlow (a cada 30 s enquanto a página estiver aberta)
+  if (_waPagePollInterval) clearInterval(_waPagePollInterval);
   wapPollStatus();
-  _waPagePollInterval = setInterval(wapPollStatus, 3000);
+  _waPagePollInterval = setInterval(wapPollStatus, 30000);
   wapAtualizarSelbar();
-
-  // Carrega monitor e config da captação
-  wapCarregarConversas();
-  wapCarregarCaptacaoConfig();
-  setInterval(wapCarregarConversas, 8000);
 }
 
 // ── Captação: tabs ───────────────────────────────────────────────────
@@ -10225,49 +10164,14 @@ async function wapPollStatus() {
   const dot = document.getElementById('wap-srv-dot');
   const label = document.getElementById('wap-srv-label');
   if (!dot) { clearInterval(_waPagePollInterval); return; }
-  try {
-    const r = await fetch(getWaServer() + '/status', { signal: AbortSignal.timeout(7000) });
-    const { status } = await r.json();
-    _waServerStatus = status;
-    _waPageStatusFails = 0;
-    const ok = status === 'conectado';
-    const pausado = status === 'pausado';
-    dot.style.background = ok ? '#22c55e' : status === 'qr' ? '#f59e0b' : pausado ? '#888' : '#f59e0b';
-    label.textContent = ok ? '🟢 Conectado' : status === 'qr' ? '📱 Scan QR' : pausado ? '⏸️ Pausado' : '⏳ ' + status;
-    const btn = document.getElementById('wap-send-btn');
-    if (btn && btn.dataset.ready === '1') {
-      btn.disabled = !ok; btn.style.opacity = ok ? '1' : '.4';
-    }
-    // Atualiza botão pausar/retomar
-    const pbtn = document.getElementById('wap-pause-btn');
-    if (pbtn) {
-      if (pausado) {
-        pbtn.textContent = '▶ Retomar';
-        pbtn.style.borderColor = '#22c55e';
-        pbtn.style.color = '#22c55e';
-      } else {
-        pbtn.textContent = '⏸ Pausar';
-        pbtn.style.borderColor = '';
-        pbtn.style.color = '';
-      }
-    }
-    // Atualiza botão captação
-    const cbtn = document.getElementById('wap-captacao-btn');
-    if (cbtn && data.captacaoAtiva !== undefined) _atualizarBtnCaptacao(cbtn, data.captacaoAtiva);
-    // Atualiza dot da sidebar
-    const navDot = document.getElementById('wa-nav-dot');
-    if (navDot) navDot.style.background = (data.status === 'conectado') ? '#22c55e' : '#ef4444';
-    // Atualiza botão pausar/retomar no modal de envio (se aberto)
-    const mPauseBtn = document.getElementById('wa-modal-pause-btn');
-    if (mPauseBtn) _atualizarBtnPauseModal(mPauseBtn, pausado);
-  } catch {
-    _waPageStatusFails++;
-    if (_waPageStatusFails < 3) return;
-    _waServerStatus = 'offline';
-    if (dot) { dot.style.background = '#ef4444'; label.textContent = '🔴 Offline'; }
-    const navDot = document.getElementById('wa-nav-dot');
-    if (navDot) navDot.style.background = '#ef4444';
-  }
+  const st = await mfStatus();
+  _waServerStatus = st.conectado ? 'conectado' : 'offline';
+  dot.style.background = st.conectado ? '#22c55e' : '#ef4444';
+  label.textContent = st.conectado ? '🟢 Conectado' : '🔴 Desconectado';
+  const btn = document.getElementById('wap-send-btn');
+  if (btn && btn.dataset.ready === '1') { btn.disabled = !st.conectado; btn.style.opacity = st.conectado ? '1' : '.4'; }
+  const navDot = document.getElementById('wa-nav-dot');
+  if (navDot) navDot.style.background = st.conectado ? '#22c55e' : '#ef4444';
 }
 
 window.wapTogglePause = async function() {
@@ -10496,55 +10400,20 @@ window.wapEnviar = async function() {
   if (logArea) { logArea.style.display = 'block'; logArea.innerHTML = `<div class="wap-log" id="wap-page-log-inner">Iniciando envio para ${contatos.length} contato(s)...</div><div id="wap-page-log-footer" style="font-size:11px;color:var(--text3);margin-top:5px"></div>`; }
   if (btn) { btn.disabled = true; btn.style.opacity = '.5'; btn.textContent = '⏳ Enviando...'; }
 
+  if (contatos.length > 1 && !confirm(`Agendar ${contatos.length} mensagens no MarcFlow (1 por minuto)?`)) {
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Enviar'; }
+    if (logArea) logArea.style.display = 'none';
+    return;
+  }
   try {
-    const r = await fetch(getWaServer() + '/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contatos, mensagens: tpls, intervaloMin: 5, intervaloMax: 15 }),
-      signal: AbortSignal.timeout(30000)
-    });
-    if (!r.ok) throw new Error((await r.json()).erro || 'Erro');
-
-    let wapPollTicks = 0;
-    const poll = setInterval(async () => {
-      wapPollTicks++;
-      try {
-        const { results, done, total, running } = await (await fetch(getWaServer() + '/send-status', { signal: AbortSignal.timeout(8000) })).json();
-        const inner = document.getElementById('wap-page-log-inner');
-        const footer = document.getElementById('wap-page-log-footer');
-        if (!inner) { clearInterval(poll); return; }
-        if (results.length > 0) {
-          inner.innerHTML = results.map((r,i) => {
-            const ico = r.status==='enviado'?'✅':r.status==='sem_whatsapp'?'⚠️':'❌';
-            const cor = r.status==='enviado'?'var(--green)':r.status==='sem_whatsapp'?'#f59e0b':'var(--red)';
-            return `<span style="color:${cor}">${ico} [${i+1}/${total}] ${r.nome} — ${r.status}</span>`;
-          }).join('\n');
-        } else {
-          const dots = '.'.repeat((wapPollTicks % 3) + 1);
-          inner.textContent = `⏳ Processando${dots} (0 de ${total})`;
-        }
-        inner.scrollTop = inner.scrollHeight;
-        if (footer) footer.textContent = `${results.length} de ${total} processados`;
-        if (done) {
-          clearInterval(poll);
-          const env = results.filter(r=>r.status==='enviado').length;
-          if (footer) footer.innerHTML = `<strong>✔️ Concluído: ${env} enviados · ${results.length-env} outros</strong>`;
-          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '✔️ Concluído'; }
-        } else if (!running && results.length === 0 && total === 0) {
-          clearInterval(poll);
-          if (inner) inner.textContent = '❌ Servidor reiniciou. Tente novamente.';
-          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Enviar'; }
-        } else if (wapPollTicks >= 300) {
-          clearInterval(poll);
-          if (inner) inner.textContent += '\n⏱️ Timeout — servidor demorou demais.';
-          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Enviar'; }
-        }
-      } catch { if (wapPollTicks >= 3) clearInterval(poll); }
-    }, 1500);
-  } catch(e) {
-    const isNet = e.name === 'TypeError' || e.name === 'AbortError';
-    const msg = isNet ? 'Servidor não respondeu — verifique se está online e tente novamente.' : e.message;
-    if (logArea) logArea.innerHTML += `<div style="color:var(--red);font-size:11px;margin-top:5px">❌ ${msg}</div>`;
+    const res = await mfEnviar(contatos, tpls);
+    const inner = document.getElementById('wap-page-log-inner'), footer = document.getElementById('wap-page-log-footer');
+    if (inner) inner.innerHTML = _mfLogHtml(res);
+    const ok = (res.resultados || []).filter(r => r.status === 'enviado' || r.status === 'agendado').length;
+    if (footer) footer.innerHTML = `<strong>✔️ ${ok} de ${contatos.length} ok</strong>`;
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '✔️ Concluído'; }
+  } catch (e) {
+    if (logArea) logArea.innerHTML += `<div style="color:var(--red);font-size:11px;margin-top:5px">❌ ${_ctEsc(e.message)}</div>`;
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📲 Enviar'; }
   }
 };
@@ -10611,15 +10480,7 @@ window.wapRemoveKw = function(arId, kw) {
   wapSyncAutoReplies(d);
 };
 
-async function wapSyncAutoReplies(d) {
-  try {
-    await fetch(getWaServer() + '/autoreplies', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ regras: d.autoRespostas.filter(a => a.ativo) })
-    });
-  } catch {}
-}
+async function wapSyncAutoReplies(d) { /* auto-respostas agora são fluxos no MarcFlow */ }
 
 // ==================== DRAG & DROP REORDER ====================
 let dragSrcRow = null;
@@ -11265,20 +11126,17 @@ renderDashboard = (function(_orig) {
     const empVsExp     = expEmpSaldo - empSaldo;
     const notaRetPrev  = txt => retiradaPrev > 0.005 ? '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+txt+' retirada prevista de '+fmt(retiradaPrev)+'</div>' : '';
 
-    const alunosCali   = md.calistenia.length;
-    const alunosOnline = md.personal.online.length;
-    const alunosPres   = md.personal.presencial.length;
+    const alunosCali   = _ativosQtd(md.calistenia);
+    const alunosOnline = _ativosQtd(md.personal.online);
+    const alunosPres   = _ativosQtd(md.personal.presencial);
 
-    const vencidos = [...md.personal.online, ...md.personal.presencial].filter(a => {
-      if (!a.attTreino) return false;
-      return (hoje - _dataLocal(a.attTreino)) / (1000*60*60*24) > 30;
-    });
+    const vencidos = alunosTreinoAlerta(md);
     const alunosPend = [
       ...caliCalc.filter(a => !a.pago && !a.pausado).map(a => ({...a, tipo:'Cali'})),
       ...md.personal.online.filter(a => !a.pago && !a.pausado).map(a => ({...a, tipo:'Online'})),
       ...md.personal.presencial.filter(a => !a.pago && !a.pausado).map(a => ({...a, tipo:'Pres'})),
     ];
-    const pendentesG  = md.balanco.ganhos.filter(g => !g.recebido);
+    const pendentesG  = md.balanco.ganhos.filter(g => !g.recebido && (g.valor||0) > 0);
     const pendentesGt = md.balanco.gastos.filter(g => !g.pago);
 
     const prevMonthKey = (() => {
@@ -11477,7 +11335,7 @@ renderDashboard = (function(_orig) {
             ? '<div style="font-size:11px;color:var(--green)">✓ Tudo em dia</div>'
             : (pendentesG.length>0?'<div onclick="navigate(\'financas\')" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;background:rgba(76,175,80,0.08);border:1px solid rgba(76,175,80,0.2);margin-bottom:5px;font-size:11px"><span>💰</span><span style="color:var(--text2)">'+pendentesG.length+' ganho(s) — <strong style="color:var(--green)">'+fmt(pendentesG.reduce((s,g)=>s+g.valor,0))+'</strong></span></div>':'')
             +(pendentesGt.length>0?'<div onclick="navigate(\'financas\')" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;background:rgba(232,32,10,0.07);border:1px solid rgba(232,32,10,0.18);margin-bottom:5px;font-size:11px"><span>💳</span><span style="color:var(--text2)">'+pendentesGt.length+' gasto(s) pendente'+(pendentesGt.length>1?'s':'')+'</span></div>':'')
-            +(vencidos.length>0?'<div onclick="navigate(\'personal\')" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;background:rgba(53,200,241,0.07);border:1px solid rgba(53,200,241,0.18);font-size:11px"><span>📋</span><span style="color:var(--text2)">'+vencidos.length+' treino(s) vencido'+(vencidos.length>1?'s':'')+'</span></div>':''))
+            +(vencidos.length>0?'<div onclick="navigate(\'personal\')" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;background:rgba(53,200,241,0.07);border:1px solid rgba(53,200,241,0.18);font-size:11px"><span>📋</span><span style="color:var(--text2)">'+vencidos.length+' treino(s) vencidos ou vencendo</span></div>':''))
           +'</div>'
           +'<div style="padding:10px 14px;flex:1;overflow:auto">'
           +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">'
