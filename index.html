@@ -2228,6 +2228,8 @@ function renderCentral(md) {
   const cnt = document.getElementById('content');
   const buscaFoco = document.activeElement?.id === 'ct-busca';
   const lembFoco = document.activeElement?.id === 'lb-ct-texto';
+  // a Central se redesenha sozinha (a cada minuto); não perde o lembrete que está sendo digitado
+  const lembTxt = document.getElementById('lb-ct-texto')?.value || '', lembData = document.getElementById('lb-ct-data')?.value || '';
   cnt.innerHTML = `
     <div class="stat-grid ct-stats">
       <div class="stat-card ${pend ? 'accent' : 'green'}"><div class="stat-label">Pendências</div><div class="stat-value">${pend}</div></div>
@@ -2254,6 +2256,8 @@ function renderCentral(md) {
     </div>
     <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:right">${atualizado}</div>`;
   if (buscaFoco) { const b = document.getElementById('ct-busca'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
+  if (lembTxt) document.getElementById('lb-ct-texto').value = lembTxt;
+  if (lembData) document.getElementById('lb-ct-data').value = lembData;
   if (lembFoco) document.getElementById('lb-ct-texto')?.focus();
 }
 
@@ -11003,8 +11007,14 @@ function startLivePolling() {
 // Flush imediato quando o app é ocultado/fechado (confiável no iOS PWA)
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushSave();
-  else checkAndApplyRemoteUpdates();
+  else {
+    checkAndApplyRemoteUpdates();
+    // voltou para o app: busca de novo as conversas (você pode ter respondido/lido no celular)
+    if (currentPage === 'central') carregarCentralExterno(true);
+  }
 });
+// Central aberta: atualiza conversas e formulários a cada minuto
+setInterval(() => { if (currentPage === 'central' && document.visibilityState === 'visible') carregarCentralExterno(true); }, 60000);
 
 
 // ══════════════════════════════════════════════════════════════
