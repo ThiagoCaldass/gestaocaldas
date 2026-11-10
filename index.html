@@ -249,6 +249,16 @@
   .tel-linha { padding: 10px 0; border-bottom: 1px solid var(--border); }
   .tel-nome { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 6px; cursor: pointer; }
   .tel-sel, .tel-outro { font-size: 12px !important; padding: 7px 10px !important; }
+  .lb-check { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); background: transparent; color: #000; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; display: grid; place-items: center; padding: 0; }
+  .lb-check:hover { border-color: var(--green); }
+  .lb-check.ok { background: var(--green); border-color: var(--green); }
+  .lb-txt { font-size: 13px; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
+  .lb-form { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--border); margin-top: auto; }
+  .lb-form input { font-size: 12px !important; padding: 7px 10px !important; }
+  .lb-form #lb-ct-texto { flex: 1 1 auto !important; width: auto !important; min-width: 0; }
+  .lb-form #lb-ct-data { flex: 0 0 132px !important; width: 132px !important; }
+  .lb-form button { flex-shrink: 0; min-width: 34px; }
+  @media (max-width: 700px) { .lb-form #lb-ct-data { flex-basis: 118px !important; width: 118px !important; } }
   .ct-aviso { padding: 8px 14px; font-size: 11px; color: var(--accent2); border-bottom: 1px solid var(--border); }
   .ct-tabela { width: 100%; border-collapse: collapse; font-size: 12px; }
   .ct-tabela th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); font-weight: 500; padding: 8px 14px; border-bottom: 1px solid var(--border); }
@@ -2039,6 +2049,44 @@ const _ctBtn = (rotulo, attrs, titulo='') => `<button class="btn btn-ghost btn-s
 const _ctBtnLink = (rotulo, href, titulo='') => href ? `<a class="btn btn-ghost btn-sm ct-bt" href="${_ctEsc(href)}" target="_blank" rel="noopener" title="${_ctEsc(titulo)}">${rotulo}</a>` : '';
 const _ctTipoBadge = t => t==='cali' ? `<span class="badge badge-gray">Cali</span>` : t==='online' ? `<span class="badge badge-green">Online</span>` : `<span class="badge badge-blue">Pres</span>`;
 
+// ── Lembretes na Central (mesma lista do bloco do Dashboard) ──
+let _ctVerConcluidos = false;
+function _ctLembretes(ro) {
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const diasAte = d => d ? Math.round((new Date(d + 'T00:00:00') - hoje) / 86400000) : null;
+  const pend = globalLembretes.filter(l => !l.concluido)
+    .sort((a, b) => (a.data || '9999') .localeCompare(b.data || '9999') || (a.criadoEm || 0) - (b.criadoEm || 0));
+  const feitos = globalLembretes.filter(l => l.concluido).sort((a, b) => (b.concluidoEm || 0) - (a.concluidoEm || 0));
+  const linha = l => {
+    const dias = diasAte(l.data);
+    const quando = dias === null ? '' : dias < 0 ? `Atrasado ${-dias}d` : dias === 0 ? 'Hoje' : dias === 1 ? 'Amanhã'
+      : new Date(l.data + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    const cor = dias !== null && dias < 0 ? 'var(--red)' : dias === 0 ? 'var(--accent2)' : 'var(--text3)';
+    return `<div class="ct-linha${l.concluido ? ' ct-linha-oculta' : ''}">
+      <button class="lb-check${l.concluido ? ' ok' : ''}" ${ro ? 'disabled' : `onclick="toggleLembrete('${l.id}')"`} title="${l.concluido ? 'Reabrir' : 'Marcar como feito'}">${l.concluido ? '✓' : ''}</button>
+      <div class="ct-txt"><div class="lb-txt"${l.concluido ? ' style="text-decoration:line-through;color:var(--text3)"' : ''}>${_ctEsc(l.texto)}</div>
+        ${quando && !l.concluido ? `<div class="ct-sub" style="color:${cor}">📅 ${quando}</div>` : ''}</div>
+      ${ro ? '' : `<div class="ct-bts">${_ctBtn('✕', `onclick="deleteLembrete('${l.id}')"`, 'Apagar')}</div>`}
+    </div>`;
+  };
+  let corpo = pend.length ? pend.map(linha).join('') : _ctVazio('Nada para lembrar. Anote aqui o que não está em nenhum outro lugar do Gestor.');
+  if (feitos.length) {
+    corpo += `<div class="ct-ocultos" onclick="_ctVerConcluidos=${!_ctVerConcluidos};renderCentral(getMonthData())">${_ctVerConcluidos ? '▾' : '▸'} ${feitos.length} concluído(s)</div>`;
+    if (_ctVerConcluidos) corpo += feitos.map(linha).join('')
+      + (ro ? '' : `<div class="ct-ocultos" onclick="limparLembretesConcluidos()">🗑 Apagar concluídos</div>`);
+  }
+  const form = ro ? '' : `<div class="lb-form">
+      <input id="lb-ct-texto" placeholder="Anotar lembrete…" onkeydown="if(event.key==='Enter')addLembrete('lb-ct-texto','lb-ct-data')">
+      <input id="lb-ct-data" type="date" title="Data (opcional)">
+      <button class="btn btn-primary btn-sm" onclick="addLembrete('lb-ct-texto','lb-ct-data')">+</button>
+    </div>`;
+  const vencidos = pend.filter(l => { const d = diasAte(l.data); return d !== null && d <= 0; }).length;
+  return { qtd: pend.length, vencidos, html: `<div class="table-card ct-card">
+    <div class="table-header"><div class="table-title">📌 Lembretes${pend.length ? ` <span class="ct-qtd">${pend.length}</span>` : ''}</div></div>
+    <div class="ct-lista">${corpo}</div>${form}
+  </div>` };
+}
+
 function renderCentral(md) {
   const ro = isReadOnly();
   const alunos = _centralAlunos(md);
@@ -2152,7 +2200,8 @@ function renderCentral(md) {
   // ── Resumo ──
   const previsto = ativos.reduce((s, a) => s + (a._valor || 0), 0);
   const recebido = ativos.filter(a => a.pago).reduce((s, a) => s + (a._valor || 0), 0);
-  const pend = formQtd + secTreino.qtd + pgtosAtrasadosVis + (convQtd ? 1 : 0) + secContas.qtd;
+  const lemb = _ctLembretes(ro);
+  const pend = formQtd + secTreino.qtd + pgtosAtrasadosVis + (convQtd ? 1 : 0) + secContas.qtd + lemb.vencidos;
   const badge = document.getElementById('central-badge');
   if (badge) { badge.textContent = pend; badge.style.display = pend ? 'inline-flex' : 'none'; }
 
@@ -2178,6 +2227,7 @@ function renderCentral(md) {
   const atualizado = _centralExtEm ? `Formulários e conversas: ${_ctHa(new Date(_centralExtEm).toISOString())}` : '';
   const cnt = document.getElementById('content');
   const buscaFoco = document.activeElement?.id === 'ct-busca';
+  const lembFoco = document.activeElement?.id === 'lb-ct-texto';
   cnt.innerHTML = `
     <div class="stat-grid ct-stats">
       <div class="stat-card ${pend ? 'accent' : 'green'}"><div class="stat-label">Pendências</div><div class="stat-value">${pend}</div></div>
@@ -2187,6 +2237,7 @@ function renderCentral(md) {
     </div>
     ${semTel && !ro ? `<div class="ct-faixa" onclick="abrirCompletarTelefones()">📞 <strong>${semTel}</strong> aluno(s) ativo(s) sem telefone ficam sem botão de WhatsApp <span class="btn btn-ghost btn-sm ct-bt" style="margin-left:auto">Completar</span></div>` : ''}
     <div class="ct-grid">
+      ${lemb.html}
       ${_ctCard('📝 Formulários', formQtd, formCorpo)}
       ${_ctCard('📋 Treinos', secTreino.qtd, secTreino.corpo)}
       ${_ctCard('💬 Conversas sem resposta', convQtd, convCorpo, _ctBtnLink('MarcFlow ↗', CENTRAL_MARCFLOW, 'Abrir o MarcFlow'))}
@@ -2203,6 +2254,7 @@ function renderCentral(md) {
     </div>
     <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:right">${atualizado}</div>`;
   if (buscaFoco) { const b = document.getElementById('ct-busca'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
+  if (lembFoco) document.getElementById('lb-ct-texto')?.focus();
 }
 
 // ==================== ASSISTENTE FINANCEIRO ====================
@@ -2854,7 +2906,7 @@ function renderLembretesDashboard() {
       <div onclick="toggleLembrete('${l.id}')" style="width:18px;height:18px;border-radius:50%;border:2px solid ${l.concluido?'var(--green)':'var(--border)'};background:${l.concluido?'var(--green)':'transparent'};cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">
         ${l.concluido?'<span style="color:#000;font-size:10px;font-weight:700;line-height:1">✓</span>':''}
       </div>
-      <span style="flex:1;font-size:13px;color:${l.concluido?'var(--text3)':'var(--text)'};text-decoration:${l.concluido?'line-through':'none'};line-height:1.4">${l.texto}</span>
+      <span style="flex:1;font-size:13px;color:${l.concluido?'var(--text3)':'var(--text)'};text-decoration:${l.concluido?'line-through':'none'};line-height:1.4">${_ctEsc(l.texto)}${l.data && !l.concluido ? ` <span style="font-size:11px;color:var(--text3)">📅 ${new Date(l.data+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>` : ''}</span>
       <button onclick="deleteLembrete('${l.id}')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1">✕</button>
     </div>`;
 
@@ -2875,29 +2927,49 @@ function renderLembretesDashboard() {
   </div>`;
 }
 
-async function addLembrete() {
-  const inp = document.getElementById('lembInput');
+function _rerenderLembretes() {
+  if (currentPage === 'central') renderCentral(getMonthData());
+  else renderDashboard(getMonthData());
+}
+
+async function addLembrete(inputId = 'lembInput', dataId = null) {
+  if (typeof guardReadOnly === 'function' && guardReadOnly()) return;
+  const inp = document.getElementById(inputId);
   const texto = inp?.value.trim();
   if (!texto) return;
-  globalLembretes.push({ id: uid(), texto, concluido: false, criadoEm: Date.now() });
+  const data = dataId ? (document.getElementById(dataId)?.value || '') : '';
+  globalLembretes.push({ id: uid(), texto, concluido: false, criadoEm: Date.now(), ...(data ? { data } : {}) });
   await saveLembretes();
   inp.value = '';
-  renderDashboard(getMonthData());
+  _rerenderLembretes();
+  document.getElementById(inputId)?.focus();
 }
 
 async function toggleLembrete(id) {
+  if (typeof guardReadOnly === 'function' && guardReadOnly()) return;
   const l = globalLembretes.find(x => x.id === id);
   if (!l) return;
   l.concluido = !l.concluido;
+  if (l.concluido) l.concluidoEm = Date.now(); else delete l.concluidoEm;
   await saveLembretes();
-  renderDashboard(getMonthData());
+  _rerenderLembretes();
 }
 
 async function deleteLembrete(id) {
+  if (typeof guardReadOnly === 'function' && guardReadOnly()) return;
   if (!confirm('Remover lembrete?')) return;
   globalLembretes = globalLembretes.filter(x => x.id !== id);
   await saveLembretes();
-  renderDashboard(getMonthData());
+  _rerenderLembretes();
+}
+
+async function limparLembretesConcluidos() {
+  if (typeof guardReadOnly === 'function' && guardReadOnly()) return;
+  const n = globalLembretes.filter(l => l.concluido).length;
+  if (!n || !confirm(`Apagar ${n} lembrete(s) concluído(s)?`)) return;
+  globalLembretes = globalLembretes.filter(l => !l.concluido);
+  await saveLembretes();
+  _rerenderLembretes();
 }
 
 // ==================== DASHBOARD ====================
