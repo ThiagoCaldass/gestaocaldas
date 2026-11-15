@@ -31,12 +31,12 @@ const ABAS = [
 
 const b64url = v => Buffer.from(v).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-export async function tokenGoogle(sa, fetchFn) {
+export async function tokenGoogle(sa, fetchFn, escrita = false) {
   const agora = Math.floor(Date.now() / 1000);
   const cab = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const corpo = b64url(JSON.stringify({
     iss: sa.client_email,
-    scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+    scope: `https://www.googleapis.com/auth/spreadsheets${escrita ? '' : '.readonly'}`,
     aud: 'https://oauth2.googleapis.com/token',
     iat: agora, exp: agora + 3600,
   }));
@@ -169,6 +169,59 @@ export async function todasRespostas(fetchFn) {
   return out;
 }
 
+// Mesma pessoa? Telefone (8 últimos dígitos) ou primeiro + último nome
+export function mesmaPessoa(a, b) {
+  const fim8 = t => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 8 ? d.slice(-8) : null; };
+  const ta = fim8(a.telefone), tb = fim8(b.telefone);
+  if (ta && tb) return ta === tb;
+  const pa = semAcento(a.nome).split(/\s+/).filter(Boolean), pb = semAcento(b.nome).split(/\s+/).filter(Boolean);
+  if (!pa.length || !pb.length) return false;
+  if (pa.length === 1 || pb.length === 1) return pa.join(' ') === pb.join(' ');
+  return pb[0] === pa[0] && pb[pb.length - 1] === pa[pa.length - 1];
+}
+
+const colLetra = i => { let s = ''; for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + (i - 1) % 26) + s; return s; };
+
+/** Marca "Feito" nas respostas do aluno feitas depois de `desde` (YYYY-MM-DD). Chamado ao entregar o treino. */
+export async function marcarFeito({ nome, telefone, desde }, fetchFn = fetch) {
+  if (!process.env.GOOGLE_SA_JSON) return { marcados: 0, erro: 'conta do Google não configurada' };
+  if (!nome) return { marcados: 0, erro: 'nome vazio' };
+  const token = await tokenGoogle(JSON.parse(process.env.GOOGLE_SA_JSON), fetchFn, true);
+  const H = { Authorization: `Bearer ${token}` };
+  let marcados = 0, erro = null;
+  await Promise.all(PLANILHAS.map(async p => {
+    const base = `https://sheets.googleapis.com/v4/spreadsheets/${p.id}`;
+    const r = await fetchFn(`${base}/values:batchGet?${ABAS.map(a => `ranges=${encodeURIComponent(`'${a.aba}'!A1:Z`)}`).join('&')}`, { headers: H });
+    if (!r.ok) { erro = `não consegui ler a planilha ${p.consultoria} (${r.status})`; return; }
+    const j = await r.json();
+    const data = [];
+    (j.valueRanges || []).forEach((vr, k) => {
+      const v = vr.values || []; if (!v.length) return;
+      const cab = v[0].map(semAcento), col = f => cab.findIndex(f);
+      const iFeito = col(c => c === 'feito'), iNome = col(c => c.startsWith('nome')),
+        iTel = col(c => c.startsWith('telefone')), iData = col(c => c.startsWith('carimbo'));
+      if (iFeito < 0 || iNome < 0) return;
+      v.forEach((l, i) => {
+        if (!i || String(l[iFeito]).toUpperCase() === 'TRUE') return;
+        if (!mesmaPessoa({ nome, telefone }, { nome: l[iNome], telefone: iTel >= 0 ? l[iTel] : '' })) return;
+        const quando = iData >= 0 ? dataPlanilha(l[iData]) : null;
+        if (desde && quando && quando.slice(0, 10) <= desde) return;
+        data.push({ range: `'${ABAS[k].aba}'!${colLetra(iFeito)}${i + 1}`, values: [[true]] });
+      });
+    });
+    if (!data.length) return;
+    const w = await fetchFn(`${base}/values:batchUpdate`, {
+      method: 'POST', headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }),
+    });
+    if (w.ok) marcados += data.length;
+    else erro = w.status === 403
+      ? 'a conta do Google do Gestor não tem permissão de editor nas planilhas'
+      : `não consegui marcar na planilha ${p.consultoria} (${w.status})`;
+  }));
+  return { marcados, ...(erro ? { erro } : {}) };
+}
+
 // ── MarcFlow ─────────────────────────────────────────────────────────────────
 
 /** Lista de conversas do MarcFlow → só as com mensagens não lidas, sem grupos. Exportada para teste. */
@@ -215,7 +268,16 @@ export async function montarCentral(req, fetchFn = fetch) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return res.status(405).json({ error: 'Use GET' }); }
+  if (req.method === 'POST') {
+    // POST { acao: 'feito', nome, telefone, desde } → marca "Feito" na planilha do formulário
+    if (!(await donoLogado(req))) return res.status(401).json({ error: 'Não autorizado' });
+    const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    if (b.acao !== 'feito') return res.status(400).json({ error: 'Ação desconhecida' });
+    const desde = /^\d{4}-\d{2}-\d{2}$/.test(b.desde || '') ? b.desde : null;
+    try { return res.status(200).json(await marcarFeito({ nome: String(b.nome || ''), telefone: String(b.telefone || ''), desde })); }
+    catch (e) { console.error('central feito:', e.message); return res.status(200).json({ marcados: 0, erro: e.message }); }
+  }
+  if (req.method !== 'GET') { res.setHeader('Allow', 'GET, POST'); return res.status(405).json({ error: 'Use GET' }); }
   const { status, corpo } = await montarCentral(req);
   res.setHeader('Cache-Control', 'no-store');
   return res.status(status).json(corpo);

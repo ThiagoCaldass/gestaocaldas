@@ -88,11 +88,11 @@ const TOOLS = [
   {
     name: 'treinos_vencimento',
     title: 'Vencimento dos treinos',
-    description: 'Data da próxima atualização do treino de cada aluno ativo (consultoria online, presencial e parcerias), quantos dias faltam, a situação do formulário no Gestor e a última resposta na planilha do Google. "mandar_formulario" lista para quem o Thiago precisa mandar o formulário de atualização: treino vencido ou vencendo dentro de "dias", sem formulário enviado e sem resposta nova na planilha. \"sem_data\" são alunos sem data de próxima atualização no Gestor. Alunos de calistenia não têm data de treino no Gestor.',
+    description: 'Data da próxima atualização do treino de cada aluno ativo (consultoria online, presencial e parcerias), quantos dias faltam, a situação do formulário no Gestor e a última resposta na planilha do Google. "mandar_formulario" lista para quem o Thiago precisa mandar o formulário de atualização: treino vencido ou vencendo dentro de "dias", sem formulário enviado, sem resposta nova na planilha e sem treino pausado. \"cobrar_resposta\" são formulários enviados há 5+ dias sem resposta. \"treino_pausado\" são alunos ativos com o treino pausado (não contam como vencidos). \"sem_data\" são alunos sem data de próxima atualização no Gestor. Alunos de calistenia não têm data de treino no Gestor.',
     inputSchema: {
       type: 'object',
       properties: {
-        dias: { type: 'integer', minimum: 0, maximum: 90, description: 'Janela em dias para considerar "vencendo" (padrão 14)' },
+        dias: { type: 'integer', minimum: 0, maximum: 90, description: 'Janela em dias para considerar "vencendo" (padrão 7, igual ao app)' },
         todos: { type: 'boolean', description: 'Listar todos os alunos ativos, não só os que pedem ação' },
       },
       additionalProperties: false,
@@ -202,7 +202,7 @@ async function responder(msg) {
       return ok(id, {
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'gestor-caldas', title: 'Gestor Caldas', version: '1.3.0' },
+        serverInfo: { name: 'gestor-caldas', title: 'Gestor Caldas', version: '1.4.0' },
         instructions: INSTRUCOES,
       });
     }

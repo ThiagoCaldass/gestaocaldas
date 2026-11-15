@@ -1736,15 +1736,41 @@ async function navigate(page) {
 }
 
 // ==================== REGRAS COMUNS DE ALUNOS ====================
-// Uma regra só para "treino precisa de atenção" (Dashboard, Alunos e Central usam a mesma):
-// online/presencial, não pausado, e (formulário enviado/respondido OU próxima atualização em até 7 dias, incluindo vencidos)
-function treinoPrecisaAtencao(a) {
-  if (!a || a.pausado || a._tipo === 'cali') return false;
-  if (a.formStatus === 'aguardando' || a.formStatus === 'pendente') return true;
-  if (!a.proxAtt) return false;
-  const h = new Date(); h.setHours(0,0,0,0);
-  return Math.floor((_dataLocal(a.proxAtt) - h) / 86400000) <= 7;
+// Ciclo do treino (online e presencial): Em dia → Vencendo (7 dias) → Formulário enviado → Respondeu → Treino entregue.
+// Uma regra só (statusTreino) para Central, Alunos, Dashboard e conector do Claude.
+const CICLO_TREINO_DIAS = 42;    // 6 semanas: sugestão da próxima atualização ao entregar
+const COBRAR_FORM_DIAS = 5;      // formulário enviado sem resposta há N dias → cobrar
+const _isoMais = (iso, dias) => { const d = _dataLocal(iso); d.setDate(d.getDate() + dias); return _isoLocal(d); };
+const _ddmm = iso => iso ? _dataLocal(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) : '';
+// Resposta na planilha (ainda sem "Feito") depois da última atualização do treino → aluno já respondeu
+function _respostaNova(a) {
+  const itens = _centralExt?.formularios?.itens;
+  if (!itens?.length || !a) return null;
+  const ref = a.attTreino || (a.proxAtt ? _isoMais(a.proxAtt, -CICLO_TREINO_DIAS) : null);
+  if (!ref) return null;
+  const tel = _ctTel(a.telefone);
+  return itens.find(f => String(f.enviadoEm || '').slice(0, 10) > ref
+    && ((tel && _ctTelIgual(_ctTel(f.telefone), tel)) || _ctNomeIgual(a.nome, f.nome))) || null;
 }
+function statusTreino(a) {
+  if (!a || a._tipo === 'cali') return null;
+  if (a.pausado) return { k:'alunoPausado', icone:'—', txt:'Aluno pausado', cor:'var(--text3)', acao:false };
+  if (a.treinoPausado) return { k:'pausado', icone:'⏸', txt:`Treino pausado${a.treinoPausadoEm ? ' desde ' + _ddmm(a.treinoPausadoEm) : ''}`, cor:'var(--text3)', acao:false };
+  const dias = a.proxAtt ? _ctDias(a.proxAtt) : null;
+  const resp = a.formStatus === 'pendente' ? {} : _respostaNova(a);
+  if (resp) return { k:'respondido', icone:'🛠', txt:'Respondeu o formulário — montar treino', cor:'var(--accent2)', acao:true, dias, link: resp.link || null };
+  if (a.formStatus === 'aguardando') {
+    const ha = a.formEnviadoEm ? -_ctDias(a.formEnviadoEm) : null;
+    if (ha !== null ? ha >= COBRAR_FORM_DIAS : (dias !== null && dias <= -COBRAR_FORM_DIAS))
+      return { k:'cobrar', icone:'⏰', txt:`Formulário sem resposta${ha !== null ? ` há ${ha}d` : ''} — cobrar`, cor:'var(--red)', acao:true, dias };
+    return { k:'enviado', icone:'📨', txt:`Formulário enviado${ha === null ? '' : ha === 0 ? ' hoje' : ` há ${ha}d`}, esperando resposta`, cor:'var(--accent3)', acao:true, dias };
+  }
+  if (dias === null) return { k:'semdata', icone:'❔', txt:'Sem data da próxima atualização', cor:'var(--text3)', acao:true };
+  if (dias < 0) return { k:'vencido', icone:'🔴', txt:`Venceu há ${-dias}d — mandar formulário`, cor:'var(--red)', acao:true, dias };
+  if (dias <= 7) return { k:'vencendo', icone:'🟡', txt:`${dias === 0 ? 'Vence hoje' : `Vence em ${dias}d`} — mandar formulário`, cor:'var(--accent2)', acao:true, dias };
+  return { k:'emdia', icone:'✅', txt:`Em dia até ${_ddmm(a.proxAtt)}`, cor:'var(--text2)', acao:false, dias };
+}
+function treinoPrecisaAtencao(a) { return !!statusTreino(a)?.acao; }
 function alunosTreinoAlerta(md) {
   return [...(md.personal?.online || []), ...(md.personal?.presencial || [])].filter(treinoPrecisaAtencao);
 }
@@ -1835,6 +1861,8 @@ async function carregarCentralExterno(forcar) {
     _centralExtEm = Date.now();
     _centralCarregando = false;
     if (currentPage === 'central') renderCentral(getMonthData());
+    // as respostas do formulário mudam a situação do treino em Alunos e no Dashboard
+    else if (currentPage === 'alunos' || currentPage === 'dashboard') rerenderCurrentPage();
   }
 }
 
@@ -2108,8 +2136,10 @@ function renderCentral(md) {
   else if (ext.erro) formCorpo = _ctVazio(`Não deu para buscar (${_ctEsc(ext.erro)}).`);
   else if (!ext.formularios?.configurado) formCorpo = fontePendente('O Google Drive', 'Falta a conta de serviço do Google com acesso às planilhas.');
   else {
-    const sec = _ctSecao('form', (ext.formularios.itens || []).map(f => {
-      const al = _ctAcharAluno(alunos, f);
+    const sec = _ctSecao('form', (ext.formularios.itens || []).map(f => ({ f, al: _ctAcharAluno(alunos, f) }))
+      // resposta de aluno online/presencial já aparece em Treinos ("Respondeu o formulário")
+      .filter(({ f, al }) => !(al && al._tipo !== 'cali' && !al.pausado && statusTreino(al)?.k === 'respondido'))
+      .map(({ f, al }) => {
       const tel = _ctTel(f.telefone) || al?._tel;
       const tipo = f.tipo === 'anamnese' ? 'Anamnese (aluno novo)' : 'Atualizar treino';
       const vinculo = al ? `${_ctTipoBadge(al._tipo)} ` : `<span class="badge badge-yellow" title="Não achei esse nome no Gestor">novo</span> `;
@@ -2125,23 +2155,20 @@ function renderCentral(md) {
     formCorpo = (ext.formularios.erro ? `<div class="ct-aviso">⚠ ${_ctEsc(ext.formularios.erro)}</div>` : '') + sec.corpo;
   }
 
-  // ── Treinos vencendo (Gestor) ──
+  // ── Treinos (Gestor + respostas do formulário) ──
+  const ORD_TREINO = { respondido:0, cobrar:1, vencido:2, vencendo:3, semdata:4, enviado:5 };
   const treinos = ativos
-    .filter(treinoPrecisaAtencao)
-    .map(a => ({ a, dias: a.proxAtt ? _ctDias(a.proxAtt) : null }))
-    .sort((x, y) => (x.dias ?? -999) - (y.dias ?? -999));
-  const secTreino = _ctSecao('treino', treinos.map(({ a, dias }) => {
-    const st = a.formStatus === 'aguardando' ? { t:'Formulário enviado, esperando resposta', c:'var(--accent3)', i:'📨' }
-      : a.formStatus === 'pendente' ? { t:'Formulário respondido — montar treino', c:'var(--accent2)', i:'🛠' }
-      : dias < 0 ? { t:`Treino venceu há ${-dias}d`, c:'var(--red)', i:'🔴' }
-      : dias === 0 ? { t:'Treino vence hoje', c:'var(--accent2)', i:'🟡' }
-      : { t:`Treino vence em ${dias}d`, c:'var(--text2)', i:'📋' };
-    return { chave: `treino:${a.id}:${a.formStatus || ''}:${a.proxAtt || ''}`, nome: a.nome, linha: {
-      icone: st.i, titulo: `${_ctTipoBadge(a._tipo)} ${_ctEsc(a.nome)}`, sub: st.t, cor: st.c,
-      botoes: _ctBtnLink('💬', _ctLinkWhats(a._tel), 'Abrir conversa')
-        + (a._tipo === 'online' && !ro ? _ctBtn('📋', `onclick="attTreino('${a.id}')"`, 'Registrar atualização do treino') : ''),
-    } };
-  }), '✓ Nenhum treino vencendo nos próximos 7 dias');
+    .map(a => ({ a, st: statusTreino(a) }))
+    .filter(x => x.st?.acao)
+    .sort((x, y) => (ORD_TREINO[x.st.k] - ORD_TREINO[y.st.k]) || ((x.st.dias ?? 0) - (y.st.dias ?? 0)));
+  const secTreino = _ctSecao('treino', treinos.map(({ a, st }) => ({
+    chave: `treino:${a.id}:${st.k}:${a.proxAtt || ''}:${a.formEnviadoEm || ''}`, nome: a.nome, linha: {
+      icone: st.icone, titulo: `${_ctTipoBadge(a._tipo)} ${_ctEsc(a.nome)}`, sub: st.txt, cor: st.cor,
+      botoes: (st.link ? _ctBtnLink('📄', st.link, 'Abrir a resposta na planilha') : '')
+        + _ctBtnLink('💬', _ctLinkWhats(a._tel), 'Abrir conversa')
+        + (ro ? '' : _ctBtn('📋', `onclick="attTreino('${a.id}')"`, 'Treino: enviar formulário, entregar, pausar')),
+    },
+  })), '✓ Nenhum treino pedindo ação');
 
   // ── Pagamentos de alunos (Gestor) ──
   const pgtos = ativos.filter(a => !a.pago)
@@ -2209,12 +2236,8 @@ function renderCentral(md) {
   const q = _ctNome(_centralBusca);
   const listaAlunos = alunos.filter(a => !q || _ctNome(a.nome).includes(q)).sort((x, y) => x.nome.localeCompare(y.nome));
   const alunosRows = listaAlunos.map(a => {
-    const dias = a.proxAtt ? _ctDias(a.proxAtt) : null;
-    const treino = a._tipo === 'cali' ? '—'
-      : a.formStatus === 'aguardando' ? '<span style="color:var(--accent3)">esperando formulário</span>'
-      : a.formStatus === 'pendente' ? '<span style="color:var(--accent2)">montar treino</span>'
-      : dias === null ? '<span style="color:var(--text3)">sem data</span>'
-      : `<span style="color:${dias < 0 ? 'var(--red)' : dias <= 7 ? 'var(--accent2)' : 'var(--text2)'}">${new Date(_dataLocal(a.proxAtt)).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`;
+    const stT = statusTreino(a);
+    const treino = !stT ? '—' : `<span style="color:${stT.cor}" title="${_ctEsc(stT.txt)}">${stT.icone} ${stT.k === 'emdia' ? _ddmm(a.proxAtt) : _ctEsc(stT.txt.split(' — ')[0])}</span>`;
     return `<tr${a.pausado ? ' style="opacity:.45"' : ''}>
       <td>${_ctTipoBadge(a._tipo)} ${_ctEsc(a.nome)}${a.pausado ? ' <span class="badge badge-gray">pausado</span>' : ''}</td>
       <td>${a.pago ? '<span class="badge badge-green">pago</span>' : `<span class="badge badge-red">${fmt(a._valor)}</span>`}</td>
@@ -5506,7 +5529,7 @@ function renderTodosContent(md) {
   // Treinos a vencer nos próximos 7 dias (ou já vencidos), apenas personal
   const treinoAlerta = allStudents
     .filter(treinoPrecisaAtencao)
-    .sort((a,b) => (a.proxAtt||'').localeCompare(b.proxAtt||''));
+    .sort((a,b) => (statusTreino(a).dias ?? -9999) - (statusTreino(b).dias ?? -9999));
 
   const _tipoBadgeSm = a =>
     a._tipo==='cali'   ? `<span class="badge badge-gray"  style="font-size:10px">Cali</span>` :
@@ -5529,18 +5552,12 @@ function renderTodosContent(md) {
   }).join('');
 
   const treinoRows = treinoAlerta.map(a => {
-    const diff = a.proxAtt ? Math.floor((_dataLocal(a.proxAtt) - h0a) / 86400000) : null;
-    const isVenc = diff !== null && diff < 0;
-    const isMuito = diff !== null && diff >= 0 && diff <= 3;
-    const cor = isVenc ? 'var(--red)' : isMuito ? '#f1c135' : 'var(--text2)';
-    const label = a.formStatus === 'aguardando' ? 'Esperando formulário' : a.formStatus === 'pendente' ? 'Montar treino'
-      : isVenc ? `Venceu ${Math.abs(diff)}d atrás` : diff===0 ? 'Vence hoje' : `Vence em ${diff}d`;
-    const icon = a.formStatus === 'aguardando' ? '📨 ' : a.formStatus === 'pendente' ? '🛠 ' : isVenc ? '⚠ ' : isMuito ? '! ' : '⏰ ';
+    const st = statusTreino(a);
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;border-bottom:1px solid var(--border);font-size:12px;gap:8px">
       <div style="display:flex;align-items:center;gap:6px;min-width:0">${_tipoBadgeSm(a)}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nome}</span></div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-        <span style="color:${cor};font-size:11px">${icon}${label}</span>
-        ${ro?'':`<button class="btn btn-ghost btn-sm" onclick="attTreino('${a.id}')" style="padding:2px 8px;font-size:11px" title="Atualizar treino">📋</button>`}
+        <span style="color:${st.cor};font-size:11px">${st.icone} ${st.txt.split(' — ')[0]}</span>
+        ${ro?'':`<button class="btn btn-ghost btn-sm" onclick="attTreino('${a.id}')" style="padding:2px 8px;font-size:11px" title="Treino">📋</button>`}
       </div>
     </div>`;
   }).join('');
@@ -5640,8 +5657,8 @@ function renderTodosContent(md) {
     // Célula Treino
     const treinoCell = a._tipo==='cali'
       ? `<td style="text-align:center"><span style="color:var(--text3);font-size:12px">—</span></td>`
-      : `<td style="text-align:center${ro?'':';cursor:pointer'}" onclick="${ro?'':` attTreino('${a.id}') `}" title="Atualizar treino">
-          ${a.pausado?'—':`<span style="font-size:16px;line-height:1">${_treinoEmoji(a.proxAtt)}</span>`}
+      : `<td style="text-align:center${ro?'':';cursor:pointer'}" onclick="${ro?'':` attTreino('${a.id}') `}">
+          ${a.pausado?'—':`<span style="font-size:16px;line-height:1" title="${_ctEsc(statusTreino(a)?.txt||'')}">${_formEmoji(a)}</span>`}
         </td>`;
 
     return `<tr data-nome="${a.nome}" data-tipo="${a._tipo}" data-valor="${a._valor}" data-pago="${a.pago?'1':'0'}" data-acerto="${a.diaAcerto||''}" data-att="${a.proxAtt||''}" data-belongs="${a._tipo}" style="${a.pausado?'opacity:0.45':''}">
@@ -6167,10 +6184,7 @@ function renderPersonalContent(md, tab) {
   const tOl=online.filter(a=>!a.pausado).reduce((a,b)=>a+b.valor,0);
   const tPr=pres.filter(a=>!a.pausado).reduce((a,b)=>a+b.valor,0);
   const hoje0=new Date();hoje0.setHours(0,0,0,0);
-  const vencidos=list.filter(a=>{
-    if(a.pausado||!a.proxAtt)return false;
-    return _dataLocal(a.proxAtt)<hoje0;
-  });
+  const vencidos=list.filter(a=>['vencido','cobrar'].includes(statusTreino(a)?.k));
 
   return `<div>
     ${vencidos.length>0?`<div class="notice" style="margin-bottom:10px">⚠ ${vencidos.length} treino(s) vencido(s): ${vencidos.map(a=>a.nome).join(', ')}</div>`:''}
@@ -6191,7 +6205,7 @@ function renderPersonalContent(md, tab) {
         const h0=new Date();h0.setHours(0,0,0,0);
         const pAD=a.proxAtt?_dataLocal(a.proxAtt):null;
         const dpV=pAD?Math.floor((pAD-h0)/86400000):null;
-        const _formAguard = tab==='online' && a.formStatus==='aguardando';
+        const _formAguard = ['enviado','respondido','pausado'].includes(statusTreino(a)?.k);
         const aV=!_formAguard&&dpV!==null&&dpV<0, aP=!_formAguard&&dpV!==null&&dpV>=0&&dpV<=3, a7=!_formAguard&&dpV!==null&&dpV>3&&dpV<=7;
 
         // ── Payment urgency ──
@@ -6267,8 +6281,8 @@ function renderPersonalContent(md, tab) {
               </div>`;
             })():(()=>{const n=(a.aulasDatas||[]).length;return `<span style="font-family:'Barlow Condensed';font-size:15px;font-weight:700;color:${n>0?'var(--accent)':'var(--text3)'}">${n}</span><span style="font-size:10px;color:var(--text3);margin-left:2px">aula${n!==1?'s':''}</span>`;})()}
           </td>
-          ${(tab==='online'||tab==='presencial')?`<td style="text-align:center${ro?'':';cursor:pointer'}" onclick="attTreino('${a.id}')" title="Atualizar treino">
-            ${a.pausado?'—':`<span ${tab==='online'&&!ro?`onclick="event.stopPropagation();cycleFormStatus('${a.id}')" title="Ciclar status do forms"`:''}style="font-size:16px;line-height:1;cursor:pointer">${_formEmoji(a)}</span>`}
+          ${(tab==='online'||tab==='presencial')?`<td style="text-align:center${ro?'':';cursor:pointer'}" onclick="attTreino('${a.id}')" title="${_ctEsc(statusTreino(a)?.txt||'')}">
+            ${a.pausado?'—':`<span style="font-size:16px;line-height:1;cursor:pointer">${_formEmoji(a)}</span>`}
           </td>
 `:''}
           <td style="${ro?'':'cursor:pointer'}" onclick="${a.pausado?`togglePausadoPersonal('${a.id}')`:`togglePersonal('${a.id}')`}">
@@ -6870,98 +6884,127 @@ function saveEditCell_Cali(id, campo) {
 }
 
 
-function _formEmoji(a) {
-  if (a.formStatus === 'aguardando') return '📋';
-  const hoje = new Date(); hoje.setHours(0,0,0,0);
-  const atrasado = a.proxAtt && _dataLocal(a.proxAtt) < hoje;
-  if (a.formStatus === 'pendente' || atrasado) return '🔴';
-  return '✅';
-}
-function cycleFormStatus(id) {
-  if(guardReadOnly()) return;
-  const md = getMonthData();
-  const a = md.personal.online.find(x => x.id === id);
-  if (!a) return;
-  // ✅ → vencido; 🔴 / 📋 → pede a próxima data de atualização
-  if (_formEmoji(a) === '✅') { a.formStatus = 'pendente'; saveData(); setAlunosTab(alunosTab); return; }
-  attTreino(id);
-}
-function marcarFormEnviado(id) {
-  if(guardReadOnly()) return;
-  const md = getMonthData();
-  const a = md.personal.online.find(x => x.id === id);
-  if (!a) return;
-  a.formStatus = 'aguardando';
-  saveData(); closeModal(); setAlunosTab(alunosTab);
-}
+// ── Treino do aluno: uma janela só para todas as ações do ciclo ──
+const _alunoTreino = id => { const md = getMonthData(); return [...(md.personal?.online || []), ...(md.personal?.presencial || [])].find(x => x.id === id); };
+function _formEmoji(a) { return statusTreino(a)?.icone || '—'; }
 function _treinoEmoji(proxAtt) {
   if (!proxAtt) return '📋';
   const h0 = new Date(); h0.setHours(0,0,0,0);
   return _dataLocal(proxAtt) < h0 ? '🔴' : '✅';
 }
-function attTreino(id){
-  if(guardReadOnly())return;
-  const md=getMonthData();
-  const a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);
-  if(!a)return;
-  const today=_isoLocal(new Date());
-  const prox45=new Date();prox45.setDate(prox45.getDate()+45);
-  const prox45Str=_isoLocal(prox45);
-  const isOnline = md.personal.online.some(x => x.id === id);
-  const emoji = isOnline ? _formEmoji(a) : _treinoEmoji(a.proxAtt);
-  if (emoji === '✅') {
-    openModal(`<div class="modal-handle"></div><div class="modal-title">TREINO — ${a.nome}</div>
+function cycleFormStatus(id) { attTreino(id); }
+function _depoisTreino() { closeModal(); if (currentPage === 'alunos' || currentPage === 'central') setAlunosTab(alunosTab); else rerenderCurrentPage(); }
+function attTreino(id) {
+  if (guardReadOnly()) return;
+  const a = _alunoTreino(id);
+  if (!a) return;
+  const st = statusTreino(a) || { icone:'', txt:'', cor:'' };
+  const hoje = _isoLocal(new Date());
+  const prox = _isoMais(hoje, CICLO_TREINO_DIAS);
+  const bt = (rot, fn, tit = '') => `<button class="btn btn-ghost btn-sm" onclick="${fn}" title="${tit}">${rot}</button>`;
+  const acoes = [
+    ...(['vencido','vencendo','semdata','emdia'].includes(st.k) ? [bt('📨 Enviei o formulário', `formEnviado('${id}')`, 'Marca como enviado hoje')] : []),
+    ...(['enviado','cobrar'].includes(st.k) ? [bt('📨 Reenviei hoje', `formEnviado('${id}')`, 'Conta os dias de novo a partir de hoje'), bt('📝 Já respondeu', `formRespondido('${id}')`, 'Respondeu fora da planilha')] : []),
+    a.treinoPausado ? bt('▶ Retomar treino', `retomarTreino('${id}')`, 'Empurra o vencimento pelos dias em que ficou pausado')
+      : bt('⏸ Pausar treino', `pausarTreino('${id}')`, 'Sai dos avisos de vencimento sem pausar o aluno'),
+  ].join('');
+  openModal(`<div class="modal-handle"></div><div class="modal-title">TREINO — ${a.nome}</div>
+    <div style="font-size:13px;color:${st.cor};margin-bottom:4px">${st.icone} ${st.txt}</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Última atualização: ${a.attTreino ? _ddmm(a.attTreino) : '—'} · Próxima: ${a.proxAtt ? _ddmm(a.proxAtt) : '—'}
+      ${st.link ? ` · <a href="${_ctEsc(st.link)}" target="_blank" rel="noopener" style="color:var(--accent3)">ver resposta</a>` : ''}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">${acoes}</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">✅ TREINO ENTREGUE</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Entregue em</label>
+        <input id="mEnt" type="date" value="${hoje}" onchange="if(this.value){const d=_isoMais(this.value,${CICLO_TREINO_DIAS});document.getElementById('mProx').value=d;}">
+      </div>
       <div class="form-group"><label class="form-label">Próxima atualização</label>
-        <input id="mProx" type="date" value="${a.proxAtt||prox45Str}">
+        <input id="mProx" type="date" value="${prox}">
       </div>
-      <div class="form-group"><label class="form-label">Observações</label>
-        <input id="mO" value="${a.obs||''}" placeholder="Ex: 4 dias, musculação...">
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin:-6px 0 10px">Sugestão: 6 semanas depois da entrega. Marca "Feito" na planilha do formulário.</div>
+    <div class="form-group"><label class="form-label">Observações</label>
+      <input id="mO" value="${_ctEsc(a.obs || '')}" placeholder="Ex: 4 dias, musculação...">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="entregarTreino('${id}')">Treino entregue</button>
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">📅 SÓ CORRIGIR A DATA</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="mProxSo" type="date" value="${a.proxAtt || ''}" style="flex:1">
+        <button class="btn btn-ghost btn-sm" onclick="corrigirProxTreino('${id}')">Salvar data</button>
       </div>
-      <div class="form-actions">
-        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveAtt('${id}')">Salvar</button>
-      </div>`);
-  } else {
-    openModal(`<div class="modal-handle"></div><div class="modal-title">✅ ATT TREINO — ${a.nome}</div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">${emoji==='📋'?'Formulário enviado. ':''}Treino atualizado hoje. Qual é a próxima data de atualização?</div>
-      <div class="form-group"><label class="form-label">Próxima atualização</label>
-        <input id="mProx" type="date" value="${prox45Str}">
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">Sugestão: 45 dias a partir de hoje</div>
-      </div>
-      <div class="form-actions">
-        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveAttRapido('${id}')">Salvar</button>
-      </div>
-      ${isOnline && emoji==='🔴' ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="marcarFormEnviado('${id}')">📋 Só enviei o formulário</button>` : ''}`);
-  }
-  setTimeout(()=>document.getElementById('mProx')?.focus(),100);
+    </div>`);
 }
-function saveAtt(id){
-  if(guardReadOnly())return;
-  if(!validateDate('mD','Data da atualização')) return;
-  if(!validateDate('mProx','Próxima atualização')) return;
-  const md=getMonthData();
-  const a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);
-  if(!a)return;
-  const mD=document.getElementById('mD');
-  const obsNova=document.getElementById('mO').value;
+async function entregarTreino(id) {
+  if (guardReadOnly()) return;
+  const ent = document.getElementById('mEnt')?.value, prox = document.getElementById('mProx')?.value;
+  if (!ent) { showFieldError('mEnt', 'Informe a data da entrega'); return; }
+  if (!prox) { showFieldError('mProx', 'Informe a próxima atualização'); return; }
+  if (prox <= ent) { showFieldError('mProx', 'A próxima atualização tem que ser depois da entrega'); return; }
+  const a = _alunoTreino(id);
+  if (!a) return;
+  const desde = a.attTreino || (a.proxAtt ? _isoMais(a.proxAtt, -CICLO_TREINO_DIAS) : null);
+  const obsNova = document.getElementById('mO').value;
   _guardarVolumeAnterior(a, obsNova);   // guarda o volume do treino que está saindo (comparação na Visão geral)
-  if(mD) a.attTreino=mD.value;
-  a.proxAtt=document.getElementById('mProx').value;
-  a.obs=obsNova;
-  a.formStatus='ok';
-  saveData();closeModal();setAlunosTab(alunosTab);
+  Object.assign(a, { attTreino: ent, proxAtt: prox, obs: obsNova, formStatus: 'ok', formEnviadoEm: null, treinoPausado: false, treinoPausadoEm: null });
+  saveData(); _depoisTreino();
+  _marcarFeitoPlanilha(a, desde);
 }
-function saveAttRapido(id){
-  if(guardReadOnly())return;
-  if(!validateDate('mProx','Próxima atualização')) return;
-  const md=getMonthData();
-  const a=[...md.personal.online,...md.personal.presencial].find(x=>x.id===id);
-  if(!a)return;
-  a.attTreino=_isoLocal(new Date());
-  a.proxAtt=document.getElementById('mProx').value;
-  a.formStatus='ok';
-  saveData();closeModal();setAlunosTab(alunosTab);
+// Marca "Feito" na resposta do formulário (planilha do Google) depois de entregar o treino
+async function _marcarFeitoPlanilha(a, desde) {
+  try {
+    await ensureAuth();
+    const r = await fetch('/api/central', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token || ''}` },
+      body: JSON.stringify({ acao: 'feito', nome: a.nome, telefone: a.telefone || '', desde }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 404) return;                       // fora do site publicado
+    if (j.marcados > 0) showToast(`✓ Marcado "Feito" na planilha (${j.marcados})`, 'success');
+    else if (j.erro) showToast(`⚠ Planilha: ${j.erro}`, 'warning', 6000);
+    if (j.marcados > 0) carregarCentralExterno(true);
+  } catch { /* sem conexão: o Feito fica para marcar à mão */ }
+}
+function formEnviado(id) {
+  if (guardReadOnly()) return;
+  const a = _alunoTreino(id); if (!a) return;
+  a.formStatus = 'aguardando'; a.formEnviadoEm = _isoLocal(new Date());
+  saveData(); _depoisTreino();
+}
+function formRespondido(id) {
+  if (guardReadOnly()) return;
+  const a = _alunoTreino(id); if (!a) return;
+  a.formStatus = 'pendente';
+  saveData(); _depoisTreino();
+}
+function marcarFormEnviado(id) { formEnviado(id); }
+function pausarTreino(id) {
+  if (guardReadOnly()) return;
+  const a = _alunoTreino(id); if (!a) return;
+  a.treinoPausado = true; a.treinoPausadoEm = _isoLocal(new Date());
+  saveData(); _depoisTreino();
+  showToast(`⏸ Treino de ${a.nome.split(' ')[0]} pausado`, 'success');
+}
+function retomarTreino(id) {
+  if (guardReadOnly()) return;
+  const a = _alunoTreino(id); if (!a) return;
+  const parado = a.treinoPausadoEm ? Math.max(0, -_ctDias(a.treinoPausadoEm)) : 0;
+  if (a.proxAtt && parado) a.proxAtt = _isoMais(a.proxAtt, parado);
+  a.treinoPausado = false; a.treinoPausadoEm = null;
+  saveData(); _depoisTreino();
+  showToast(`▶ Treino retomado${a.proxAtt ? ` — próxima atualização ${_ddmm(a.proxAtt)}` : ''}`, 'success', 5000);
+}
+function corrigirProxTreino(id) {
+  if (guardReadOnly()) return;
+  const v = document.getElementById('mProxSo')?.value;
+  if (!v) { showFieldError('mProxSo', 'Escolha a data'); return; }
+  const a = _alunoTreino(id); if (!a) return;
+  a.proxAtt = v;
+  saveData(); _depoisTreino();
 }
 function gerenciarPlanos() {
   const renderList = () => {
@@ -7057,6 +7100,8 @@ function openAddPersonal(){openModal(`<div class="modal-handle"></div><div class
     <div class="form-group"><label class="form-label">Valor (R$)</label><input id="mV" type="number" inputmode="decimal"></div>
     <div class="form-group"><label class="form-label">Dia Acerto</label><input id="mD" placeholder="Dia 10"></div>
   </div>
+  <div class="form-group"><label class="form-label">Próxima atualização do treino</label><input id="mProxNovo" type="date" value="${_isoMais(_isoLocal(new Date()), CICLO_TREINO_DIAS)}">
+    <div style="font-size:11px;color:var(--text3);margin-top:4px">Obrigatória. Sugestão: 6 semanas a partir de hoje.</div></div>
   <div class="form-row">
     <div class="form-group"><label class="form-label">Modalidade</label>
       <select id="mM" onchange="
@@ -7097,9 +7142,10 @@ function addPersonal(){
   const pa=tipoPres==='pacote'?(parseInt(document.getElementById('mPA')?.value)||0):0;
   if(!validateRequired('mN','Nome')) return;
   if(!validateNumber('mV','Valor',0)) return;
+  if(!validateRequired('mProxNovo','Próxima atualização do treino')) return;
   if(!n)return;
   const md=getMonthData();
-  const obj={id:uid(),nome:n,valor:v,diaAcerto:d,pago:p,attTreino:'',obs:'',
+  const obj={id:uid(),nome:n,valor:v,diaAcerto:d,pago:p,attTreino:_isoLocal(new Date()),proxAtt:document.getElementById('mProxNovo').value,obs:'',
     valorAula:tipoPres==='por-aula'?va:0,aulasDatas:[],
     tipoPres:m==='presencial'?tipoPres:'',pacoteAulas:pa};
   if(m==='online'){md.personal.online.push(obj);personalTab='online';}
@@ -11837,6 +11883,7 @@ renderDashboard = (function(_orig) {
     loadYearData().then(() => { if (window.renderDashboard) renderDashboard(); }).catch(()=>{});
     document.getElementById('loadingMsg').textContent='Pronto!';
     updateAlunosBadge();
+    carregarCentralExterno();   // formulários respondidos entram sozinhos na situação do treino
   } catch(e) {
     console.error('Init error:', e);
   } finally {
