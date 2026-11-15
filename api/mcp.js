@@ -1,5 +1,5 @@
 /**
- * Gestor Caldas — Servidor MCP (somente leitura) para conectar o Claude.ai aos dados do app
+ * Gestor Caldas — Servidor MCP para conectar o Claude.ai aos dados do app (finanças: leitura) e ao WhatsApp de trabalho (MarcFlow: leitura e envio)
  * POST /mcp/<chave>  (ou /api/mcp com Authorization: Bearer <chave>)
  * Protocolo MCP via HTTP "streamable", sem sessão: cada POST é uma mensagem JSON-RPC.
  * A chave fica na variável de ambiente MCP_CHAVE da Vercel — sem ela o endpoint recusa tudo.
@@ -8,6 +8,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { fetchData, hojeBR, monthKey } from './_tools.js';
 import { resumoDetalhado, resumoCurto, resumoPoupanca, saldoRealPessoal } from './_resumo.js';
+import { WA_TOOLS, WA_NOMES, executarWhatsapp, ErroWhats } from './_whatsapp.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -19,7 +20,9 @@ const RE_MES = /^\d{4}-\d{2}$/;
 const INSTRUCOES = `Dados do Gestor Caldas, app de gestão financeira do Thiago Caldas (personal trainer autônomo: calistenia, consultoria online e aulas presenciais).
 Cada mês ("YYYY-MM") tem: ganhos e gastos da conta pessoal, alunos (com quem pagou e em qual conta), cartões (BB, Inter e empresarial) e a conta empresarial (saídas e retiradas para a conta pessoal).
 Valores em reais. "saldo_real" = recebido − pago na conta pessoal; a linha "Mês anterior" é o saldo que sobrou do mês anterior. Retiradas da conta empresarial aparecem como ganho pessoal.
-Comece por listar_meses para saber quais meses existem. As ferramentas são só de leitura.`;
+Comece por listar_meses para saber quais meses existem. As ferramentas de finanças são só de leitura.
+
+WhatsApp de trabalho (ferramentas whatsapp_*, pelo MarcFlow): dá para ler conversas, buscar mensagens, ver agendamentos e os fluxos automáticos, e também enviar, responder, agendar e marcar como lida. Para enviar ou agendar, mostre antes ao Thiago o destinatário e o texto exato e espere ele confirmar. Escreva como o Thiago escreve: curto, informal, em português do Brasil.`;
 
 const TOOLS = [
   {
@@ -81,7 +84,7 @@ const TOOLS = [
       required: ['mes'], additionalProperties: false,
     },
   },
-].map(t => ({ ...t, annotations: { readOnlyHint: true, openWorldHint: false } }));
+].map(t => ({ ...t, annotations: { readOnlyHint: true, openWorldHint: false } })).concat(WA_TOOLS);
 
 // ── Dados ─────────────────────────────────────────────────────────────────────
 
@@ -118,6 +121,7 @@ function checaMes(v, campo) {
 class ErroUso extends Error {}
 
 async function executar(nome, args = {}) {
+  if (WA_NOMES.has(nome)) return executarWhatsapp(nome, args);
   switch (nome) {
     case 'listar_meses': {
       const rows = await fetchMeses();
@@ -179,7 +183,7 @@ async function responder(msg) {
       return ok(id, {
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'gestor-caldas', title: 'Gestor Caldas', version: '1.0.0' },
+        serverInfo: { name: 'gestor-caldas', title: 'Gestor Caldas', version: '1.1.0' },
         instructions: INSTRUCOES,
       });
     }
@@ -196,8 +200,9 @@ async function responder(msg) {
           isError: false,
         });
       } catch (e) {
-        if (!(e instanceof ErroUso)) console.error('MCP tool error:', e);
-        return ok(id, { content: [{ type: 'text', text: e instanceof ErroUso ? e.message : 'Erro ao ler os dados do app' }], isError: true });
+        const doUsuario = e instanceof ErroUso || e instanceof ErroWhats;
+        if (!doUsuario) console.error('MCP tool error:', e);
+        return ok(id, { content: [{ type: 'text', text: doUsuario ? e.message : 'Erro ao acessar os dados' }], isError: true });
       }
     }
     default:
