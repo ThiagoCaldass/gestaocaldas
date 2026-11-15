@@ -37,11 +37,13 @@ export function vencimentos(md, { hoje, dias = 14, todos = false, respostas = nu
     const resp = respostas
       ? respostas.filter(r => mesmaPessoa(a, r)).sort((x, y) => String(y.data).localeCompare(String(x.data)))[0] || null
       : undefined;
-    // respondeu depois da última atualização do treino → resposta nova
-    const respNova = resp?.data && (!a.attTreino || resp.data.slice(0, 10) > a.attTreino);
-    const formulario = SIT_FORM[fs] || (!respNova ? 'não enviado'
-      : resp.feito ? 'respondido e marcado como Feito na planilha (falta registrar a atualização no Gestor)'
-      : 'respondido (está na planilha), falta montar o treino');
+    // Resposta nova = depois da última atualização do treino (sem essa data: 45 dias antes do vencimento)
+    const ref = /^\d{4}-\d{2}-\d{2}$/.test(a.attTreino || '') ? a.attTreino
+      : prox ? new Date(Date.parse(prox) - 45 * DIA).toISOString().slice(0, 10) : null;
+    const respNova = !!(ref && resp?.data && resp.data.slice(0, 10) > ref);
+    const formulario = respNova
+      ? (resp.feito ? 'respondido e marcado como Feito na planilha (falta registrar a atualização no Gestor)' : 'respondido (está na planilha), falta montar o treino')
+      : SIT_FORM[fs] || 'não enviado';
     return {
       nome: a.nome, modalidade,
       telefone: so(a.telefone) || null,
