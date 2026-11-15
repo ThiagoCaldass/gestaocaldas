@@ -1,6 +1,6 @@
 /**
  * Gestor Caldas — ferramentas de WhatsApp (MarcFlow) para o conector MCP do Claude.
- * Leitura: conversas, histórico, busca, agendamentos e fluxos. Escrita: enviar, responder, agendar,
+ * Leitura: conversas, histórico, busca, agendamentos e fluxos. Escrita: enviar texto ou arquivo, responder, agendar,
  * cancelar agendamento e marcar como lida — sempre no número de trabalho conectado no MarcFlow.
  */
 
@@ -14,12 +14,12 @@ function config() {
   return { base: MARCFLOW_URL.replace(/\/+$/, ''), key: MARCFLOW_API_KEY, sessao: encodeURIComponent(MARCFLOW_SESSION) };
 }
 
-async function api(caminho, { method = 'GET', body, fetchFn = fetch } = {}) {
+async function api(caminho, { method = 'GET', body, form, fetchFn = fetch } = {}) {
   const cfg = config();
   const r = await fetchFn(`${cfg.base}/api${caminho.replace('{s}', cfg.sessao)}`, {
     method,
     headers: { 'X-API-Key': cfg.key, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
+    body: form || (body ? JSON.stringify(body) : undefined),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || j.status === false) throw new ErroWhats(j.message || j.error || `MarcFlow ${r.status}`);
@@ -34,6 +34,55 @@ function alvo(args) {
   const jid = jidDe(v);
   if (!jid) throw new ErroWhats(`Telefone inválido: ${v}`);
   return jid;
+}
+
+// ── Arquivos por link ────────────────────────────────────────────────────────
+
+const LIMITE_MB = 50;
+
+// Link de compartilhamento do Google Drive → link de download direto
+export function linkDireto(url) {
+  const u = String(url || '').trim();
+  const id = u.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=)([\w-]{10,})/)?.[1];
+  if (id) return { url: `https://drive.google.com/uc?export=download&id=${id}`, drive: true };
+  const doc = u.match(/docs\.google\.com\/(document|spreadsheets|presentation)\/d\/([\w-]{10,})/);
+  if (doc) return { url: `https://docs.google.com/${doc[1]}/d/${doc[2]}/export?format=pdf`, drive: true };
+  return { url: u, drive: false };
+}
+
+export function tipoDe(mime, nome) {
+  const m = String(mime || '').toLowerCase(), ext = String(nome || '').toLowerCase().split('.').pop();
+  if (m.startsWith('image/') && !m.includes('svg') || ['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return 'image';
+  if (m.startsWith('video/') || ['mp4', 'mov', '3gp'].includes(ext)) return 'video';
+  if (m.startsWith('audio/') || ['mp3', 'ogg', 'm4a', 'opus', 'wav'].includes(ext)) return 'audio';
+  return 'document';
+}
+
+function nomeDoLink(r, url) {
+  const cd = r.headers.get('content-disposition') || '';
+  const n = cd.match(/filename\*=UTF-8''([^;]+)/i)?.[1] || cd.match(/filename="?([^";]+)"?/i)?.[1];
+  if (n) { try { return decodeURIComponent(n.trim()); } catch { return n.trim(); } }
+  try { const ult = new URL(url).pathname.split('/').pop(); if (/\.\w{2,5}$/.test(ult)) return decodeURIComponent(ult); } catch {}
+  return null;
+}
+
+async function baixar(link, fetchFn) {
+  const { url, drive } = linkDireto(link);
+  if (!/^https:\/\//i.test(url)) throw new ErroWhats('O link precisa começar com https://');
+  let r;
+  try { r = await fetchFn(url, { redirect: 'follow' }); } catch { throw new ErroWhats('Não consegui abrir o link'); }
+  const mime = (r.headers.get('content-type') || '').split(';')[0].trim();
+  if (!r.ok || mime === 'text/html') {
+    throw new ErroWhats(drive
+      ? 'Não consegui baixar do Drive. Deixe o arquivo como "Qualquer pessoa com o link" (Compartilhar → Acesso geral) e tente de novo. Arquivos acima de ~100 MB o Drive não libera assim.'
+      : `Não consegui baixar o arquivo (${r.ok ? 'o link abre uma página, não um arquivo' : `erro ${r.status}`})`);
+  }
+  const tam = Number(r.headers.get('content-length') || 0);
+  if (tam > LIMITE_MB * 1024 * 1024) throw new ErroWhats(`Arquivo grande demais (máximo ${LIMITE_MB} MB)`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (!buf.length) throw new ErroWhats('O arquivo veio vazio');
+  if (buf.length > LIMITE_MB * 1024 * 1024) throw new ErroWhats(`Arquivo grande demais (máximo ${LIMITE_MB} MB)`);
+  return { buf, mime: mime || 'application/octet-stream', nome: nomeDoLink(r, url) };
 }
 
 const telDe = jid => (jid.endsWith('@s.whatsapp.net') ? jid.split('@')[0] : null);
@@ -132,6 +181,22 @@ export const WA_TOOLS = [
         responder_id: { type: 'string', description: 'Opcional: id da mensagem a citar' },
       },
       required: ['contato', 'texto'], additionalProperties: false,
+    },
+    annotations: escrita,
+  },
+  {
+    name: 'whatsapp_enviar_arquivo', title: 'WhatsApp: enviar arquivo',
+    description: `Envia um arquivo (PDF, planilha, foto, vídeo, áudio) a partir de um link. Aceita link de compartilhamento do Google Drive (o arquivo precisa estar como "Qualquer pessoa com o link"), Google Docs/Planilhas/Apresentações (vão como PDF) ou qualquer link https direto para o arquivo. Máximo ${LIMITE_MB} MB. Arquivo anexado no chat não serve: precisa de um link. Foto e vídeo vão como mídia; o resto vai como documento. ${AVISO_ENVIO.replace('o texto exato', 'o arquivo (nome) e a legenda')}`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        contato: CONTATO,
+        link: { type: 'string', description: 'Link do arquivo (Drive, Docs ou https direto)' },
+        nome_arquivo: { type: 'string', description: 'Opcional: nome que aparece no WhatsApp, com extensão (ex: Treino Andressa.pdf). Padrão: o nome original' },
+        legenda: { type: 'string', description: 'Opcional: texto que vai junto com o arquivo' },
+        como: { type: 'string', enum: ['auto', 'documento', 'midia'], description: 'auto (padrão): foto/vídeo como mídia, resto como documento. documento: sempre como arquivo (foto sem compressão)' },
+      },
+      required: ['contato', 'link'], additionalProperties: false,
     },
     annotations: escrita,
   },
@@ -239,6 +304,20 @@ export async function executarWhatsapp(nome, args = {}, { fetchFn = fetch, agora
       const body = args.responder_id ? { messageId: String(args.responder_id), message: { text: texto } } : { message: { text: texto } };
       await api(`/messages/{s}/${encodeURIComponent(jid)}/${args.responder_id ? 'reply' : 'send'}`, { ...o, method: 'POST', body });
       return { enviado: true, para: telDe(jid) || jid, texto };
+    }
+    case 'whatsapp_enviar_arquivo': {
+      const jid = alvo(args);
+      if (!args.link) throw new ErroWhats('Informe o "link" do arquivo');
+      const arq = await baixar(args.link, fetchFn);
+      let nome = String(args.nome_arquivo || '').trim() || arq.nome || 'arquivo';
+      if (!/\.\w{2,5}$/.test(nome) && arq.nome?.includes('.')) nome += '.' + arq.nome.split('.').pop();
+      const tipo = args.como === 'documento' ? 'document' : tipoDe(arq.mime, nome);
+      const form = new FormData();
+      form.append('file', new Blob([arq.buf], { type: arq.mime }), nome);
+      form.append('type', tipo);
+      if (args.legenda) form.append('caption', String(args.legenda));
+      await api(`/messages/{s}/${encodeURIComponent(jid)}/media`, { ...o, method: 'POST', form });
+      return { enviado: true, para: telDe(jid) || jid, arquivo: nome, como: { image: 'foto', video: 'vídeo', audio: 'áudio', document: 'documento' }[tipo], tamanho_kb: Math.round(arq.buf.length / 1024), legenda: args.legenda || null };
     }
     case 'whatsapp_agendar': {
       const jid = alvo(args), texto = String(args.texto || '').trim();

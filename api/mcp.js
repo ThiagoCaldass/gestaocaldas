@@ -22,7 +22,7 @@ Cada mês ("YYYY-MM") tem: ganhos e gastos da conta pessoal, alunos (com quem pa
 Valores em reais. "saldo_real" = recebido − pago na conta pessoal; a linha "Mês anterior" é o saldo que sobrou do mês anterior. Retiradas da conta empresarial aparecem como ganho pessoal.
 Comece por listar_meses para saber quais meses existem. As ferramentas de finanças são só de leitura.
 
-WhatsApp de trabalho (ferramentas whatsapp_*, pelo MarcFlow): dá para ler conversas, buscar mensagens, ver agendamentos e os fluxos automáticos, e também enviar, responder, agendar e marcar como lida. Para enviar ou agendar, mostre antes ao Thiago o destinatário e o texto exato e espere ele confirmar. Escreva como o Thiago escreve: curto, informal, em português do Brasil.`;
+WhatsApp de trabalho (ferramentas whatsapp_*, pelo MarcFlow): dá para ler conversas, buscar mensagens, ver agendamentos e os fluxos automáticos, e também enviar texto, enviar arquivo por link (Drive, Docs ou https), responder, agendar e marcar como lida. Arquivo anexado no chat não dá para enviar: peça ao Thiago um link do Drive com acesso "Qualquer pessoa com o link". Para enviar ou agendar, mostre antes ao Thiago o destinatário e o texto exato (ou o arquivo e a legenda) e espere ele confirmar. Escreva como o Thiago escreve: curto, informal, em português do Brasil.`;
 
 const TOOLS = [
   {
@@ -183,7 +183,7 @@ async function responder(msg) {
       return ok(id, {
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'gestor-caldas', title: 'Gestor Caldas', version: '1.1.0' },
+        serverInfo: { name: 'gestor-caldas', title: 'Gestor Caldas', version: '1.2.0' },
         instructions: INSTRUCOES,
       });
     }

@@ -29,6 +29,9 @@
   "functions": {
     "api/analise.js": {
       "maxDuration": 300
+    },
+    "api/mcp.js": {
+      "maxDuration": 60
     }
   }
 }
