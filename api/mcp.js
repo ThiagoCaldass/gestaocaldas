@@ -9,6 +9,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { fetchData, hojeBR, monthKey } from './_tools.js';
 import { resumoDetalhado, resumoCurto, resumoPoupanca, saldoRealPessoal } from './_resumo.js';
 import { WA_TOOLS, WA_NOMES, executarWhatsapp, ErroWhats } from './_whatsapp.js';
+import { treinosVencimento } from './_treinos.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -20,7 +21,7 @@ const RE_MES = /^\d{4}-\d{2}$/;
 const INSTRUCOES = `Dados do Gestor Caldas, app de gestão financeira do Thiago Caldas (personal trainer autônomo: calistenia, consultoria online e aulas presenciais).
 Cada mês ("YYYY-MM") tem: ganhos e gastos da conta pessoal, alunos (com quem pagou e em qual conta), cartões (BB, Inter e empresarial) e a conta empresarial (saídas e retiradas para a conta pessoal).
 Valores em reais. "saldo_real" = recebido − pago na conta pessoal; a linha "Mês anterior" é o saldo que sobrou do mês anterior. Retiradas da conta empresarial aparecem como ganho pessoal.
-Comece por listar_meses para saber quais meses existem. As ferramentas de finanças são só de leitura.
+Comece por listar_meses para saber quais meses existem. As ferramentas de finanças são só de leitura.\nTreinos: treinos_vencimento mostra quando vence o treino de cada aluno e para quem mandar o formulário de atualização.
 
 WhatsApp de trabalho (ferramentas whatsapp_*, pelo MarcFlow): dá para ler conversas, buscar mensagens, ver agendamentos e os fluxos automáticos, e também enviar texto, enviar arquivo por link (Drive, Docs ou https), responder, agendar e marcar como lida. Arquivo anexado no chat não dá para enviar: peça ao Thiago um link do Drive com acesso "Qualquer pessoa com o link". Para enviar ou agendar, mostre antes ao Thiago o destinatário e o texto exato (ou o arquivo e a legenda) e espere ele confirmar. Escreva como o Thiago escreve: curto, informal, em português do Brasil.`;
 
@@ -82,6 +83,19 @@ const TOOLS = [
       type: 'object',
       properties: { mes: { type: 'string', description: 'Mês no formato YYYY-MM' } },
       required: ['mes'], additionalProperties: false,
+    },
+  },
+  {
+    name: 'treinos_vencimento',
+    title: 'Vencimento dos treinos',
+    description: 'Data da próxima atualização do treino de cada aluno ativo (consultoria online, presencial e parcerias), quantos dias faltam, a situação do formulário no Gestor e a última resposta na planilha do Google. "mandar_formulario" lista para quem o Thiago precisa mandar o formulário de atualização: treino vencido ou vencendo dentro de "dias", sem formulário enviado e sem resposta nova na planilha. \"sem_data\" são alunos sem data de próxima atualização no Gestor. Alunos de calistenia não têm data de treino no Gestor.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dias: { type: 'integer', minimum: 0, maximum: 90, description: 'Janela em dias para considerar "vencendo" (padrão 14)' },
+        todos: { type: 'boolean', description: 'Listar todos os alunos ativos, não só os que pedem ação' },
+      },
+      additionalProperties: false,
     },
   },
 ].map(t => ({ ...t, annotations: { readOnlyHint: true, openWorldHint: false } })).concat(WA_TOOLS);
@@ -161,6 +175,11 @@ async function executar(nome, args = {}) {
       const a = await fetchData(`__analise_${args.mes}__`, SUPABASE_URL, SUPABASE_KEY);
       return a ? { mes: a.mes, gerada_em: new Date(a.geradoEm).toISOString(), texto: a.texto } : { mes: args.mes, erro: 'Nenhuma análise gerada para esse mês' };
     }
+    case 'treinos_vencimento': {
+      const md = await fetchData(monthKey(), SUPABASE_URL, SUPABASE_KEY);
+      if (!md) return { erro: 'Mês atual sem dados no app' };
+      return treinosVencimento(md, args, { hoje: hojeBR() });
+    }
     default:
       throw new ErroUso(`Ferramenta desconhecida: ${nome}`);
   }
@@ -183,7 +202,7 @@ async function responder(msg) {
       return ok(id, {
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'gestor-caldas', title: 'Gestor Caldas', version: '1.2.0' },
+        serverInfo: { name: 'gestor-caldas', title: 'Gestor Caldas', version: '1.3.0' },
         instructions: INSTRUCOES,
       });
     }

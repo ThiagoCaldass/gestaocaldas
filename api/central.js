@@ -119,6 +119,32 @@ async function lerPlanilha(p, H, fetchFn) {
   }
 }
 
+/** Todas as respostas de formulário (nome, telefone, data, planilha, aba, Feito), para cruzar com o vencimento dos treinos. */
+export async function respostasFormulario(fetchFn) {
+  if (!process.env.GOOGLE_SA_JSON) return null;
+  const token = await tokenGoogle(JSON.parse(process.env.GOOGLE_SA_JSON), fetchFn);
+  const H = { Authorization: `Bearer ${token}` };
+  const out = [];
+  await Promise.all(PLANILHAS.map(async p => {
+    const r = await fetchFn(`https://sheets.googleapis.com/v4/spreadsheets/${p.id}/values:batchGet?${ABAS.map(a => `ranges=${encodeURIComponent(`'${a.aba}'!A1:Z`)}`).join('&')}`, { headers: H });
+    if (!r.ok) throw new Error(`Sheets ${p.consultoria} ${r.status}`);
+    const j = await r.json();
+    (j.valueRanges || []).forEach((vr, k) => {
+      const v = vr.values || []; if (!v.length) return;
+      const cab = v[0].map(semAcento), col = f => cab.findIndex(f);
+      const iNome = col(c => c.startsWith('nome')), iTel = col(c => c.startsWith('telefone')),
+        iData = col(c => c.startsWith('carimbo')), iFeito = col(c => c === 'feito');
+      if (iNome < 0) return;
+      for (const l of v.slice(1)) {
+        const nome = (l[iNome] || '').trim(); if (!nome) continue;
+        out.push({ nome, telefone: iTel >= 0 ? String(l[iTel] || '').replace(/\D/g, '') : '', data: iData >= 0 ? dataPlanilha(l[iData]) : null,
+          consultoria: p.consultoria, aba: ABAS[k].aba, feito: iFeito >= 0 && String(l[iFeito]).toUpperCase() === 'TRUE' });
+      }
+    });
+  }));
+  return out;
+}
+
 /** Todas as respostas das planilhas (nome + telefone), para sugerir telefones de alunos. */
 export async function todasRespostas(fetchFn) {
   if (!process.env.GOOGLE_SA_JSON) return [];
