@@ -549,6 +549,12 @@
   tr[draggable="true"] td:first-child { cursor: grab; }
   tr[draggable="true"]:active { cursor: grabbing; }
   .drag-handle { display:inline-block;color:var(--text3);font-size:14px;padding:0 4px;cursor:grab;user-select:none; }
+  .grav-handle { display:flex;align-items:center;justify-content:center;width:22px;height:36px;flex-shrink:0;color:var(--text3);font-size:16px;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none; }
+  .grav-item.grav-arrastando { opacity:.35; }
+  .grav-item.grav-alvo-cima { box-shadow: inset 0 2px 0 var(--accent); }
+  .grav-item.grav-alvo-baixo { box-shadow: inset 0 -2px 0 var(--accent); }
+  .grav-grupo.grav-alvo-grupo { outline:2px dashed var(--accent); outline-offset:2px; border-radius:6px; }
+  body.grav-arrastando-on, body.grav-arrastando-on * { cursor:grabbing !important; user-select:none; -webkit-user-select:none; }
 
   /* ── ASSISTENTE ── */
   #aiBtn {
@@ -2376,7 +2382,8 @@ async function gerarAnalise() {
 
 // ==================== GRAVAÇÃO DE EXERCÍCIOS ====================
 // Exercícios para gravar, editar e subir no app de treino. Estado global em __gravacao__:
-// { status: { <id>: { s: 0..3, ts } } } — 0 pendente, 1 gravado, 2 editado, 3 no app.
+// { v: 2, status: { <id>: { s: 0..4, ts } } } — 0 pendente, 1 gravado, 2 editado, 3 no YouTube, 4 no MFit.
+// (v1 tinha 3 etapas: 3 era "no app" = MFit; _gravMigrar converte.)
 // A lista começa em GRAV_LISTA; quando o Thiago reorganiza, exclui ou adiciona, a cópia editada vai para
 // gravState.lista (com listaTs — entre aparelhos vale a edição mais recente).
 const GRAV_LISTA = [{"t":"Chão e acessórios","d":"Tatame, banco ou degrau, TRX ou tecido e elástico. Dá pra gravar tudo em casa, num cenário só.","g":[{"t":"Chão (peso corporal)","i":[{"n":"Abdominal Canivete"},{"n":"Abdominal Canivete Alternado"},{"n":"Abdominal Escalador"},{"n":"Abdominal Infra Cruzado com Cone"},{"n":"Abdominal Infra Pernas Estendidas (Curto)","o":"variação curta, dá pra gravar junto do normal"},{"n":"Abdominal Infra Pernas Flexionadas (Curto)","o":"variação curta, dá pra gravar junto do normal"},{"n":"Abdominal Infra com as Pernas Estendidas"},{"n":"Abdominal Infra com as Pernas Flexionadas"},{"n":"Abdominal Infra com as Pernas Flexionadas com Elevação de Quadril"},{"n":"Abdominal Obliquo pernas elevada"},{"n":"Abdominal Oblíquo Alternado"},{"n":"Abdominal Oblíquo Alternado com Pedalada"},{"n":"Abdominal Prancha Isométrica"},{"n":"Abdominal Remador"},{"n":"Abdominal Supra Solo"},{"n":"Afundo"},{"n":"Afundo Alternado com Salto","o":"mesmo vídeo de Afundo Pliometrico?"},{"n":"Afundo Pliometrico"},{"n":"Afundo isometrico (segura em baixo)"},{"n":"Agachamento Búlgaro"},{"n":"Agachamento Isométrico"},{"n":"Agachamento Livre"},{"n":"Agachamento Livre com Salto","o":"mesmo vídeo de Agachamento com Salto?"},{"n":"Agachamento com Salto"},{"n":"Avanço Alternado"},{"n":"Bulgaro com salto"},{"n":"Canoinha (hollow body)"},{"n":"Canoinha reduzida"},{"n":"Elevação de Quadril"},{"n":"Elevação de Quadril Pernas Cruzadas"},{"n":"Elevação de Quadril Unilateral"},{"n":"Flexão 3 aberturas"},{"n":"Flexão Alternada no Step"},{"n":"Flexão de Braços"},{"n":"Flexão de Braços com Apoio"},{"n":"Flexão de Braços na Cadeira/Sofá"},{"n":"Flexão declinada"},{"n":"Hiperextensao de Lombar Solo"},{"n":"Pistol no banco"},{"n":"Prancha Alta"},{"n":"Prancha Dinâmica"},{"n":"Prancha Invertida"},{"n":"Prancha Isometrica Lateral Baixa"},{"n":"Prancha Toque no Ombros"},{"n":"Pular Corda"},{"n":"Sobe/Desce no Banco"},{"n":"Supino altura do umbigo","o":"confirmar o equipamento"},{"n":"Triceps testa no chão"},{"n":"Tríceps Banco com Pernas Dobradas"},{"n":"Tríceps Banco com Pernas Esticadas"},{"n":"Tríceps na parede"}]},{"t":"Mobilidade e alongamento","i":[{"n":"Alongamento Abdomên"},{"n":"Alongamento Dorsal I"},{"n":"Alongamento Dorsal III"},{"n":"Alongamento de Coluna I"},{"n":"Alongamento de Ombros"},{"n":"Alongamento de Pescoço I"},{"n":"Alongamento de Pescoço II"},{"n":"Alongamento de Tríceps I"},{"n":"Minhoca"},{"n":"Mobilidade Dorsal VII"},{"n":"Mobilidade de Ombro I"},{"n":"Mobilidade de Ombro X"},{"n":"Mobilidade de Quadril VII"},{"n":"Mobilidade de Quadril VIII"},{"n":"Mobilidade de Tornozelo Semi Ajoelhado"}]},{"t":"TRX / tecido / elástico","i":[{"n":"Crucifixo TRX"},{"n":"Pendurada no tecido"},{"n":"Pistol TRX"},{"n":"Puxada com toalha"},{"n":"Remada Fechada Sentado - Elástico"},{"n":"Remada Fechada Sentado - Faixa Elástica","o":"mesmo vídeo de Remada Fechada Sentado - Elástico?"},{"n":"Remada TRX (Pegada Pronada)"},{"n":"Rosca Direta no TRX"},{"n":"Subida na corda adaptado"},{"n":"Supino em Pé - Elástico"},{"n":"Tríceps Testa no TRX"}]}]},{"t":"Pesos livres","d":"Grave por equipamento: monte o banco e os halteres uma vez e passe por todos os exercícios dali.","g":[{"t":"Halteres / kettlebell","i":[{"n":"Afundo com Halteres"},{"n":"Agachamento Sumô com Halteres"},{"n":"Agachamento com Halter na Frente"},{"n":"Agachamento com Halteres"},{"n":"Búlgaro com Halter Mão Inversa"},{"n":"Búlgaro com Halteres"},{"n":"Crucifixo Inclinado com Halteres"},{"n":"Crucifixo Inverso no Banco Inclinado"},{"n":"Crucifixo com Halteres"},{"n":"Desenvolvimento Arnold Sentado"},{"n":"Desenvolvimento Sentado com Halteres (Pegada Neutra)"},{"n":"Desenvolvimento com Halteres (Pegada Neutra)"},{"n":"Desenvolvimento com Halteres Sentado"},{"n":"Desenvolvimento em Pé com Halteres"},{"n":"Elevacão Lateral Sentado com Halteres"},{"n":"Elevação Frontal com Halteres"},{"n":"Elevação Lateral com Halteres"},{"n":"Passada com Halteres"},{"n":"Pistol com KB"},{"n":"Press KB"},{"n":"Remada Curvada com Halteres (Pegada Neutra)"},{"n":"Remada Curvada com Halteres (Pegada Supinada)"},{"n":"Remada Unilateral Halteres - Pegada Neutra (Serrote)"},{"n":"Rosca Concentrada"},{"n":"Rosca Direta com Halteres"},{"n":"Rosca Martelo com Halteres"},{"n":"Rosca direta Banco Inclinado"},{"n":"Stiff com Halteres"},{"n":"Supino Inclinado com Halteres"},{"n":"Supino Reto com Halteres"},{"n":"Tríceps Coice no Banco"},{"n":"Tríceps Francês"},{"n":"Tríceps Francês Sentado com Halteres"},{"n":"Tríceps Francês com Halteres"},{"n":"Tríceps Testa com Halteres"}]},{"t":"Barra","i":[{"n":"Agachamento Livre com Barra"},{"n":"Agachamento Livre com Barra no Suporte"},{"n":"Agachamento zercher"},{"n":"Bom Dia"},{"n":"Desenvolvimento Barra Reta"},{"n":"Desenvolvimento Sentado com Barra Reta"},{"n":"Elevação de Quadril com Barra"},{"n":"Levantamento Terra"},{"n":"Remada Curvada com Barra Reta (Pegada Pronada)"},{"n":"Remada Curvada com Barra Reta (Pegada Supinada)"},{"n":"Rosca Direta Barra W"},{"n":"Rosca Direta com Barra W no Banco Inclinado"},{"n":"Stiff pés afastados com Barra Livre"},{"n":"Stiff pés próximo com Barra Livre"},{"n":"Supino Reto com Barra Reta"}]},{"t":"Anilha / banco","i":[{"n":"Abdominal Supra com Carga"},{"n":"Abdução e adução com anilha em pé"},{"n":"Banco Supino Reto"},{"n":"Elevação Frontal com Anilha"},{"n":"Flexão pescoço"},{"n":"Rosca de Punho (Pegada Pronada)"},{"n":"Rosca de Punho (Pegada Supinada)"}]}]},{"t":"Aparelhos","d":"Vá de estação em estação. Na polia, troque só o puxador entre os exercícios.","g":[{"t":"Polia / estação de cabos","i":[{"n":"Abdução de Quadril na Polia Baixa Unilateral"},{"n":"Adução de Quadril na Polia Unilateral"},{"n":"Bíceps Unilateral na Polia Alta"},{"n":"Crossover Polia Alta"},{"n":"Crossover Polia Baixa"},{"n":"Face Pull"},{"n":"Glúteos Coice na Polia"},{"n":"Pulldown Barra Aberta"},{"n":"Pulldown Barra Reta"},{"n":"Pulldown deitado"},{"n":"Puxada Aberta Barra reta"},{"n":"Puxada Neutra triangulo"},{"n":"Remada Baixa (Pegada Pronada)"},{"n":"Remada Baixa Barra H"},{"n":"Remada Baixa Supinada"},{"n":"Remada Baixa Triangulo"},{"n":"Remada Baixa Unilateral neutra"},{"n":"Remada Unilateral na Polia Baixa","o":"mesmo vídeo de Remada Baixa Unilateral neutra?"},{"n":"Rosca Direta na Polia (Barra W)"},{"n":"Rosca Direta na Polia Baixa"},{"n":"Rosca Direta na Polia Baixa com Corda"},{"n":"Tríceps Francês na Polia com Corda"},{"n":"Tríceps na Polia Barra W"},{"n":"Tríceps na Polia com Corda"}]},{"t":"Smith","i":[{"n":"Afundo no Smith"},{"n":"Agachamento Smith"},{"n":"Barra Horizontal no Smith"},{"n":"Panturrilha no Smith"},{"n":"Supino Reto no Smith"}]},{"t":"Leg press","i":[{"n":"Leg Press 45"},{"n":"Leg Press 45 Pés Afastados","o":"grava junto do Leg Press 45, só muda o pé"},{"n":"Leg Press Horizontal"},{"n":"Panturrilha no Leg Press 45"},{"n":"Panturrilha no Leg Press Horizontal"}]},{"t":"Cadeira extensora / flexora","i":[{"n":"Cadeira Extensora"},{"n":"Cadeira Flexora"}]},{"t":"Mesa flexora","i":[{"n":"Flexora Unilateral"},{"n":"Mesa Flexora"}]},{"t":"Abdutora / adutora","i":[{"n":"Abdução de Quadril Máquina"},{"n":"Abdução de Quadril Máquina com Corpo a Frente","o":"grava junto da Abdução normal"},{"n":"Adução de Quadril Máquina"}]},{"t":"Panturrilha sentado","i":[{"n":"Panturrilha Sentado","o":"mesmo vídeo de Panturrilha Sentado Maquina?"},{"n":"Panturrilha Sentado Maquina"}]},{"t":"Hack","i":[{"n":"Agachamento Hack"}]},{"t":"Máquinas específicas","i":[{"n":"Barra Fixa Gráviton (Pegada Aberta)"},{"n":"Crucifixo Inverso Máquina"},{"n":"Crucifixo Máquina"},{"n":"Desenvolvimento Máquina (Pegada Pronada)"},{"n":"Elevação de Quadril na Maquina"},{"n":"Rosca Scott Máquina"},{"n":"Supino Maquina (Pegada Pronada)"},{"n":"Triceps Paralela Máquina (Pegada Neutra)"}]},{"t":"Cardio","i":[{"n":"Escada Máquina"},{"n":"Esteira Caminhada"},{"n":"Esteira Trote"}]}]},{"t":"Calistenia","d":"Skills primeiro, ainda descansado. Depois barra, paralela e argolas.","g":[{"t":"Chão / parede (skills)","i":[{"n":"Dragon flag"},{"n":"Handstand"},{"n":"Handstand de frente pra parede"},{"n":"Handstand push up (parede)"},{"n":"L-sit"},{"n":"L-sit dinamico"},{"n":"Line planche"},{"n":"Maltese"},{"n":"Pike push up"},{"n":"Planche"},{"n":"Planche push up"},{"n":"Pseudo push up"},{"n":"Tuck planche"},{"n":"V-sit"}]},{"t":"Barra fixa","i":[{"n":"Abdominal Infra Suspenso Pernas Flexionadas"},{"n":"Abdominal Pêndulo"},{"n":"Abdominal obliquo suspenso"},{"n":"Barra Fixa (Pegada Aberta)"},{"n":"Barra pronada","o":"mesmo vídeo de Barra Fixa (Pegada Aberta)?"},{"n":"Barra supinada (chin-up)"},{"n":"Front lever"},{"n":"Front lever raise"},{"n":"Front pull up"},{"n":"Pé na barra"},{"n":"Skin the cat"},{"n":"Suspensão na barra com toalha"},{"n":"Touch front"},{"n":"Tuck back lever"},{"n":"Tuck front lever"}]},{"t":"Barra baixa","i":[{"n":"Biceps hefestos barra baixa"},{"n":"Hefesto"}]},{"t":"Paralela","i":[{"n":"Dip"}]},{"t":"Argolas","i":[{"n":"Archer pull up argola"},{"n":"Archer push up argola"},{"n":"Australiana argola"},{"n":"Biceps hefestos argola"},{"n":"Biceps testa argola"},{"n":"Dip argola"},{"n":"Flexão argola"},{"n":"Triceps testa argola"}]}]}];
@@ -2389,16 +2396,26 @@ const GRAV_DICAS = [
 const GRAV_ETAPAS = [
   { s: 1, icon: '🎥', label: 'Gravado' },
   { s: 2, icon: '✂️', label: 'Editado' },
-  { s: 3, icon: '📲', label: 'No app' },
+  { s: 3, icon: '▶️', label: 'No YouTube' },
+  { s: 4, icon: '📲', label: 'No MFit' },
 ];
+const GRAV_FIM = 4;
 const GRAV_FILTROS = [
-  { k: 'todos',   label: 'Todos',         f: () => true },
-  { k: 'gravar',  label: 'Falta gravar',  f: s => s === 0 },
-  { k: 'editar',  label: 'Falta editar',  f: s => s === 1 },
-  { k: 'subir',   label: 'Falta subir',   f: s => s === 2 },
-  { k: 'prontos', label: 'No app',        f: s => s === 3 },
+  { k: 'todos',   label: 'Todos',          f: () => true },
+  { k: 'gravar',  label: 'Falta gravar',   f: s => s === 0 },
+  { k: 'editar',  label: 'Falta editar',   f: s => s === 1 },
+  { k: 'youtube', label: 'Falta YouTube',  f: s => s === 2 },
+  { k: 'mfit',    label: 'Falta MFit',     f: s => s === 3 },
+  { k: 'prontos', label: 'No MFit',        f: s => s === 4 },
 ];
-let gravState = { status: {} };
+// v1 (3 etapas) → v2: "no app" (3) vira "no MFit" (4), que inclui o YouTube
+function _gravMigrar(st) {
+  if (!st || st.v === 2) return st;
+  Object.values(st.status || {}).forEach(v => { if (v && v.s === 3) v.s = 4; });
+  st.v = 2;
+  return st;
+}
+let gravState = { v: 2, status: {} };
 let gravFiltro = 'todos', gravBusca = '', gravSaveTimeout = null, gravEditando = false;
 const _gravLista = () => gravState.lista || GRAV_LISTA;
 
@@ -2410,9 +2427,9 @@ const _gravS = id => gravState.status[id]?.s || 0;
 async function loadGravacao() {
   try {
     const r = await sbGet('__gravacao__');
-    if (r) { gravState = r; if (!gravState.status) gravState.status = {}; return; }
+    if (r) { gravState = _gravMigrar(r); if (!gravState.status) gravState.status = {}; return; }
   } catch(e) { console.warn('loadGravacao failed:', e); }
-  try { const l = localStorage.getItem('gestor_gravacao'); if (l) gravState = JSON.parse(l); } catch(e) {}
+  try { const l = localStorage.getItem('gestor_gravacao'); if (l) gravState = _gravMigrar(JSON.parse(l)); } catch(e) {}
 }
 
 // Junta com o que está no banco (outro aparelho pode ter marcado algo): por item, vale a alteração mais recente
@@ -2421,7 +2438,7 @@ function saveGravacao() {
   clearTimeout(gravSaveTimeout);
   gravSaveTimeout = setTimeout(async () => {
     try {
-      const remoto = await sbGet('__gravacao__');
+      const remoto = _gravMigrar(await sbGet('__gravacao__'));
       Object.entries(remoto?.status || {}).forEach(([id, v]) => {
         if (!gravState.status[id] || (v.ts || 0) > (gravState.status[id].ts || 0)) gravState.status[id] = v;
       });
@@ -2444,73 +2461,77 @@ function setGravFiltro(k) { gravFiltro = k; _renderGravTopo(); _renderGravLista(
 function setGravBusca(v) { gravBusca = v; _renderGravLista(); }
 
 function _gravContagem(itens) {
-  const c = [0, 0, 0, 0];
+  const c = [0, 0, 0, 0, 0];
   itens.forEach(it => { const s = _gravS(_gravId(it.n)); for (let i = 1; i <= s; i++) c[i]++; });
-  return { total: itens.length, gravados: c[1], editados: c[2], noApp: c[3] };
+  return { total: itens.length, gravados: c[1], editados: c[2], youtube: c[3], noApp: c[4] };
 }
 
 function _renderGravTopo() {
   const el = document.getElementById('grav-topo'); if (!el) return;
   const todos = _gravLista().flatMap(sec => sec.g.flatMap(g => g.i));
   const c = _gravContagem(todos);
-  const pct = v => (v / c.total * 100).toFixed(1);
+  const pct = v => c.total ? (v / c.total * 100).toFixed(1) : 0;
   el.innerHTML = `
     <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
-      <div style="font-family:'Bebas Neue';font-size:34px;line-height:1;color:var(--text)">${c.noApp} <span style="font-size:18px;color:var(--text3)">de ${c.total} no app</span></div>
+      <div style="font-family:'Bebas Neue';font-size:34px;line-height:1;color:var(--text)">${c.noApp} <span style="font-size:18px;color:var(--text3)">de ${c.total} no MFit</span></div>
     </div>
     <div style="position:relative;height:8px;border-radius:4px;background:var(--surface3);overflow:hidden;margin:10px 0 8px">
       <div style="position:absolute;inset:0 auto 0 0;width:${pct(c.gravados)}%;background:rgba(241,193,53,0.35)"></div>
-      <div style="position:absolute;inset:0 auto 0 0;width:${pct(c.editados)}%;background:rgba(53,200,241,0.6)"></div>
+      <div style="position:absolute;inset:0 auto 0 0;width:${pct(c.editados)}%;background:rgba(53,200,241,0.45)"></div>
+      <div style="position:absolute;inset:0 auto 0 0;width:${pct(c.youtube)}%;background:rgba(232,32,10,0.6)"></div>
       <div style="position:absolute;inset:0 auto 0 0;width:${pct(c.noApp)}%;background:var(--green)"></div>
     </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text2)">
-      <span>🎥 ${c.gravados} gravados</span><span>✂️ ${c.editados} editados</span><span>📲 ${c.noApp} no app</span>
+      <span>🎥 ${c.gravados} gravados</span><span>✂️ ${c.editados} editados</span><span>▶️ ${c.youtube} no YouTube</span><span>📲 ${c.noApp} no MFit</span>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px">
       ${gravEditando ? '' : GRAV_FILTROS.map(f => `<button class="btn btn-sm ${gravFiltro === f.k ? 'btn-primary' : 'btn-ghost'}" onclick="setGravFiltro('${f.k}')">${f.label}</button>`).join('')}
       ${isReadOnly() ? '' : `<button class="btn btn-sm ${gravEditando ? 'btn-primary' : 'btn-ghost'}" style="margin-left:auto" onclick="toggleGravEditar()">${gravEditando ? '✓ Concluir' : '✎ Editar lista'}</button>`}
     </div>
-    ${gravEditando ? `<div style="font-size:12px;color:var(--text3);margin-top:10px">Use ↑ ↓ para mudar a ordem (no topo ou no fim do grupo, o exercício passa para o grupo vizinho), ✕ para excluir e "+ Adicionar exercício" em cada grupo.${gravState.lista ? ` <a href="#" onclick="event.preventDefault();gravRestaurarLista()" style="color:var(--text3)">Voltar à lista original</a>` : ''}</div>` : ''}`;
+    ${gravEditando ? `<div style="font-size:12px;color:var(--text3);margin-top:10px">Arraste pelo ⠿ para mudar a ordem (vale entre grupos), ✕ para excluir e "+ Adicionar exercício" em cada grupo.${gravState.lista ? ` <a href="#" onclick="event.preventDefault();gravRestaurarLista()" style="color:var(--text3)">Voltar à lista original</a>` : ''}</div>` : ''}`;
 }
 
 function _renderGravLista() {
   const el = document.getElementById('grav-lista'); if (!el) return;
   const filtro = GRAV_FILTROS.find(f => f.k === gravFiltro) || GRAV_FILTROS[0];
   const q = _gravNorm(gravBusca.trim());
+  const ro = isReadOnly();
   const visivel = it => gravEditando || (filtro.f(_gravS(_gravId(it.n))) && (!q || _gravNorm(it.n).includes(q)));
   const html = _gravLista().map((sec, si) => {
     const grupos = sec.g.map((g, gi) => {
       const itens = g.i.filter(visivel);
       if (!itens.length && !gravEditando) return '';
       const c = _gravContagem(g.i);
-      return `<div style="margin-top:14px">
+      return `<div class="grav-grupo" data-si="${si}" data-gi="${gi}" style="margin-top:14px">
         <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 2px 6px;border-bottom:1px solid var(--border)">
           <div style="font-size:12px;font-weight:600;color:var(--text);letter-spacing:.5px">${_gravEsc(g.t)}</div>
-          <div style="font-size:11px;color:var(--text3)">${c.noApp}/${c.total} no app</div>
+          <div style="font-size:11px;color:var(--text3)">${c.noApp}/${c.total} no MFit</div>
         </div>
-        ${itens.map((it, ii) => {
-          const id = _gravId(it.n), s = _gravS(id);
-          if (gravEditando) return `<div style="display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--surface3)">
+        ${itens.map(it => {
+          const id = _gravId(it.n), s = _gravS(id), ii = g.i.indexOf(it);
+          const pos = `class="grav-item" data-si="${si}" data-gi="${gi}" data-ii="${ii}"`;
+          const alca = ro ? '' : `<span class="grav-handle" title="Arrastar para reordenar" aria-hidden="true">⠿</span>`;
+          if (gravEditando) return `<div ${pos} style="display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--surface3)">
+            ${alca}
             <div style="flex:1;min-width:0">
               <div style="font-size:14px;color:var(--text);overflow-wrap:anywhere">${_gravEsc(it.n)}</div>
               ${it.o ? `<div style="font-size:11px;color:var(--red);margin-top:2px">${_gravEsc(it.o)}</div>` : ''}
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0">
-              <button class="btn btn-ghost btn-sm" style="width:34px;height:34px;padding:0" onclick="gravMover(${si},${gi},${ii},-1)" title="Subir" aria-label="Subir ${_gravEsc(it.n)}">↑</button>
-              <button class="btn btn-ghost btn-sm" style="width:34px;height:34px;padding:0" onclick="gravMover(${si},${gi},${ii},1)" title="Descer" aria-label="Descer ${_gravEsc(it.n)}">↓</button>
               <button class="btn btn-ghost btn-sm" style="width:34px;height:34px;padding:0;color:var(--red)" onclick="gravExcluir(${si},${gi},${ii})" title="Excluir" aria-label="Excluir ${_gravEsc(it.n)}">✕</button>
             </div>
           </div>`;
-          return `<div style="display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--surface3)">
+          return `<div ${pos} style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid var(--surface3)">
+            ${alca}
             <div style="flex:1;min-width:0">
-              <div style="font-size:14px;color:${s === 3 ? 'var(--text3)' : 'var(--text)'};${s === 3 ? 'text-decoration:line-through;' : ''}overflow-wrap:anywhere">${_gravEsc(it.n)}</div>
+              <div style="font-size:14px;color:${s === GRAV_FIM ? 'var(--text3)' : 'var(--text)'};${s === GRAV_FIM ? 'text-decoration:line-through;' : ''}overflow-wrap:anywhere">${_gravEsc(it.n)}</div>
               ${it.o ? `<div style="font-size:11px;color:var(--red);margin-top:2px">${_gravEsc(it.o)}</div>` : ''}
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0">
               ${GRAV_ETAPAS.map(e => {
                 const on = s >= e.s;
                 return `<button onclick="setGravEtapa('${id}',${e.s})" title="${e.label}" aria-label="${e.label}: ${_gravEsc(it.n)}" aria-pressed="${on}"
-                  style="width:36px;height:36px;border-radius:8px;border:1px solid ${on ? 'var(--green)' : 'var(--border)'};background:${on ? 'rgba(76,175,80,0.14)' : 'var(--surface2)'};font-size:16px;cursor:pointer;filter:${on ? 'none' : 'grayscale(1) opacity(.45)'};-webkit-tap-highlight-color:transparent">${e.icon}</button>`;
+                  style="width:34px;height:36px;border-radius:8px;border:1px solid ${on ? 'var(--green)' : 'var(--border)'};background:${on ? 'rgba(76,175,80,0.14)' : 'var(--surface2)'};font-size:16px;cursor:pointer;filter:${on ? 'none' : 'grayscale(1) opacity(.45)'};-webkit-tap-highlight-color:transparent">${e.icon}</button>`;
               }).join('')}
             </div>
           </div>`;
@@ -2523,7 +2544,7 @@ function _renderGravLista() {
     return `<div class="table-card" style="padding:16px 18px;margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
         <div style="font-family:'Bebas Neue';font-size:22px;letter-spacing:1.5px;color:var(--text)">${_gravEsc(sec.t)}</div>
-        <div style="font-size:12px;color:var(--text2);white-space:nowrap">${c.noApp}/${c.total}</div>
+        <div style="font-size:12px;color:var(--text2);white-space:nowrap">${c.noApp}/${c.total} no MFit</div>
       </div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px">${_gravEsc(sec.d)}</div>
       ${grupos}
@@ -2542,19 +2563,71 @@ function _gravSalvarLista() {
   saveGravacao(); _renderGravTopo(); _renderGravLista();
 }
 function toggleGravEditar() { if (guardReadOnly()) return; gravEditando = !gravEditando; _renderGravTopo(); _renderGravLista(); }
-// Sobe/desce dentro do grupo; no topo ou no fim, passa para o grupo vizinho (atravessa seções)
-function gravMover(si, gi, ii, dir) {
+// ── Arrastar e soltar pelo ⠿ (mouse e toque); vale entre grupos e seções ──
+let _gravDrag = null;
+function _gravLimparMarcas() {
+  document.querySelectorAll('.grav-alvo-cima,.grav-alvo-baixo,.grav-alvo-grupo').forEach(x => x.classList.remove('grav-alvo-cima', 'grav-alvo-baixo', 'grav-alvo-grupo'));
+}
+function _gravArrastoInit() {
+  const lista = document.getElementById('grav-lista');
+  if (!lista || lista._arrasto) return;
+  lista._arrasto = true;
+  const scroller = document.getElementById('content');
+  let rolar = 0, rolarTimer = null;
+  const fim = cancelar => {
+    if (!_gravDrag) return;
+    const d = _gravDrag; _gravDrag = null;
+    clearInterval(rolarTimer); rolarTimer = null;
+    d.row.classList.remove('grav-arrastando'); document.body.classList.remove('grav-arrastando-on');
+    _gravLimparMarcas();
+    if (!cancelar && d.alvo) gravMoverPara(d.de, d.alvo);
+  };
+  lista.addEventListener('pointerdown', e => {
+    const h = e.target.closest('.grav-handle');
+    if (!h || isReadOnly() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault();
+    const row = h.closest('.grav-item');
+    try { h.setPointerCapture(e.pointerId); } catch {}
+    _gravDrag = { row, pid: e.pointerId, de: { si: +row.dataset.si, gi: +row.dataset.gi, ii: +row.dataset.ii }, alvo: null };
+    row.classList.add('grav-arrastando'); document.body.classList.add('grav-arrastando-on');
+  });
+  lista.addEventListener('pointermove', e => {
+    if (!_gravDrag || e.pointerId !== _gravDrag.pid) return;
+    e.preventDefault();
+    // rola a página quando o dedo chega perto da borda
+    const r = scroller.getBoundingClientRect();
+    rolar = e.clientY < r.top + 70 ? -14 : e.clientY > Math.min(r.bottom, window.innerHeight) - 90 ? 14 : 0;
+    if (rolar && !rolarTimer) rolarTimer = setInterval(() => { if (rolar) scroller.scrollBy(0, rolar); }, 16);
+    if (!rolar && rolarTimer) { clearInterval(rolarTimer); rolarTimer = null; }
+    _gravLimparMarcas();
+    const sob = document.elementFromPoint(e.clientX, e.clientY);
+    const item = sob?.closest('.grav-item');
+    if (item && item !== _gravDrag.row) {
+      const b = item.getBoundingClientRect(), depois = e.clientY > b.top + b.height / 2;
+      item.classList.add(depois ? 'grav-alvo-baixo' : 'grav-alvo-cima');
+      _gravDrag.alvo = { si: +item.dataset.si, gi: +item.dataset.gi, ii: +item.dataset.ii + (depois ? 1 : 0) };
+      return;
+    }
+    const grupo = !item && sob?.closest('.grav-grupo');
+    if (grupo) { grupo.classList.add('grav-alvo-grupo'); _gravDrag.alvo = { si: +grupo.dataset.si, gi: +grupo.dataset.gi, ii: Infinity }; return; }
+    if (!item) _gravDrag.alvo = null;
+  });
+  lista.addEventListener('pointerup', e => { if (_gravDrag && e.pointerId === _gravDrag.pid) fim(false); });
+  lista.addEventListener('pointercancel', () => fim(true));
+  window._gravFimArrasto = fim;
+  if (!window._gravEscOk) { window._gravEscOk = true; document.addEventListener('keydown', e => { if (e.key === 'Escape') window._gravFimArrasto?.(true); }); }
+}
+// Move o item de `de` para a posição `para` (índice no grupo de destino, antes da remoção)
+function gravMoverPara(de, para) {
   if (guardReadOnly()) return;
   const L = _gravEditavel();
-  const grupos = L.flatMap((sec, a) => sec.g.map((g, b) => ({ a, b, g })));
-  const k = grupos.findIndex(x => x.a === si && x.b === gi);
-  const lista = grupos[k].g.i, alvo = ii + dir;
-  if (alvo >= 0 && alvo < lista.length) [lista[ii], lista[alvo]] = [lista[alvo], lista[ii]];
-  else {
-    const viz = grupos[k + dir]; if (!viz) return;
-    const [it] = lista.splice(ii, 1);
-    if (dir < 0) viz.g.i.push(it); else viz.g.i.unshift(it);
-  }
+  const origem = L[de.si]?.g[de.gi]?.i, destino = L[para.si]?.g[para.gi]?.i;
+  if (!origem || !destino || !origem[de.ii]) return;
+  let pos = Math.min(para.ii, destino.length);
+  if (origem === destino && de.ii < pos) pos--;
+  if (origem === destino && pos === de.ii) return;
+  const [it] = origem.splice(de.ii, 1);
+  destino.splice(pos, 0, it);
   _gravSalvarLista();
 }
 function gravExcluir(si, gi, ii) {
@@ -2596,7 +2669,7 @@ function salvarGravNovo() {
 }
 function gravRestaurarLista() {
   if (guardReadOnly()) return;
-  if (!confirm('Voltar à lista original? A ordem, os exercícios excluídos e os adicionados voltam como eram. O progresso (gravado, editado, no app) continua.')) return;
+  if (!confirm('Voltar à lista original? A ordem, os exercícios excluídos e os adicionados voltam como eram. O progresso (gravado, editado, YouTube, MFit) continua.')) return;
   delete gravState.lista; gravState.listaTs = Date.now();
   saveGravacao(); _renderGravTopo(); _renderGravLista();
 }
@@ -2612,13 +2685,13 @@ async function renderGravacao() {
     <details class="table-card" style="padding:14px 18px;margin-bottom:14px">
       <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text)">Dicas para gravar mais rápido</summary>
       ${GRAV_DICAS.map(([t, d]) => `<div style="margin-top:10px;font-size:13px;color:var(--text2)"><strong style="color:var(--text)">${t}.</strong> ${d}</div>`).join('')}
-      <div style="margin-top:12px;font-size:12px;color:var(--text3)">Toque em 🎥 quando gravar, ✂️ quando editar e 📲 quando subir no app. Tocar de novo na etapa atual volta uma.</div>
+      <div style="margin-top:12px;font-size:12px;color:var(--text3)">Toque em 🎥 quando gravar, ✂️ quando editar, ▶️ quando subir no YouTube e 📲 quando estiver no MFit. Tocar de novo na etapa atual volta uma. Arraste pelo ⠿ para mudar a ordem.</div>
     </details>
     <input type="search" placeholder="Buscar exercício…" value="${_gravEsc(gravBusca)}" oninput="setGravBusca(this.value)"
       style="width:100%;margin-bottom:14px;padding:11px 14px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;box-sizing:border-box">
     <div id="grav-lista"></div>
   </div>`;
-  _renderGravTopo(); _renderGravLista();
+  _renderGravTopo(); _renderGravLista(); _gravArrastoInit();
 }
 
 // ==================== JIU-JITSU ====================
