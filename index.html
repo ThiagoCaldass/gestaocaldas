@@ -2145,8 +2145,6 @@ function renderCentral(md) {
   else if (!ext.formularios?.configurado) formCorpo = fontePendente('O Google Drive', 'Falta a conta de serviço do Google com acesso às planilhas.');
   else {
     const sec = _ctSecao('form', (ext.formularios.itens || []).map(f => ({ f, al: _ctAcharAluno(alunos, f) }))
-      // resposta de aluno online/presencial já aparece em Treinos ("Respondeu o formulário")
-      .filter(({ f, al }) => !(al && al._tipo !== 'cali' && !al.pausado && statusTreino(al)?.k === 'respondido'))
       .map(({ f, al }) => {
       const tel = _ctTel(f.telefone) || al?._tel;
       const tipo = f.tipo === 'anamnese' ? 'Anamnese (aluno novo)' : 'Atualizar treino';
@@ -2156,7 +2154,7 @@ function renderCentral(md) {
         titulo: `${vinculo}${_ctEsc(f.nome)}`,
         sub: `${tipo} · ${_ctEsc(f.consultoria)} · ${_ctHa(f.enviadoEm)}`,
         botoes: _ctBtnLink('📄', f.link, 'Abrir a resposta na planilha') + _ctBtnLink('💬', _ctLinkWhats(tel), 'Abrir conversa')
-          + (al && al._tipo === 'online' && !ro ? _ctBtn('📋', `onclick="attTreino('${al.id}')"`, 'Registrar atualização do treino') : ''),
+          + (al && al._tipo !== 'cali' && !ro ? _ctBtn('📋', `onclick="attTreino('${al.id}')"`, 'Registrar atualização do treino') : ''),
       } };
     }), '✓ Nenhum formulário esperando');
     formQtd = sec.qtd;
@@ -2167,7 +2165,8 @@ function renderCentral(md) {
   const ORD_TREINO = { respondido:0, cobrar:1, vencido:2, vencendo:3, semdata:4, enviado:5 };
   const treinos = ativos
     .map(a => ({ a, st: statusTreino(a) }))
-    .filter(x => x.st?.acao)
+    // quem já respondeu o formulário aparece só em Formulários
+    .filter(x => x.st?.acao && x.st.k !== 'respondido')
     .sort((x, y) => (ORD_TREINO[x.st.k] - ORD_TREINO[y.st.k]) || ((x.st.dias ?? 0) - (y.st.dias ?? 0)));
   const secTreino = _ctSecao('treino', treinos.map(({ a, st }) => ({
     chave: `treino:${a.id}:${st.k}:${a.proxAtt || ''}:${a.formEnviadoEm || ''}`, nome: a.nome, linha: {
