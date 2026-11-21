@@ -18,21 +18,31 @@ const sem = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowe
 export class ErroEscrita extends Error {}
 
 const GRUPOS = md => [
-  ...(md.personal?.online || []),
-  ...(md.personal?.presencial || []),
-  ...(md.parcerias || []),
+  ...(md.personal?.online || []).map(a => ({ a, modalidade: 'online' })),
+  ...(md.personal?.presencial || []).map(a => ({ a, modalidade: 'presencial' })),
+  ...(md.parcerias || []).map(a => ({ a, modalidade: 'parceria' })),
 ];
+const fim8 = t => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 8 ? d.slice(-8) : null; };
+const PESO = { presencial: 0, online: 1, parceria: 2 };
 
-/** Acha UM aluno pelo nome (sem acento, trecho). Se houver 0 ou mais de 1, erro explicando. */
-export function acharAluno(md, nome) {
+/**
+ * Acha UM aluno pelo nome (sem acento, trecho). Mesma pessoa em mais de uma modalidade (mesmo telefone):
+ * o treino fica na linha presencial; com "modalidade" informada, usa a pedida. Outros casos de 2+ achados: erro.
+ */
+export function acharAluno(md, nome, modalidade) {
   const q = sem(nome);
   if (!q) throw new ErroEscrita('Informe o nome do aluno');
-  const todos = GRUPOS(md).filter(a => a?.nome && !a.pausado);
-  const exato = todos.filter(a => sem(a.nome) === q);
-  const achados = exato.length ? exato : todos.filter(a => sem(a.nome).includes(q));
-  if (!achados.length) throw new ErroEscrita(`Aluno "${nome}" não encontrado entre os ativos (online, presencial, parcerias)`);
-  if (achados.length > 1) throw new ErroEscrita(`Mais de um aluno com "${nome}": ${achados.map(a => a.nome).join(', ')}. Use o nome completo`);
-  return achados[0];
+  let todos = GRUPOS(md).filter(x => x.a?.nome && !x.a.pausado);
+  if (modalidade) todos = todos.filter(x => x.modalidade === modalidade);
+  const exato = todos.filter(x => sem(x.a.nome) === q);
+  const achados = exato.length ? exato : todos.filter(x => sem(x.a.nome).includes(q));
+  if (!achados.length) throw new ErroEscrita(`Aluno "${nome}" não encontrado entre os ativos${modalidade ? ` (${modalidade})` : ' (online, presencial, parcerias)'}`);
+  if (achados.length > 1) {
+    const ks = new Set(achados.map(x => fim8(x.a.telefone)));
+    if (ks.size === 1 && [...ks][0]) return achados.sort((x, y) => PESO[x.modalidade] - PESO[y.modalidade])[0].a;   // mesma pessoa
+    throw new ErroEscrita(`Mais de um aluno com "${nome}": ${achados.map(x => `${x.a.nome} (${x.modalidade})`).join(', ')}. Use o nome completo ou informe a modalidade`);
+  }
+  return achados[0].a;
 }
 
 export async function salvarMes(key, md) {
@@ -101,7 +111,7 @@ export async function escreverTreino(acao, args) {
   const key = monthKey();
   const md = await fetchData(key, SUPABASE_URL(), SUPABASE_KEY());
   if (!md) throw new ErroEscrita('Mês atual sem dados no app');
-  const a = acharAluno(md, args.nome);
+  const a = acharAluno(md, args.nome, args.modalidade);
   const r = aplicar(acao, a, args, hojeBR());
   await saveUndo(key, JSON.parse(JSON.stringify(md)), SUPABASE_URL(), SUPABASE_KEY()).catch(() => {});
   await salvarMes(key, md);
@@ -109,24 +119,25 @@ export async function escreverTreino(acao, args) {
 }
 
 const nomeProp = { type: 'string', description: 'Nome do aluno (nome completo ou trecho único)' };
+const modProp = { type: 'string', enum: ['online', 'presencial', 'parceria'], description: 'Opcional. Quem está em duas modalidades com o mesmo telefone tem o treino na linha presencial (padrão); use só para forçar outra' };
 const dataProp = d => ({ type: 'string', description: d });
 
 export const ESCRITA_TOOLS = [
   { name: 'treino_pausar', title: 'Pausar treino',
     description: 'Pausa o treino do aluno (ele continua ativo no Gestor e sai das listas de vencimento). Mesma ação do botão "Pausar" do app.',
-    inputSchema: { type: 'object', properties: { nome: nomeProp }, required: ['nome'], additionalProperties: false } },
+    inputSchema: { type: 'object', properties: { nome: nomeProp, modalidade: modProp }, required: ['nome'], additionalProperties: false } },
   { name: 'treino_retomar', title: 'Retomar treino',
     description: 'Retoma o treino pausado e empurra a próxima atualização pelos dias em que ficou pausado (igual ao app).',
-    inputSchema: { type: 'object', properties: { nome: nomeProp }, required: ['nome'], additionalProperties: false } },
+    inputSchema: { type: 'object', properties: { nome: nomeProp, modalidade: modProp }, required: ['nome'], additionalProperties: false } },
   { name: 'treino_registrar_entrega', title: 'Registrar entrega do treino',
     description: 'Registra que o treino novo foi entregue: atualiza a última e a próxima atualização (padrão 42 dias depois), zera o status do formulário e despausa. Não marca "Feito" na planilha do Google.',
-    inputSchema: { type: 'object', properties: { nome: nomeProp, entrega: dataProp('Data da entrega YYYY-MM-DD (padrão: hoje)'), proxima_atualizacao: dataProp('Próxima atualização YYYY-MM-DD (padrão: entrega + 42 dias)') }, required: ['nome'], additionalProperties: false } },
+    inputSchema: { type: 'object', properties: { nome: nomeProp, modalidade: modProp, entrega: dataProp('Data da entrega YYYY-MM-DD (padrão: hoje)'), proxima_atualizacao: dataProp('Próxima atualização YYYY-MM-DD (padrão: entrega + 42 dias)') }, required: ['nome'], additionalProperties: false } },
   { name: 'treino_formulario_enviado', title: 'Marcar formulário enviado',
     description: 'Marca no Gestor que o formulário de atualização foi enviado ao aluno (status "aguardando resposta").',
-    inputSchema: { type: 'object', properties: { nome: nomeProp, enviado_em: dataProp('YYYY-MM-DD (padrão: hoje)') }, required: ['nome'], additionalProperties: false } },
+    inputSchema: { type: 'object', properties: { nome: nomeProp, modalidade: modProp, enviado_em: dataProp('YYYY-MM-DD (padrão: hoje)') }, required: ['nome'], additionalProperties: false } },
   { name: 'treino_corrigir_data', title: 'Corrigir próxima atualização',
     description: 'Corrige só a data da próxima atualização do treino do aluno.',
-    inputSchema: { type: 'object', properties: { nome: nomeProp, proxima_atualizacao: dataProp('YYYY-MM-DD') }, required: ['nome', 'proxima_atualizacao'], additionalProperties: false } },
+    inputSchema: { type: 'object', properties: { nome: nomeProp, modalidade: modProp, proxima_atualizacao: dataProp('YYYY-MM-DD') }, required: ['nome', 'proxima_atualizacao'], additionalProperties: false } },
 ].map(t => ({ ...t, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } }));
 
 export const ESCRITA_NOMES = new Set(ESCRITA_TOOLS.map(t => t.name));

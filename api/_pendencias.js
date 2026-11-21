@@ -18,16 +18,13 @@ export function qualidadeDados(md) {
     ...(md.calistenia || []).map(a => ({ a, mod: 'calistenia' })),
   ].filter(({ a }) => a?.nome && !a.pausado);
   const alertas = [];
-  const primeiros = {};
+  const vistos = {};
   for (const { a, mod } of lista) {
     if (mod !== 'parceria' && !so(a.telefone)) alertas.push({ tipo: 'sem_telefone', aluno: a.nome, modalidade: mod });
     if (/\b(teste|test)\b/.test(sem(a.nome))) alertas.push({ tipo: 'possivel_registro_de_teste', aluno: a.nome, modalidade: mod });
-    const k = sem(a.nome).split(/\s+/)[0];
-    (primeiros[k] = primeiros[k] || []).push(a.nome);
-  }
-  for (const nomes of Object.values(primeiros)) {
-    const unicos = [...new Set(nomes)];
-    if (nomes.length > unicos.length) alertas.push({ tipo: 'nome_duplicado', alunos: unicos });
+    const k = `${mod}|${sem(a.nome)}`;
+    vistos[k] = (vistos[k] || 0) + 1;
+    if (vistos[k] === 2) alertas.push({ tipo: 'nome_duplicado', aluno: a.nome, modalidade: mod });
   }
   return alertas;
 }

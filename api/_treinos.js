@@ -20,8 +20,19 @@ export function vencimentos(md, { hoje, dias = 7, todos = false, respostas = nul
     ...(md.personal?.presencial || []).map(a => ({ a, modalidade: 'presencial' })),
     ...(md.parcerias || []).map(a => ({ a, modalidade: 'parceria' })),
   ].filter(({ a }) => a?.nome && !a.pausado);
+  // Mesma pessoa em mais de uma modalidade (mesmo telefone): o treino é um só. A linha presencial concentra
+  // as informações de treino; a online (ou parceria) fica só para cobrança e sai desta lista.
+  const PESO = { presencial: 0, 'consultoria online': 1, parceria: 2 };
+  const fim8 = t => { const d = so(t); return d.length >= 8 ? d.slice(-8) : null; };
+  const melhor = new Map();
+  for (const x of lista) {
+    const k = fim8(x.a.telefone); if (!k) continue;
+    const cur = melhor.get(k);
+    if (!cur || PESO[x.modalidade] < PESO[cur.modalidade]) melhor.set(k, x);
+  }
+  const unica = lista.filter(x => { const k = fim8(x.a.telefone); return !k || melhor.get(k) === x; });
 
-  const alunos = lista.map(({ a, modalidade }) => {
+  const alunos = unica.map(({ a, modalidade }) => {
     const prox = /^\d{4}-\d{2}-\d{2}$/.test(a.proxAtt || '') ? a.proxAtt : null;
     const faltam = prox ? diasEntre(hoje, prox) : null;
     const fs = a.formStatus && a.formStatus !== 'ok' ? a.formStatus : null;
