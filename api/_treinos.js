@@ -65,6 +65,7 @@ export function vencimentos(md, { hoje, dias = 7, todos = false, respostas = nul
         ultima_resposta_formulario: resp ? { data: resp.data?.slice(0, 10) || null, planilha: resp.consultoria, aba: resp.aba, marcada_feito: resp.feito } : null,
       } : {}),
       treino_pausado: !!a.treinoPausado,
+      ...(a.prorrogacoes?.length ? { prorrogacoes: a.prorrogacoes.length, ultima_prorrogacao: a.prorrogacoes[a.prorrogacoes.length - 1] } : {}),
       atualizacao_desatualizada: desatualizada,
       ...(desatualizada ? { aviso: 'última atualização no Gestor desatualizada, registrar' } : {}),
       mandar_formulario: !a.treinoPausado && !fs && !faltaMontar && faltam !== null && faltam <= dias,

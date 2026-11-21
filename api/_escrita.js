@@ -85,6 +85,7 @@ export function aplicar(acao, a, args, hoje) {
       const prox = args.proxima_atualizacao || isoMais(ent, CICLO);
       checaData(prox, 'proxima_atualizacao');
       if (prox <= ent) throw new ErroEscrita('A próxima atualização tem que ser depois da entrega');
+      if (a.prorrogacoes?.length) { a.prorrogacoesAnteriores = [...(a.prorrogacoesAnteriores || []), ...a.prorrogacoes]; a.prorrogacoes = []; }   // novo ciclo: zera a contagem, guarda o histórico
       Object.assign(a, { attTreino: ent, proxAtt: prox, formStatus: 'ok', formEnviadoEm: null, treinoPausado: false, treinoPausadoEm: null });
       resumo = `Entrega de ${a.nome} registrada em ${ent}; próxima atualização ${prox}`;
       break;
@@ -94,6 +95,25 @@ export function aplicar(acao, a, args, hoje) {
       if (args.enviado_em) checaData(args.enviado_em, 'enviado_em');
       resumo = `Formulário de ${a.nome} marcado como enviado em ${a.formEnviadoEm}`;
       break;
+    case 'treino_prorrogar': {
+      const motivo = String(args.motivo || '').trim();
+      if (!motivo) throw new ErroEscrita('Informe o "motivo" da prorrogação (ex.: treinou 6 de 18 sessões)');
+      if (!a.proxAtt || !RE_DATA.test(a.proxAtt)) throw new ErroEscrita(`${a.nome} está sem data de próxima atualização; use treino_corrigir_data primeiro`);
+      if (a.treinoPausado) throw new ErroEscrita(`Treino de ${a.nome} está pausado; retome antes de prorrogar`);
+      let nova;
+      if (args.nova_data) { checaData(args.nova_data, 'nova_data'); nova = args.nova_data; }
+      else {
+        const d = Number(args.dias);
+        if (!Number.isInteger(d) || d < 1 || d > 90) throw new ErroEscrita('Informe "dias" (1 a 90) ou "nova_data"');
+        nova = isoMais(a.proxAtt, d);
+      }
+      if (nova <= a.proxAtt) throw new ErroEscrita(`A nova data (${nova}) precisa ser depois da atual (${a.proxAtt})`);
+      (a.prorrogacoes = a.prorrogacoes || []).push({ em: hoje, de: a.proxAtt, para: nova, motivo });
+      a.proxAtt = nova;
+      resumo = `Treino de ${a.nome} prorrogado: ${antes.proxAtt} → ${nova} (${a.prorrogacoes.length}ª prorrogação). Motivo: ${motivo}`
+        + (a.prorrogacoes.length >= 2 ? '. ATENÇÃO: segunda prorrogação seguida, vale checar se o treino está difícil de encaixar' : '');
+      break;
+    }
     case 'treino_corrigir_data': {
       checaData(args.proxima_atualizacao, 'proxima_atualizacao');
       a.proxAtt = args.proxima_atualizacao;
@@ -135,6 +155,9 @@ export const ESCRITA_TOOLS = [
   { name: 'treino_formulario_enviado', title: 'Marcar formulário enviado',
     description: 'Marca no Gestor que o formulário de atualização foi enviado ao aluno (status "aguardando resposta").',
     inputSchema: { type: 'object', properties: { nome: nomeProp, modalidade: modProp, enviado_em: dataProp('YYYY-MM-DD (padrão: hoje)') }, required: ['nome'], additionalProperties: false } },
+  { name: 'treino_prorrogar', title: 'Prorrogar treino',
+    description: 'Prorroga a próxima atualização de um aluno que treinou pouco e ainda não precisa trocar o treino. Exige o motivo e o registra no histórico do aluno (conta quantas prorrogações já houve). Passe "dias" a somar à data atual ou "nova_data". Diferente de pausar: o aluno continua no fluxo normal.',
+    inputSchema: { type: 'object', properties: { nome: nomeProp, modalidade: modProp, dias: { type: 'integer', minimum: 1, maximum: 90, description: 'Dias a somar à próxima atualização atual' }, nova_data: dataProp('Alternativa a "dias": nova data YYYY-MM-DD'), motivo: { type: 'string', description: 'Por que prorrogar (ex.: treinou 6 de 18 sessões)' } }, required: ['nome', 'motivo'], additionalProperties: false } },
   { name: 'treino_corrigir_data', title: 'Corrigir próxima atualização',
     description: 'Corrige só a data da próxima atualização do treino do aluno.',
     inputSchema: { type: 'object', properties: { nome: nomeProp, modalidade: modProp, proxima_atualizacao: dataProp('YYYY-MM-DD') }, required: ['nome', 'proxima_atualizacao'], additionalProperties: false } },

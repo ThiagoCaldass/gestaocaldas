@@ -53,6 +53,7 @@ export function pendencias(md, { hoje, respostas = null, dias = 7, pedidos = [] 
     alteracoes_pedidas: abertos(pedidos || []).map(p => { const x = visao(p, hoje); return { id: x.id, aluno: x.aluno, resumo: x.resumo, tipo: x.tipo, urgencia: x.urgencia, dias_esperando: x.dias_esperando }; }),
     sem_data: v.sem_data,
     treinos_pausados: v.treino_pausado,
+    prorrogados: v.alunos.filter(x => x.prorrogacoes).map(x => ({ aluno: x.nome, vezes: x.prorrogacoes, proxima_atualizacao: x.proxima_atualizacao, ultimo_motivo: x.ultima_prorrogacao.motivo, em: x.ultima_prorrogacao.em })),
     pagamentos_em_aberto: pagamentosAbertos(md),
     qualidade_dos_dados: qualidadeDados(md),
     ...(pedidos === null ? { aviso_pedidos: 'Não consegui ler os pedidos de treino' } : {}),
