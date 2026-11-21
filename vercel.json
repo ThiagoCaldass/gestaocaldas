@@ -32,6 +32,9 @@
     },
     "api/mcp.js": {
       "maxDuration": 60
+    },
+    "api/pedidos-webhook.js": {
+      "maxDuration": 30
     }
   }
 }

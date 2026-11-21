@@ -1887,6 +1887,55 @@ async function carregarCentralAdiados() {
   } catch (e) { _ctAdiados = _ctAdiados || {}; }
   if (currentPage === 'central') renderCentral(getMonthData());
 }
+// ── Pedidos de mudança no treino (detectados no WhatsApp pelo servidor, em __pedidos_treino__) ──
+let _ctPedidos = null, _ctPedidosEm = 0;
+async function carregarPedidosTreino() {
+  try { const d = await sbGet('__pedidos_treino__'); _ctPedidos = Array.isArray(d) ? d : []; }
+  catch (e) { _ctPedidos = _ctPedidos || []; }
+  _ctPedidosEm = Date.now();
+  if (currentPage === 'central') renderCentral(getMonthData());
+}
+async function _pedidoMudarStatus(id, status) {
+  // lê de novo antes de gravar: o webhook pode ter acrescentado pedidos nesse meio tempo
+  const lista = await sbGet('__pedidos_treino__');
+  const p = Array.isArray(lista) && lista.find(x => x.id === id);
+  if (!p) throw new Error('Pedido não encontrado');
+  p.status = status; p.concluido_em = status === 'feito' ? new Date().toISOString() : null;
+  await sbUpsert('__pedidos_treino__', lista);
+  _ctPedidos = lista;
+  return p;
+}
+async function concluirPedidoTreino(id) {
+  if (guardReadOnly()) return;
+  try {
+    const p = await _pedidoMudarStatus(id, 'feito');
+    renderCentral(getMonthData());
+    showToast(`Pedido de ${_ctEsc(String(p.aluno || p.nome_contato || 'aluno').split(/\s+/)[0])} feito`, '', 6000, 'Desfazer', () => reabrirPedidoTreino(id));
+  } catch (e) { alert('Não deu para salvar: ' + e.message); }
+}
+async function reabrirPedidoTreino(id) {
+  try { await _pedidoMudarStatus(id, 'aberto'); renderCentral(getMonthData()); } catch (e) { alert('Não deu para salvar: ' + e.message); }
+}
+function _ctPedidosSecao(ro, alunos) {
+  if (_ctPedidos === null) return { qtd: 0, corpo: _ctVazio('Carregando…') };
+  const URG = { alta: 0, media: 1, baixa: 2 };
+  const TIPO = { troca_exercicio: 'troca de exercício', dor_lesao: 'dor/lesão', equipamento: 'equipamento', dias_volume: 'dias/volume', duvida_tecnica: 'dúvida técnica', outro: 'outro', nao_classificada: 'não classificada' };
+  const ab = _ctPedidos.filter(p => p.status === 'aberto')
+    .sort((x, y) => (URG[x.urgencia] ?? 1) - (URG[y.urgencia] ?? 1) || String(x.criado_em).localeCompare(String(y.criado_em)));
+  return _ctSecao('pedidos', ab.map(p => {
+    const al = _ctAcharAluno(alunos, { nome: p.aluno, telefone: p.telefone });
+    const nome = p.aluno || p.nome_contato || (p.telefone ? '+' + p.telefone : 'Contato');
+    const frase = String(p.mensagem_original || '').slice(-160);
+    return { chave: `pedido:${p.id}`, nome, linha: {
+      icone: p.urgencia === 'alta' ? '🔴' : p.urgencia === 'baixa' ? '⚪' : '🟡',
+      titulo: `${al ? _ctTipoBadge(al._tipo) + ' ' : (p.aluno ? '' : '<span class="badge badge-yellow" title="Não achei esse telefone no Gestor">?</span> ')}${_ctEsc(nome)}`,
+      sub: `${_ctEsc(p.resumo || '')} · ${TIPO[p.tipo] || _ctEsc(p.tipo)} · ${_ctHa(p.criado_em)}${frase ? `<br><span style="font-style:italic">"${_ctEsc(frase)}"</span>` : ''}`,
+      cor: p.urgencia === 'alta' ? 'var(--red)' : '',
+      botoes: _ctBtnLink('💬', _ctLinkWhats(al?._tel || p.telefone), 'Abrir conversa')
+        + (ro ? '' : _ctBtn('✓ Feito', `onclick="concluirPedidoTreino('${p.id}')"`, 'Marcar o pedido como atendido')),
+    } };
+  }), '✓ Nenhum pedido de mudança no treino');
+}
 function _ctEstaAdiado(chave) {
   const a = _ctAdiados?.[chave];
   if (!a || a.desfeito) return false;
@@ -2135,6 +2184,7 @@ function renderCentral(md) {
 
   const mk = monthKey();
   if (_ctAdiados === null) { _ctAdiados = {}; carregarCentralAdiados(); }
+  if (_ctPedidos === null || Date.now() - _ctPedidosEm > 60000) { _ctPedidosEm = Date.now(); carregarPedidosTreino(); }
 
   // ── Formulários (planilhas) ──
   let formCorpo, formQtd = 0;
@@ -2235,7 +2285,8 @@ function renderCentral(md) {
   const previsto = ativos.reduce((s, a) => s + (a._valor || 0), 0);
   const recebido = ativos.filter(a => a.pago).reduce((s, a) => s + (a._valor || 0), 0);
   const lemb = _ctLembretes(ro);
-  const pend = formQtd + secTreino.qtd + pgtosAtrasadosVis + (convQtd ? 1 : 0) + secContas.qtd + lemb.vencidos;
+  const secPedidos = _ctPedidosSecao(ro, alunos);
+  const pend = secPedidos.qtd + formQtd + secTreino.qtd + pgtosAtrasadosVis + (convQtd ? 1 : 0) + secContas.qtd + lemb.vencidos;
   const badge = document.getElementById('central-badge');
   if (badge) { badge.textContent = pend; badge.style.display = pend ? 'inline-flex' : 'none'; }
 
@@ -2270,6 +2321,7 @@ function renderCentral(md) {
     ${semTel && !ro ? `<div class="ct-faixa" onclick="abrirCompletarTelefones()">📞 <strong>${semTel}</strong> aluno(s) ativo(s) sem telefone ficam sem botão de WhatsApp <span class="btn btn-ghost btn-sm ct-bt" style="margin-left:auto">Completar</span></div>` : ''}
     <div class="ct-grid">
       ${lemb.html}
+      ${_ctCard('✏️ Pedidos de treino', secPedidos.qtd, secPedidos.corpo)}
       ${_ctCard('📝 Formulários', formQtd, formCorpo)}
       ${_ctCard('📋 Treinos', secTreino.qtd, secTreino.corpo)}
       ${_ctCard('💬 Conversas sem resposta', convQtd, convCorpo, _ctBtnLink('MarcFlow ↗', CENTRAL_MARCFLOW, 'Abrir o MarcFlow'))}

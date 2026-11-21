@@ -42,7 +42,17 @@ function daysUntilAcerto(diaAcertoStr, todayNum) {
   return parseInt(m[0]) - todayNum;
 }
 
-function buildDigest(md, lembretes = []) {
+// Pedidos de mudança no treino abertos há mais de 2 dias (vêm do webhook do WhatsApp)
+const semMd = t => String(t || '').replace(/[*_`\[\]]/g, '');
+export function pedidosAtrasados(pedidos, hojeISO) {
+  return (Array.isArray(pedidos) ? pedidos : [])
+    .filter(p => p.status === 'aberto')
+    .map(p => ({ p, dias: Math.floor((Date.parse(hojeISO) - Date.parse(String(p.criado_em).slice(0, 10))) / 86400000) }))
+    .filter(x => x.dias > 2)
+    .sort((a, b) => b.dias - a.dias);
+}
+
+export function buildDigest(md, lembretes = [], pedidos = []) {
   const today    = new Date();
   const todayS   = today.toISOString().split('T')[0];
   const in3S     = new Date(today.getTime() + 3 * 86400000).toISOString().split('T')[0];
@@ -108,7 +118,19 @@ function buildDigest(md, lembretes = []) {
     lines.push('');
   }
 
-  // ── 3. Lembretes customizados (apenas não concluídos)
+  // ── 3. Pedidos de treino esperando há mais de 2 dias
+  const atrasados = pedidosAtrasados(pedidos, todayS);
+  if (atrasados.length > 0) {
+    lines.push(`✏️ *Pedidos de treino esperando (${atrasados.length})*`);
+    atrasados.forEach(({ p, dias }) => {
+      const quem = semMd(p.aluno || p.nome_contato || p.telefone);
+      lines.push(`  • ${quem} — ${semMd(p.resumo)} _(há ${dias} dias${p.urgencia === 'alta' ? ', urgente' : ''})_`);
+      tasks.push({ title: `Pedido de treino – ${p.aluno || p.nome_contato || p.telefone}`, notes: `${p.resumo} • há ${dias} dias`, category: 'treino' });
+    });
+    lines.push('');
+  }
+
+  // ── 4. Lembretes customizados (apenas não concluídos)
   const pendLembretes = lembretes.filter(l => !l.concluido);
   if (pendLembretes.length > 0) {
     lines.push(`🔔 *Lembretes (${pendLembretes.length})*`);
@@ -135,9 +157,10 @@ export default async function handler(req, res) {
 
   try {
     const key = monthKey();
-    const [md, lembretes] = await Promise.all([
+    const [md, lembretes, pedidos] = await Promise.all([
       fetchData(key, SUPABASE_URL, SUPABASE_KEY),
       fetchData('__lembretes__', SUPABASE_URL, SUPABASE_KEY),
+      fetchData('__pedidos_treino__', SUPABASE_URL, SUPABASE_KEY).catch(() => []),
     ]);
 
     const lembs = Array.isArray(lembretes) ? lembretes : [];
@@ -145,7 +168,7 @@ export default async function handler(req, res) {
     // Modo JSON: retorna tarefas estruturadas para iOS Shortcuts
     if (req.query?.format === 'json') {
       if (!md) return res.status(200).json({ tasks: [], hasItems: false });
-      const { tasks, hasItems, dayLabel } = buildDigest(md, lembs);
+      const { tasks, hasItems, dayLabel } = buildDigest(md, lembs, pedidos);
       return res.status(200).json({
         tasks,
         hasItems,
@@ -160,7 +183,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    const { message } = buildDigest(md, lembs);
+    const { message } = buildDigest(md, lembs, pedidos);
     await sendTelegram(message);
 
     return res.status(200).json({ ok: true });

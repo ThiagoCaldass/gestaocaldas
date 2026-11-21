@@ -343,3 +343,9 @@ export async function executarWhatsapp(nome, args = {}, { fetchFn = fetch, agora
       throw new ErroWhats(`Ferramenta desconhecida: ${nome}`);
   }
 }
+
+/** Últimas mensagens de um chat (mais antigas primeiro), para dar contexto ao classificador de pedidos. */
+export async function ultimasMensagens(jid, n = 6, { fetchFn = fetch } = {}) {
+  const j = await api(`/chat/{s}/${encodeURIComponent(jid)}`, { fetchFn });
+  return (j.data || []).slice(-n).map(m => ({ id: m.keyId, de: m.fromMe ? 'Thiago' : 'aluno', texto: m.content || m.caption || '', quando: m.timestamp }));
+}
