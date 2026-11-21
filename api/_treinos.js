@@ -33,8 +33,10 @@ export function vencimentos(md, { hoje, dias = 7, todos = false, respostas = nul
       : prox ? new Date(Date.parse(prox) - CICLO * DIA).toISOString().slice(0, 10) : null;
     const respNova = !!(ref && resp?.data && resp.data.slice(0, 10) > ref);
     const enviadoHa = /^\d{4}-\d{2}-\d{2}$/.test(a.formEnviadoEm || '') ? diasEntre(a.formEnviadoEm, hoje) : null;
-    const formulario = respNova
-      ? (resp.feito ? 'respondido e marcado como Feito na planilha (falta registrar a atualização no Gestor)' : 'respondido (está na planilha), falta montar o treino')
+    // Só resposta sem "Feito" tira o aluno de mandar_formulario: com "Feito" ela já virou treino
+    const faltaMontar = respNova && !resp.feito;
+    const desatualizada = respNova && !!resp.feito;
+    const formulario = faltaMontar ? 'respondido (está na planilha), falta montar o treino'
       : fs === 'aguardando' && enviadoHa !== null && enviadoHa >= COBRAR ? `enviado há ${enviadoHa} dia(s), sem resposta — cobrar`
       : fs === 'aguardando' && enviadoHa !== null ? `enviado há ${enviadoHa} dia(s), esperando resposta`
       : SIT_FORM[fs] || 'não enviado';
@@ -52,7 +54,9 @@ export function vencimentos(md, { hoje, dias = 7, todos = false, respostas = nul
         ultima_resposta_formulario: resp ? { data: resp.data?.slice(0, 10) || null, planilha: resp.consultoria, aba: resp.aba, marcada_feito: resp.feito } : null,
       } : {}),
       treino_pausado: !!a.treinoPausado,
-      mandar_formulario: !a.treinoPausado && !fs && !respNova && faltam !== null && faltam <= dias,
+      atualizacao_desatualizada: desatualizada,
+      ...(desatualizada ? { aviso: 'última atualização no Gestor desatualizada, registrar' } : {}),
+      mandar_formulario: !a.treinoPausado && !fs && !faltaMontar && faltam !== null && faltam <= dias,
     };
   });
 

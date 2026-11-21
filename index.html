@@ -5829,7 +5829,7 @@ function renderTodosContent(md) {
     const treinoCell = a._tipo==='cali'
       ? `<td style="text-align:center"><span style="color:var(--text3);font-size:12px">—</span></td>`
       : `<td style="text-align:center${ro?'':';cursor:pointer'}" onclick="${ro?'':` attTreino('${a.id}') `}">
-          ${a.pausado?'—':`<span style="font-size:16px;line-height:1" title="${_ctEsc(statusTreino(a)?.txt||'')}">${_formEmoji(a)}</span>`}
+          ${a.pausado?'—':`<span title="${_ctEsc(statusTreino(a)?.txt||'')}">${_treinoCelula(a)}</span>`}
         </td>`;
 
     return `<tr data-nome="${a.nome}" data-tipo="${a._tipo}" data-valor="${a._valor}" data-pago="${a.pago?'1':'0'}" data-acerto="${a.diaAcerto||''}" data-att="${a.proxAtt||''}" data-belongs="${a._tipo}" style="${a.pausado?'opacity:0.45':''}">
@@ -6453,7 +6453,7 @@ function renderPersonalContent(md, tab) {
             })():(()=>{const n=(a.aulasDatas||[]).length;return `<span style="font-family:'Barlow Condensed';font-size:15px;font-weight:700;color:${n>0?'var(--accent)':'var(--text3)'}">${n}</span><span style="font-size:10px;color:var(--text3);margin-left:2px">aula${n!==1?'s':''}</span>`;})()}
           </td>
           ${(tab==='online'||tab==='presencial')?`<td style="text-align:center${ro?'':';cursor:pointer'}" onclick="attTreino('${a.id}')" title="${_ctEsc(statusTreino(a)?.txt||'')}">
-            ${a.pausado?'—':`<span style="font-size:16px;line-height:1;cursor:pointer">${_formEmoji(a)}</span>`}
+            ${a.pausado?'—':_treinoCelula(a)}
           </td>
 `:''}
           <td style="${ro?'':'cursor:pointer'}" onclick="${a.pausado?`togglePausadoPersonal('${a.id}')`:`togglePersonal('${a.id}')`}">
@@ -7058,6 +7058,18 @@ function saveEditCell_Cali(id, campo) {
 // ── Treino do aluno: uma janela só para todas as ações do ciclo ──
 const _alunoTreino = id => { const md = getMonthData(); return [...(md.personal?.online || []), ...(md.personal?.presencial || [])].find(x => x.id === id); };
 function _formEmoji(a) { return statusTreino(a)?.icone || '—'; }
+// Emoji da situação + data da próxima atualização (vermelho se venceu, amarelo se vence em até 7 dias)
+function _treinoCelula(a) {
+  const st = statusTreino(a);
+  let dataTxt;
+  if (!a.proxAtt) dataTxt = `<span style="color:var(--text3);font-size:11px">Definir</span>`;
+  else {
+    const d = st?.dias ?? _ctDias(a.proxAtt);
+    const cor = st?.k === 'pausado' ? 'var(--text3)' : d < 0 ? 'var(--red)' : d <= 7 ? '#f1c135' : 'var(--text2)';
+    dataTxt = `<span style="font-size:12px;font-weight:${d <= 7 ? 700 : 500};color:${cor}">${fmtDate(a.proxAtt)}</span>`;
+  }
+  return `<span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="font-size:16px;line-height:1">${st?.icone || '—'}</span>${dataTxt}</span>`;
+}
 function _treinoEmoji(proxAtt) {
   if (!proxAtt) return '📋';
   const h0 = new Date(); h0.setHours(0,0,0,0);
