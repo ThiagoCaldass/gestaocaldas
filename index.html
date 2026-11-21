@@ -1916,26 +1916,6 @@ async function concluirPedidoTreino(id) {
 async function reabrirPedidoTreino(id) {
   try { await _pedidoMudarStatus(id, 'aberto'); renderCentral(getMonthData()); } catch (e) { alert('Não deu para salvar: ' + e.message); }
 }
-function _ctPedidosSecao(ro, alunos) {
-  if (_ctPedidos === null) return { qtd: 0, corpo: _ctVazio('Carregando…') };
-  const URG = { alta: 0, media: 1, baixa: 2 };
-  const TIPO = { troca_exercicio: 'troca de exercício', dor_lesao: 'dor/lesão', equipamento: 'equipamento', dias_volume: 'dias/volume', duvida_tecnica: 'dúvida técnica', outro: 'outro', nao_classificada: 'não classificada' };
-  const ab = _ctPedidos.filter(p => p.status === 'aberto')
-    .sort((x, y) => (URG[x.urgencia] ?? 1) - (URG[y.urgencia] ?? 1) || String(x.criado_em).localeCompare(String(y.criado_em)));
-  return _ctSecao('pedidos', ab.map(p => {
-    const al = _ctAcharAluno(alunos, { nome: p.aluno, telefone: p.telefone });
-    const nome = p.aluno || p.nome_contato || (p.telefone ? '+' + p.telefone : 'Contato');
-    const frase = String(p.mensagem_original || '').slice(-160);
-    return { chave: `pedido:${p.id}`, nome, linha: {
-      icone: p.urgencia === 'alta' ? '🔴' : p.urgencia === 'baixa' ? '⚪' : '🟡',
-      titulo: `${al ? _ctTipoBadge(al._tipo) + ' ' : (p.aluno ? '' : '<span class="badge badge-yellow" title="Não achei esse telefone no Gestor">?</span> ')}${_ctEsc(nome)}`,
-      sub: `${_ctEsc(p.resumo || '')} · ${TIPO[p.tipo] || _ctEsc(p.tipo)} · ${_ctHa(p.criado_em)}${frase ? `<br><span style="font-style:italic">"${_ctEsc(frase)}"</span>` : ''}`,
-      cor: p.urgencia === 'alta' ? 'var(--red)' : '',
-      botoes: _ctBtnLink('💬', _ctLinkWhats(al?._tel || p.telefone), 'Abrir conversa')
-        + (ro ? '' : _ctBtn('✓ Feito', `onclick="concluirPedidoTreino('${p.id}')"`, 'Marcar o pedido como atendido')),
-    } };
-  }), '✓ Nenhum pedido de mudança no treino');
-}
 function _ctEstaAdiado(chave) {
   const a = _ctAdiados?.[chave];
   if (!a || a.desfeito) return false;
@@ -2136,8 +2116,25 @@ const _ctTipoBadge = t => t==='cali' ? `<span class="badge badge-gray">Cali</spa
 
 // ── Lembretes na Central (mesma lista do bloco do Dashboard) ──
 let _ctVerConcluidos = false;
-function _ctLembretes(ro) {
+function _ctLembretes(ro, alunos = []) {
   const hoje = new Date(); hoje.setHours(0,0,0,0);
+  // Pedidos de mudança no treino (vindos do WhatsApp ou criados pelo Claude) entram aqui, no topo, junto dos lembretes
+  const URG = { alta: 0, media: 1, baixa: 2 };
+  const TIPO = { troca_exercicio: 'troca de exercício', dor_lesao: 'dor/lesão', equipamento: 'equipamento', dias_volume: 'dias/volume', duvida_tecnica: 'dúvida técnica', outro: 'outro', nao_classificada: 'não classificada' };
+  const ped = (_ctPedidos || []).filter(p => p.status === 'aberto')
+    .sort((x, y) => (URG[x.urgencia] ?? 1) - (URG[y.urgencia] ?? 1) || String(x.criado_em).localeCompare(String(y.criado_em)));
+  const linhaPedido = p => {
+    const al = _ctAcharAluno(alunos, { nome: p.aluno, telefone: p.telefone });
+    const nome = p.aluno || p.nome_contato || (p.telefone ? '+' + p.telefone : 'Contato');
+    const frase = String(p.mensagem_original || '').slice(-160);
+    const icone = p.urgencia === 'alta' ? '🔴' : p.urgencia === 'baixa' ? '⚪' : '🟡';
+    return `<div class="ct-linha">
+      <button class="lb-check" ${ro ? 'disabled' : `onclick="concluirPedidoTreino('${p.id}')"`} title="Marcar como feito"></button>
+      <div class="ct-txt"><div class="lb-txt">✏️ <strong>${_ctEsc(nome)}</strong> · ${_ctEsc(p.resumo || '')}</div>
+        <div class="ct-sub"${p.urgencia === 'alta' ? ' style="color:var(--red)"' : ''}>${icone} ${TIPO[p.tipo] || _ctEsc(p.tipo)} · ${_ctHa(p.criado_em)}${frase ? `<br><span style="font-style:italic">"${_ctEsc(frase)}"</span>` : ''}</div></div>
+      <div class="ct-bts">${_ctBtnLink('💬', _ctLinkWhats(al?._tel || p.telefone), 'Abrir conversa')}</div>
+    </div>`;
+  };
   const diasAte = d => d ? Math.round((new Date(d + 'T00:00:00') - hoje) / 86400000) : null;
   const pend = globalLembretes.filter(l => !l.concluido)
     .sort((a, b) => (a.data || '9999') .localeCompare(b.data || '9999') || (a.criadoEm || 0) - (b.criadoEm || 0));
@@ -2154,7 +2151,7 @@ function _ctLembretes(ro) {
       ${ro ? '' : `<div class="ct-bts">${_ctBtn('✕', `onclick="deleteLembrete('${l.id}')"`, 'Apagar')}</div>`}
     </div>`;
   };
-  let corpo = pend.length ? pend.map(linha).join('') : _ctVazio('Nada para lembrar. Anote aqui o que não está em nenhum outro lugar do Gestor.');
+  let corpo = (ped.length || pend.length) ? ped.map(linhaPedido).join('') + pend.map(linha).join('') : _ctVazio('Nada para lembrar. Anote aqui o que não está em nenhum outro lugar do Gestor.');
   if (feitos.length) {
     corpo += `<div class="ct-ocultos" onclick="_ctVerConcluidos=${!_ctVerConcluidos};renderCentral(getMonthData())">${_ctVerConcluidos ? '▾' : '▸'} ${feitos.length} concluído(s)</div>`;
     if (_ctVerConcluidos) corpo += feitos.map(linha).join('')
@@ -2166,8 +2163,8 @@ function _ctLembretes(ro) {
       <button class="btn btn-primary btn-sm" onclick="addLembrete('lb-ct-texto','lb-ct-data')">+</button>
     </div>`;
   const vencidos = pend.filter(l => { const d = diasAte(l.data); return d !== null && d <= 0; }).length;
-  return { qtd: pend.length, vencidos, html: `<div class="table-card ct-card">
-    <div class="table-header"><div class="table-title">📌 Lembretes${pend.length ? ` <span class="ct-qtd">${pend.length}</span>` : ''}</div></div>
+  return { qtd: pend.length + ped.length, pedidos: ped.length, vencidos, html: `<div class="table-card ct-card">
+    <div class="table-header"><div class="table-title">📌 Lembretes${(pend.length + ped.length) ? ` <span class="ct-qtd">${pend.length + ped.length}</span>` : ''}</div></div>
     <div class="ct-lista">${corpo}</div>${form}
   </div>` };
 }
@@ -2284,9 +2281,8 @@ function renderCentral(md) {
   // ── Resumo ──
   const previsto = ativos.reduce((s, a) => s + (a._valor || 0), 0);
   const recebido = ativos.filter(a => a.pago).reduce((s, a) => s + (a._valor || 0), 0);
-  const lemb = _ctLembretes(ro);
-  const secPedidos = _ctPedidosSecao(ro, alunos);
-  const pend = secPedidos.qtd + formQtd + secTreino.qtd + pgtosAtrasadosVis + (convQtd ? 1 : 0) + secContas.qtd + lemb.vencidos;
+  const lemb = _ctLembretes(ro, alunos);
+  const pend = lemb.pedidos + formQtd + secTreino.qtd + pgtosAtrasadosVis + (convQtd ? 1 : 0) + secContas.qtd + lemb.vencidos;
   const badge = document.getElementById('central-badge');
   if (badge) { badge.textContent = pend; badge.style.display = pend ? 'inline-flex' : 'none'; }
 
@@ -2321,7 +2317,6 @@ function renderCentral(md) {
     ${semTel && !ro ? `<div class="ct-faixa" onclick="abrirCompletarTelefones()">📞 <strong>${semTel}</strong> aluno(s) ativo(s) sem telefone ficam sem botão de WhatsApp <span class="btn btn-ghost btn-sm ct-bt" style="margin-left:auto">Completar</span></div>` : ''}
     <div class="ct-grid">
       ${lemb.html}
-      ${_ctCard('✏️ Pedidos de treino', secPedidos.qtd, secPedidos.corpo)}
       ${_ctCard('📝 Formulários', formQtd, formCorpo)}
       ${_ctCard('📋 Treinos', secTreino.qtd, secTreino.corpo)}
       ${_ctCard('💬 Conversas sem resposta', convQtd, convCorpo, _ctBtnLink('MarcFlow ↗', CENTRAL_MARCFLOW, 'Abrir o MarcFlow'))}
