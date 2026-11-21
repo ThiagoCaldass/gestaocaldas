@@ -35,7 +35,7 @@ export function acharAluno(md, nome) {
   return achados[0];
 }
 
-async function salvarMes(key, md) {
+export async function salvarMes(key, md) {
   const r = await fetch(`${SUPABASE_URL()}/rest/v1/gestor_data`, {
     method: 'POST',
     headers: {

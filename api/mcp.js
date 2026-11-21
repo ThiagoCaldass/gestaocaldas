@@ -12,6 +12,7 @@ import { WA_TOOLS, WA_NOMES, executarWhatsapp, ErroWhats } from './_whatsapp.js'
 import { treinosVencimento } from './_treinos.js';
 import { pendencias } from './_pendencias.js';
 import { respostasFormulario } from './central.js';
+import { FIN_TOOLS, FIN_NOMES, escreverFin, desfazer } from './_financeiro.js';
 import { ESCRITA_TOOLS, ESCRITA_NOMES, escreverTreino, ErroEscrita } from './_escrita.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -24,7 +25,7 @@ const RE_MES = /^\d{4}-\d{2}$/;
 const INSTRUCOES = `Dados do Gestor Caldas, app de gestão financeira do Thiago Caldas (personal trainer autônomo: calistenia, consultoria online e aulas presenciais).
 Cada mês ("YYYY-MM") tem: ganhos e gastos da conta pessoal, alunos (com quem pagou e em qual conta), cartões (BB, Inter e empresarial) e a conta empresarial (saídas e retiradas para a conta pessoal).
 Valores em reais. "saldo_real" = recebido − pago na conta pessoal; a linha "Mês anterior" é o saldo que sobrou do mês anterior. Retiradas da conta empresarial aparecem como ganho pessoal.
-Comece por listar_meses para saber quais meses existem. As ferramentas de finanças são só de leitura. Para treinos: pendencias mostra o que fazer hoje; treino_pausar, treino_retomar, treino_registrar_entrega, treino_formulario_enviado e treino_corrigir_data gravam no mês atual (confirme com o Thiago antes de gravar).\nTreinos: treinos_vencimento mostra quando vence o treino de cada aluno e para quem mandar o formulário de atualização.
+Comece por listar_meses para saber quais meses existem. As ferramentas de leitura de finanças não alteram nada; as fin_* gravam (confirme com o Thiago antes de gravar e use desfazer_ultima_alteracao se errar). Para treinos: pendencias mostra o que fazer hoje; treino_pausar, treino_retomar, treino_registrar_entrega, treino_formulario_enviado e treino_corrigir_data gravam no mês atual (confirme com o Thiago antes de gravar).\nTreinos: treinos_vencimento mostra quando vence o treino de cada aluno e para quem mandar o formulário de atualização.
 
 WhatsApp de trabalho (ferramentas whatsapp_*, pelo MarcFlow): dá para ler conversas, buscar mensagens, ver agendamentos e os fluxos automáticos, e também enviar texto, enviar arquivo por link (Drive, Docs ou https), responder, agendar e marcar como lida. Arquivo anexado no chat não dá para enviar: peça ao Thiago um link do Drive com acesso "Qualquer pessoa com o link". Para enviar ou agendar, mostre antes ao Thiago o destinatário e o texto exato (ou o arquivo e a legenda) e espere ele confirmar. Escreva como o Thiago escreve: curto, informal, em português do Brasil.`;
 
@@ -107,7 +108,7 @@ const TOOLS = [
     description: 'Lista do que o Thiago precisa fazer hoje com base no Gestor: formulários a enviar, treinos a montar (aluno respondeu), datas a registrar, formulários sem resposta, alunos sem data, pagamentos em aberto e alertas de qualidade dos dados (telefone faltando, nome duplicado, registro de teste). Não inclui follow-up de WhatsApp.',
     inputSchema: { type: 'object', properties: { dias: { type: 'integer', minimum: 0, maximum: 90, description: 'Janela em dias para "vencendo" (padrão 7)' } }, additionalProperties: false },
   },
-].map(t => ({ ...t, annotations: { readOnlyHint: true, openWorldHint: false } })).concat(ESCRITA_TOOLS, WA_TOOLS);
+].map(t => ({ ...t, annotations: { readOnlyHint: true, openWorldHint: false } })).concat(ESCRITA_TOOLS, FIN_TOOLS, WA_TOOLS);
 
 // ── Dados ─────────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,8 @@ class ErroUso extends Error {}
 
 async function executar(nome, args = {}) {
   if (WA_NOMES.has(nome)) return executarWhatsapp(nome, args);
+  if (nome === 'desfazer_ultima_alteracao') return desfazer(args);
+  if (FIN_NOMES.has(nome)) return escreverFin(nome, args);
   if (ESCRITA_NOMES.has(nome)) return escreverTreino(nome, args);
   switch (nome) {
     case 'listar_meses': {
@@ -220,7 +223,7 @@ async function responder(msg) {
       return ok(id, {
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'gestor-caldas', title: 'Gestor Caldas', version: '1.5.0' },
+        serverInfo: { name: 'gestor-caldas', title: 'Gestor Caldas', version: '1.6.0' },
         instructions: INSTRUCOES,
       });
     }
