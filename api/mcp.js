@@ -15,6 +15,7 @@ import { respostasFormulario } from './central.js';
 import { FIN_TOOLS, FIN_NOMES, escreverFin, desfazer } from './_financeiro.js';
 import { ESCRITA_TOOLS, ESCRITA_NOMES, escreverTreino, ErroEscrita } from './_escrita.js';
 import { PEDIDOS_TOOLS, PEDIDOS_NOMES, executarPedidos, lerPedidos } from './_pedidos.js';
+import { ALUNOS_TOOLS, ALUNOS_NOMES, completarDadosAluno } from './_alunos.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -26,7 +27,7 @@ const RE_MES = /^\d{4}-\d{2}$/;
 const INSTRUCOES = `Dados do Gestor Caldas, app de gestão financeira do Thiago Caldas (personal trainer autônomo: calistenia, consultoria online e aulas presenciais).
 Cada mês ("YYYY-MM") tem: ganhos e gastos da conta pessoal, alunos (com quem pagou e em qual conta), cartões (BB, Inter e empresarial) e a conta empresarial (saídas e retiradas para a conta pessoal).
 Valores em reais. "saldo_real" = recebido − pago na conta pessoal; a linha "Mês anterior" é o saldo que sobrou do mês anterior. Retiradas da conta empresarial aparecem como ganho pessoal.
-Comece por listar_meses para saber quais meses existem. As ferramentas de leitura de finanças não alteram nada; as fin_* gravam (confirme com o Thiago antes de gravar e use desfazer_ultima_alteracao se errar). Para treinos: pendencias mostra o que fazer hoje; treino_pausar, treino_retomar, treino_registrar_entrega, treino_formulario_enviado e treino_corrigir_data gravam no mês atual (confirme com o Thiago antes de gravar).\nTreinos: treinos_vencimento mostra quando vence o treino de cada aluno e para quem mandar o formulário de atualização.\nPedidos de treino: quando um aluno pede pelo WhatsApp para mudar o treino (trocar exercício, dor, equipamento, dias, dúvida), o Gestor detecta sozinho, guarda o pedido e avisa o Thiago no Telegram. pedidos_treino_listar mostra os abertos (também aparecem em pendencias, em "alteracoes_pedidas"); pedidos_treino_concluir marca como feito; pedidos_treino_criar registra um pedido à mão; pedidos_treino_desfazer volta a última alteração. Confirme com o Thiago antes de concluir ou criar. Nada disso responde ao aluno.
+Comece por listar_meses para saber quais meses existem. As ferramentas de leitura de finanças não alteram nada; as fin_* gravam (confirme com o Thiago antes de gravar e use desfazer_ultima_alteracao se errar). Para treinos: pendencias mostra o que fazer hoje; treino_pausar, treino_retomar, treino_registrar_entrega, treino_formulario_enviado e treino_corrigir_data gravam no mês atual (confirme com o Thiago antes de gravar).\nTreinos: treinos_vencimento mostra quando vence o treino de cada aluno e para quem mandar o formulário de atualização.\nFicha do aluno: aluno_completar_dados preenche telefone, e-mail e nascimento que estiverem vazios (não troca o que já existe; confirme com o Thiago antes de gravar).\nPedidos de treino: quando um aluno pede pelo WhatsApp para mudar o treino (trocar exercício, dor, equipamento, dias, dúvida), o Gestor detecta sozinho, guarda o pedido e avisa o Thiago no Telegram. pedidos_treino_listar mostra os abertos (também aparecem em pendencias, em "alteracoes_pedidas"); pedidos_treino_concluir marca como feito; pedidos_treino_criar registra um pedido à mão; pedidos_treino_desfazer volta a última alteração. Confirme com o Thiago antes de concluir ou criar. Nada disso responde ao aluno.
 
 WhatsApp de trabalho (ferramentas whatsapp_*, pelo MarcFlow): dá para ler conversas, buscar mensagens, ver agendamentos e os fluxos automáticos, e também enviar texto, enviar arquivo por link (Drive, Docs ou https), responder, agendar e marcar como lida. Arquivo anexado no chat não dá para enviar: peça ao Thiago um link do Drive com acesso "Qualquer pessoa com o link". Para enviar ou agendar, mostre antes ao Thiago o destinatário e o texto exato (ou o arquivo e a legenda) e espere ele confirmar. Escreva como o Thiago escreve: curto, informal, em português do Brasil.`;
 
@@ -109,7 +110,7 @@ const TOOLS = [
     description: 'Lista do que o Thiago precisa fazer hoje com base no Gestor: formulários a enviar, treinos a montar (aluno respondeu), datas a registrar, formulários sem resposta, alunos sem data, pagamentos em aberto e alertas de qualidade dos dados (telefone faltando, nome duplicado, registro de teste). Inclui "alteracoes_pedidas": pedidos de mudança no treino feitos pelos alunos e ainda abertos, com os dias de espera. Não inclui follow-up de WhatsApp.',
     inputSchema: { type: 'object', properties: { dias: { type: 'integer', minimum: 0, maximum: 90, description: 'Janela em dias para "vencendo" (padrão 7)' } }, additionalProperties: false },
   },
-].map(t => ({ ...t, annotations: { readOnlyHint: true, openWorldHint: false } })).concat(ESCRITA_TOOLS, PEDIDOS_TOOLS, FIN_TOOLS, WA_TOOLS);
+].map(t => ({ ...t, annotations: { readOnlyHint: true, openWorldHint: false } })).concat(ESCRITA_TOOLS, ALUNOS_TOOLS, PEDIDOS_TOOLS, FIN_TOOLS, WA_TOOLS);
 
 // ── Dados ─────────────────────────────────────────────────────────────────────
 
@@ -150,6 +151,7 @@ async function executar(nome, args = {}) {
   if (nome === 'desfazer_ultima_alteracao') return desfazer(args);
   if (FIN_NOMES.has(nome)) return escreverFin(nome, args);
   if (ESCRITA_NOMES.has(nome)) return escreverTreino(nome, args);
+  if (ALUNOS_NOMES.has(nome)) return completarDadosAluno(args);
   if (PEDIDOS_NOMES.has(nome)) return executarPedidos(nome, args, { hoje: hojeBR() });
   switch (nome) {
     case 'listar_meses': {
